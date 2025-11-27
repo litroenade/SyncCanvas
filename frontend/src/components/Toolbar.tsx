@@ -19,13 +19,33 @@ export const Toolbar: React.FC = () => {
     const { shapes, currentTool, setCurrentTool, currentStrokeColor, currentFillColor, setCurrentStrokeColor, setCurrentFillColor } = useCanvasStore();
     const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const dataUrl = event.target?.result as string;
+        const token = localStorage.getItem('token');
+        
+        // 创建 FormData
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                headers: token ? {
+                    'Authorization': `Bearer ${token}`
+                } : {},
+                body: formData
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || '上传失败');
+            }
+
+            const data = await response.json();
+            
+            // 使用服务器返回的 URL
             addShape({
                 id: crypto.randomUUID(),
                 type: 'image',
@@ -33,10 +53,12 @@ export const Toolbar: React.FC = () => {
                 y: window.innerHeight / 2 - 100,
                 width: 200,
                 height: 200,
-                imageUrl: dataUrl
+                imageUrl: data.url
             });
-        };
-        reader.readAsDataURL(file);
+        } catch (error) {
+            console.error('图片上传失败:', error);
+            alert(error instanceof Error ? error.message : '图片上传失败');
+        }
 
         if (fileInputRef.current) {
             fileInputRef.current.value = '';

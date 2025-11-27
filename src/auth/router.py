@@ -66,11 +66,15 @@ SERVER_SECRET_KEY = _load_or_create_secret_key()
 
 
 class Token(BaseModel):
+    """JWT Token 响应模型"""
+
     access_token: str
     token_type: str
 
 
 class UserCreate(BaseModel):
+    """用户创建/返回模型"""
+
     username: str
     password: str
 
@@ -159,6 +163,7 @@ async def get_current_user(
     return user
 
 
-@router.get("/me", response_model=UserCreate)  # 简单返回用户名
+@router.get("/me", response_model=UserCreate)
 async def read_users_me(current_user: Annotated[User, Depends(get_current_user)]):
-    return {"username": current_user.username, "password": ""}  # 不返回密码 hash
+    """获取当前登录用户信息"""
+    return {"username": current_user.username, "password": ""}

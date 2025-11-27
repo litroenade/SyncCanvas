@@ -41,8 +41,7 @@ def mount_api_routes(app: FastAPI):
     挂载 API 路由
     
     统一管理所有 API 端点,前缀为 /api
-    
-    @param app - FastAPI 应用实例
+
     """
     api = APIRouter(prefix="/api", tags=["API"])
 
@@ -71,7 +70,7 @@ def mount_api_routes(app: FastAPI):
         """
         # 从 websocket_server 获取房间统计
         room_count = len(websocket_server.rooms)
-        
+
         return {
             "code": 0,
             "msg": "success",

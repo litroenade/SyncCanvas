@@ -1,10 +1,5 @@
 """模块名称: crud
-主要功能: 数据库 CRUD 操作，提供房间、快照、增量更新的增删改查功能
-
-@Time: 2025-11-26
-@Author: Yang208115
-@File: crud.py
-@Desc: 数据库 CRUD 操作
+主要功能: 数据库 CRUD 操作，提供房间、快照、更新等数据的增删改查
 """
 
 from typing import List, Optional

@@ -35,7 +35,7 @@ def load_config() -> dict[str, Any]:
         with open(config_path, "rb") as f:
             return tomllib.load(f)
     except (tomllib.TOMLDecodeError, OSError) as e:
-        print("Error loading config.toml: %s" % e)
+        print(f"Error loading config.toml: {e}")
         return {}
 
 
@@ -89,7 +89,7 @@ def get_or_create_secret_key() -> str:
             with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
                 settings = json.load(f)
         except (json.JSONDecodeError, OSError) as e:
-            print("Error loading settings.json: %s" % e)
+            print(f"Error loading settings.json: {e}")
 
     if "secret_key" not in settings:
         print("Generating new secret key...")
@@ -98,7 +98,7 @@ def get_or_create_secret_key() -> str:
             with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
                 json.dump(settings, f, indent=2)
         except OSError as e:
-            print("Error saving settings.json: %s" % e)
+            print(f"Error saving settings.json: {e}")
 
     return settings["secret_key"]
 

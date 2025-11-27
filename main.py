@@ -1,3 +1,7 @@
+"""模块名称: main
+主要功能: FastAPI 应用入口，配置路由、中间件和静态文件服务
+"""
+
 import os
 import asyncio
 from contextlib import asynccontextmanager
@@ -12,6 +16,7 @@ from src.config import HOST, PORT, ALLOWED_ORIGINS
 from src.logger import get_logger, setup_logging
 from src.auth.router import router as auth_router
 from src.routers.ai import router as ai_router
+from src.routers.upload import router as upload_router
 
 setup_logging()
 logger = get_logger(__name__)
@@ -66,19 +71,27 @@ app.add_middleware(
 # 注册路由
 app.include_router(auth_router)
 app.include_router(ai_router)
+app.include_router(upload_router)
 
-# ========== WebSocket 路由 (使用 pycrdt-websocket) ==========
+
 # 挂载 pycrdt-websocket 的 ASGI 服务器到 /ws 路径
 app.mount("/ws", asgi_server)
 
 
-# ========== 静态文件服务 (必须放在最后) ==========
+
+
+# 图片上传目录
+IMAGES_DIR = os.path.join(os.path.dirname(__file__), "data", "images")
+os.makedirs(IMAGES_DIR, exist_ok=True)
+
+# 挂载图片静态服务
+app.mount("/api/images", StaticFiles(directory=IMAGES_DIR), name="images")
 
 # 前端构建产物路径
 FRONTEND_DIST_DIR = os.path.join(os.path.dirname(__file__), "frontend", "dist")
 
 if os.path.exists(FRONTEND_DIST_DIR):
-    # 1. 挂载静态资源 (assets, etc.)
+
     app.mount("/", StaticFiles(directory=FRONTEND_DIST_DIR, html=True), name="static")
 else:
     logger.warning(
