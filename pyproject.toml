@@ -1,0 +1,23 @@
+[project]
+name = "backend"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aioredis>=2.0.1",
+    "aiosqlite>=0.21.0",
+    "fastapi>=0.121.3",
+    "json-repair>=0.54.2",
+    "openai>=2.8.1",
+    "pycrdt>=0.12.43",
+    "sqlalchemy>=2.0.44",
+    "uvicorn[standard]>=0.38.0",
+    "websockets>=15.0.1",
+    "sqlmodel>=0.0.14",
+    "pytest>=7.0.0",
+    "httpx>=0.24.0",
+    "passlib[bcrypt]>=1.7.4",
+    "python-jose[cryptography]>=3.5.0",
+    "pycrdt-websocket>=0.16.0",
+]
