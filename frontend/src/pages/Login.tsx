@@ -40,7 +40,7 @@ export const Login: React.FC = () => {
             localStorage.setItem('username', username);
             localStorage.removeItem('isGuest');
             setIsGuest(false);
-            navigate('/');
+            navigate('/rooms');
         } catch (err: any) {
             setError(err.message);
         }
@@ -51,7 +51,7 @@ export const Login: React.FC = () => {
         localStorage.removeItem('username');
         localStorage.setItem('isGuest', 'true');
         setIsGuest(true);
-        navigate('/');
+        navigate('/rooms');
     };
 
     return (

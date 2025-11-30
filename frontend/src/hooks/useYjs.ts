@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useCanvasStore, Shape } from '../stores/useCanvasStore';
-import { shapesMap, undoManager, provider, ydoc } from '../lib/yjs';
+import { yjsManager } from '../lib/yjs';
 
 const getRandomColor = (str?: string) => {
     const colors = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e'];
@@ -17,10 +17,19 @@ const storedUsername = localStorage.getItem('username');
 const myName = storedUsername || `Guest ${Math.floor(Math.random() * 1000)}`;
 const myColor = getRandomColor(myName);
 
-export const useYjs = () => {
+export const useYjs = (roomId?: string) => {
     const { setShapes, setCursors } = useCanvasStore();
 
     useEffect(() => {
+        // 如果没有 roomId，使用默认房间
+        const targetRoomId = roomId || 'default-room';
+        
+        // 连接到房间
+        yjsManager.connect(targetRoomId);
+
+        const shapesMap = yjsManager.shapesMap;
+        const provider = yjsManager.provider;
+
         // 从 Yjs 同步到 Store
         const observer = () => {
             const shapes = shapesMap.toJSON() as Record<string, Shape>;
@@ -28,6 +37,9 @@ export const useYjs = () => {
         };
 
         shapesMap.observe(observer);
+        
+        // 初始同步
+        observer();
 
         // Awareness
         const awareness = provider.awareness;
@@ -59,39 +71,54 @@ export const useYjs = () => {
         return () => {
             shapesMap.unobserve(observer);
             awareness.off('change', awarenessObserver);
+            // 注意：不在这里断开连接，因为可能是组件重新渲染
+            // 断开连接应该在用户主动离开房间时进行
         };
-    }, [setShapes, setCursors]);
+    }, [roomId, setShapes, setCursors]);
 
     // 更新 Yjs 的操作
-    const addShapeToYjs = (shape: Shape) => {
-        shapesMap.set(shape.id, shape);
-    };
+    const addShapeToYjs = useCallback((shape: Shape) => {
+        if (!yjsManager.isConnected) return;
+        yjsManager.shapesMap.set(shape.id, shape);
+    }, []);
 
-    const updateShapeInYjs = (id: string, attrs: Partial<Shape>) => {
+    const updateShapeInYjs = useCallback((id: string, attrs: Partial<Shape>) => {
+        if (!yjsManager.isConnected) return;
+        const shapesMap = yjsManager.shapesMap;
         const currentShape = shapesMap.get(id) as Shape | undefined;
         if (currentShape) {
             const updatedShape = { ...currentShape, ...attrs };
             shapesMap.set(id, updatedShape);
         }
-    };
+    }, []);
 
-    const deleteShapeInYjs = (id: string) => {
-        shapesMap.delete(id);
-    };
+    const deleteShapeInYjs = useCallback((id: string) => {
+        if (!yjsManager.isConnected) return;
+        yjsManager.shapesMap.delete(id);
+    }, []);
 
-    const undo = () => {
-        undoManager.undo();
-    };
+    const undo = useCallback(() => {
+        if (!yjsManager.isConnected) return;
+        yjsManager.undoManager.undo();
+    }, []);
 
-    const redo = () => {
-        undoManager.redo();
-    };
+    const redo = useCallback(() => {
+        if (!yjsManager.isConnected) return;
+        yjsManager.undoManager.redo();
+    }, []);
 
-    const updateAwareness = (x: number, y: number) => {
-        provider.awareness.setLocalStateField('cursor', { x, y });
-    };
+    const updateAwareness = useCallback((x: number, y: number) => {
+        const awareness = yjsManager.getAwareness();
+        if (awareness) {
+            awareness.setLocalStateField('cursor', { x, y });
+        }
+    }, []);
 
-    const updateShapesInYjs = (updates: Record<string, Partial<Shape>>) => {
+    const updateShapesInYjs = useCallback((updates: Record<string, Partial<Shape>>) => {
+        if (!yjsManager.isConnected) return;
+        const ydoc = yjsManager.ydoc;
+        const shapesMap = yjsManager.shapesMap;
+        
         ydoc.transact(() => {
             Object.entries(updates).forEach(([id, attrs]) => {
                 const currentShape = shapesMap.get(id) as Shape | undefined;
@@ -101,7 +128,13 @@ export const useYjs = () => {
                 }
             });
         });
-    };
+    }, []);
+
+    const leaveRoom = useCallback(() => {
+        yjsManager.disconnect();
+        setShapes({});
+        setCursors({});
+    }, [setShapes, setCursors]);
 
     return {
         addShape: addShapeToYjs,
@@ -110,6 +143,9 @@ export const useYjs = () => {
         deleteShape: deleteShapeInYjs,
         undo,
         redo,
-        updateAwareness
+        updateAwareness,
+        leaveRoom,
+        isConnected: yjsManager.isConnected,
+        currentRoomId: yjsManager.roomId,
     };
 };

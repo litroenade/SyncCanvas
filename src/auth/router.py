@@ -7,7 +7,7 @@ import json
 import secrets
 from datetime import timedelta
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -22,10 +22,13 @@ from .utils import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     SECRET_KEY,
     ALGORITHM,
+    get_current_user,
+    get_current_user_optional,
+    oauth2_scheme,
+    oauth2_scheme_optional,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
 # 设置文件路径
 SETTINGS_FILE = Path(__file__).resolve().parents[2] / "data" / "settings.json"
@@ -125,42 +128,6 @@ async def get_secret_key_hint():
     else:
         hint = "****"
     return {"hint": hint, "message": "完整 key 在 data/settings.json 中"}
-
-
-async def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)],
-    session: Session = Depends(get_session),
-) -> User:
-    """获取当前登录用户
-
-    Args:
-        token: JWT Token
-        session: 数据库会话
-
-    Returns:
-        User: 当前用户对象
-
-    Raises:
-        HTTPException: 认证失败时抛出 401 错误
-    """
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
-            raise credentials_exception
-    except JWTError as exc:
-        raise credentials_exception from exc
-
-    statement = select(User).where(User.username == username)
-    user = session.exec(statement).first()
-    if user is None:
-        raise credentials_exception
-    return user
 
 
 @router.get("/me", response_model=UserCreate)

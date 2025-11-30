@@ -1,7 +1,8 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import React, { Component, ErrorInfo, ReactNode, useEffect } from 'react';
 import { Canvas } from './components/Canvas';
 import { Login } from './pages/Login';
+import { Rooms } from './pages/Rooms';
 import { useYjs } from './hooks/useYjs';
 
 // ==================== 错误边界组件 ====================
@@ -111,10 +112,26 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route
-            path="/"
+            path="/rooms"
+            element={
+              <ProtectedRoute>
+                <Rooms />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/room/:roomId"
             element={
               <ProtectedRoute>
                 <Board />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Navigate to="/rooms" replace />
               </ProtectedRoute>
             }
           />
@@ -125,10 +142,11 @@ function App() {
 }
 
 const Board = () => {
-  useYjs(); // Initialize Yjs sync only when on the board
+  const { roomId } = useParams<{ roomId: string }>();
+  useYjs(roomId); // Initialize Yjs sync with room ID
   return (
     <div className="App">
-      <Canvas />
+      <Canvas roomId={roomId} />
     </div>
   );
 };

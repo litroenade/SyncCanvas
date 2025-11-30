@@ -1,7 +1,3 @@
-"""模块名称: main
-主要功能: FastAPI 应用入口，配置路由、中间件和静态文件服务
-"""
-
 import os
 import asyncio
 from contextlib import asynccontextmanager
@@ -17,6 +13,7 @@ from src.logger import get_logger, setup_logging
 from src.auth.router import router as auth_router
 from src.routers.ai import router as ai_router
 from src.routers.upload import router as upload_router
+from src.routers.rooms import router as rooms_router
 
 setup_logging()
 logger = get_logger(__name__)
@@ -72,6 +69,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(ai_router)
 app.include_router(upload_router)
+app.include_router(rooms_router)
 
 
 # 挂载 pycrdt-websocket 的 ASGI 服务器到 /ws 路径

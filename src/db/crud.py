@@ -1,5 +1,5 @@
 """模块名称: crud
-主要功能: 数据库 CRUD 操作，提供房间、快照、更新等数据的增删改查
+主要功能: 数据库 CRUD 操作，提供房间、快照、更新、成员、笔画等数据的增删改查
 """
 
 from typing import List, Optional
@@ -7,11 +7,21 @@ from typing import List, Optional
 from sqlalchemy import desc
 from sqlmodel import Session, select
 
-from .models import Room, Snapshot, Update
+from .models import Room, Snapshot, Update, RoomMember, Stroke
 
+
+# ==================== Room CRUD ====================
 
 def create_room(session: Session, room: Room) -> Room:
-    """创建新房间"""
+    """创建新房间
+
+    Args:
+        session: 数据库会话
+        room: 房间对象
+
+    Returns:
+        Room: 创建后的房间对象
+    """
     session.add(room)
     session.commit()
     session.refresh(room)
@@ -19,12 +29,258 @@ def create_room(session: Session, room: Room) -> Room:
 
 
 def get_room(session: Session, room_id: str) -> Optional[Room]:
-    """获取指定房间"""
+    """获取指定房间
+
+    Args:
+        session: 数据库会话
+        room_id: 房间 ID
+
+    Returns:
+        Optional[Room]: 房间对象，不存在返回 None
+    """
     return session.get(Room, room_id)
 
 
+def get_rooms(
+    session: Session,
+    user_id: Optional[int] = None,
+    is_public: Optional[bool] = None,
+    limit: int = 50,
+    offset: int = 0
+) -> List[Room]:
+    """获取房间列表
+
+    Args:
+        session: 数据库会话
+        user_id: 可选，筛选指定用户的房间
+        is_public: 可选，筛选公开/私有房间
+        limit: 返回数量限制
+        offset: 偏移量
+
+    Returns:
+        List[Room]: 房间列表
+    """
+    statement = select(Room)
+    if user_id is not None:
+        statement = statement.where(Room.owner_id == user_id)
+    if is_public is not None:
+        statement = statement.where(Room.is_public == is_public)
+    statement = statement.order_by(desc(Room.created_at)).offset(offset).limit(limit)
+    return list(session.exec(statement))
+
+
+def delete_room(session: Session, room_id: str) -> bool:
+    """删除房间
+
+    Args:
+        session: 数据库会话
+        room_id: 房间 ID
+
+    Returns:
+        bool: 是否删除成功
+    """
+    room = session.get(Room, room_id)
+    if room:
+        session.delete(room)
+        session.commit()
+        return True
+    return False
+
+
+# ==================== RoomMember CRUD ====================
+
+def add_room_member(session: Session, member: RoomMember) -> RoomMember:
+    """添加房间成员
+
+    Args:
+        session: 数据库会话
+        member: 成员对象
+
+    Returns:
+        RoomMember: 创建后的成员对象
+    """
+    session.add(member)
+    session.commit()
+    session.refresh(member)
+    return member
+
+
+def get_room_members(session: Session, room_id: str) -> List[RoomMember]:
+    """获取房间所有成员
+
+    Args:
+        session: 数据库会话
+        room_id: 房间 ID
+
+    Returns:
+        List[RoomMember]: 成员列表
+    """
+    statement = select(RoomMember).where(RoomMember.room_id == room_id)
+    return list(session.exec(statement))
+
+
+def get_user_rooms(session: Session, user_id: int) -> List[Room]:
+    """获取用户加入的所有房间
+
+    Args:
+        session: 数据库会话
+        user_id: 用户 ID
+
+    Returns:
+        List[Room]: 房间列表
+    """
+    statement = (
+        select(Room)
+        .join(RoomMember, Room.id == RoomMember.room_id)
+        .where(RoomMember.user_id == user_id)
+        .order_by(desc(RoomMember.joined_at))
+    )
+    return list(session.exec(statement))
+
+
+def is_room_member(session: Session, room_id: str, user_id: int) -> bool:
+    """检查用户是否是房间成员
+
+    Args:
+        session: 数据库会话
+        room_id: 房间 ID
+        user_id: 用户 ID
+
+    Returns:
+        bool: 是否是成员
+    """
+    statement = select(RoomMember).where(
+        RoomMember.room_id == room_id,
+        RoomMember.user_id == user_id
+    )
+    return session.exec(statement).first() is not None
+
+
+def remove_room_member(session: Session, room_id: str, user_id: int) -> bool:
+    """移除房间成员
+
+    Args:
+        session: 数据库会话
+        room_id: 房间 ID
+        user_id: 用户 ID
+
+    Returns:
+        bool: 是否移除成功
+    """
+    statement = select(RoomMember).where(
+        RoomMember.room_id == room_id,
+        RoomMember.user_id == user_id
+    )
+    member = session.exec(statement).first()
+    if member:
+        session.delete(member)
+        session.commit()
+        return True
+    return False
+
+
+# ==================== Stroke CRUD ====================
+
+def create_stroke(session: Session, stroke: Stroke) -> Stroke:
+    """创建笔画记录
+
+    Args:
+        session: 数据库会话
+        stroke: 笔画对象
+
+    Returns:
+        Stroke: 创建后的笔画对象
+    """
+    session.add(stroke)
+    session.commit()
+    session.refresh(stroke)
+    return stroke
+
+
+def get_room_strokes(session: Session, room_id: str) -> List[Stroke]:
+    """获取房间所有笔画
+
+    Args:
+        session: 数据库会话
+        room_id: 房间 ID
+
+    Returns:
+        List[Stroke]: 笔画列表
+    """
+    statement = (
+        select(Stroke)
+        .where(Stroke.room_id == room_id)
+        .order_by(Stroke.created_at)
+    )
+    return list(session.exec(statement))
+
+
+def get_stroke_by_shape_id(session: Session, shape_id: str) -> Optional[Stroke]:
+    """根据图形 ID 获取笔画
+
+    Args:
+        session: 数据库会话
+        shape_id: 图形 UUID
+
+    Returns:
+        Optional[Stroke]: 笔画对象
+    """
+    statement = select(Stroke).where(Stroke.shape_id == shape_id)
+    return session.exec(statement).first()
+
+
+def update_stroke(session: Session, shape_id: str, shape_data: dict) -> Optional[Stroke]:
+    """更新笔画数据
+
+    Args:
+        session: 数据库会话
+        shape_id: 图形 UUID
+        shape_data: 新的图形数据
+
+    Returns:
+        Optional[Stroke]: 更新后的笔画对象
+    """
+    from datetime import datetime
+    stroke = get_stroke_by_shape_id(session, shape_id)
+    if stroke:
+        stroke.shape_data = shape_data
+        stroke.updated_at = int(datetime.utcnow().timestamp() * 1000)
+        session.add(stroke)
+        session.commit()
+        session.refresh(stroke)
+    return stroke
+
+
+def delete_stroke(session: Session, shape_id: str) -> bool:
+    """删除笔画
+
+    Args:
+        session: 数据库会话
+        shape_id: 图形 UUID
+
+    Returns:
+        bool: 是否删除成功
+    """
+    stroke = get_stroke_by_shape_id(session, shape_id)
+    if stroke:
+        session.delete(stroke)
+        session.commit()
+        return True
+    return False
+
+
+# ==================== Snapshot CRUD ====================
+
 def create_snapshot(session: Session, snapshot: Snapshot) -> Snapshot:
-    """创建快照"""
+    """创建快照
+
+    Args:
+        session: 数据库会话
+        snapshot: 快照对象
+
+    Returns:
+        Snapshot: 创建后的快照对象
+    """
     session.add(snapshot)
     session.commit()
     session.refresh(snapshot)
@@ -50,8 +306,18 @@ def get_latest_snapshot(session: Session, room_id: str) -> Optional[Snapshot]:
     return session.exec(statement).first()
 
 
+# ==================== Update CRUD ====================
+
 def create_update(session: Session, update: Update) -> Update:
-    """创建增量更新"""
+    """创建增量更新
+
+    Args:
+        session: 数据库会话
+        update: 更新对象
+
+    Returns:
+        Update: 创建后的更新对象
+    """
     session.add(update)
     session.commit()
     session.refresh(update)
@@ -66,7 +332,7 @@ def get_updates_since(
     Args:
         session: 数据库会话
         room_id: 房间 ID
-        since_timestamp: 起始时间戳（毫秒）
+        since_timestamp: 起始时间戳 (毫秒)
 
     Returns:
         List[Update]: 更新列表
@@ -96,7 +362,15 @@ def get_all_updates(session: Session, room_id: str) -> List[Update]:
 
 
 def count_updates(session: Session, room_id: str) -> int:
-    """统计房间的更新数量"""
+    """统计房间的更新数量
+
+    Args:
+        session: 数据库会话
+        room_id: 房间 ID
+
+    Returns:
+        int: 更新数量
+    """
     statement = select(Update).where(Update.room_id == room_id)
     return len(session.exec(statement).all())
 
@@ -107,7 +381,7 @@ def delete_updates_before(session: Session, room_id: str, timestamp: int):
     Args:
         session: 数据库会话
         room_id: 房间 ID
-        timestamp: 截止时间戳（毫秒）
+        timestamp: 截止时间戳 (毫秒)
     """
     statement = select(Update).where(
         Update.room_id == room_id, Update.timestamp <= timestamp

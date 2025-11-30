@@ -22,12 +22,16 @@ const getWorldPos = (stage: any): { x: number; y: number } | null => {
     return transform.point(pointer);
 };
 
+interface CanvasProps {
+    roomId?: string;
+}
+
 /**
  * 画布组件
  * 
  * 主绘图区域，处理图形渲染、交互（拖拽、缩放、选择、绘制）以及与 Yjs 的同步。
  */
-export const Canvas: React.FC = () => {
+export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
     const {
         scale, offset, shapes, selectedIds, cursors, isGuest,
         currentTool, isDrawing,
@@ -35,7 +39,7 @@ export const Canvas: React.FC = () => {
         setScale, setOffset, setSelectedId, toggleSelection, clearSelection,
         setIsDrawing, setCurrentTool
     } = useCanvasStore();
-    const { addShape, updateShape, deleteShape, undo, redo, updateAwareness } = useYjs();
+    const { addShape, updateShape, deleteShape, undo, redo, updateAwareness } = useYjs(roomId);
     const { theme } = useThemeStore();
     const shapeRefs = useRef<Record<string, any>>({});
     const trRef = useRef<any>(null);
@@ -441,7 +445,7 @@ export const Canvas: React.FC = () => {
             style={{ cursor: getStageCursor() }}
         >
             {!isGuest && <Toolbar />}
-            <Sidebar onExport={handleExport} />
+            <Sidebar onExport={handleExport} roomId={roomId} />
             {!isGuest && <PropertiesPanel />}
 
             {/* 渲染远程光标 */}

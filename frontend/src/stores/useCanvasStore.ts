@@ -122,7 +122,7 @@ export const useCanvasStore = create<CanvasState>((set) => ({
   scale: 1,
   offset: { x: 0, y: 0 },
   shapes: {},
-  selectedIds: [],
+  selectedIds: [], 
   showGrid: true,
   currentFillColor: 'transparent',
   currentStrokeColor: '#1e1e1e',

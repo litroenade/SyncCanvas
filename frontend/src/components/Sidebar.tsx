@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Settings, ChevronLeft, ChevronRight, Layers, Grid as GridIcon, Download, Undo, Redo, ArrowUpToLine, ArrowDownToLine, Sun, Moon } from 'lucide-react';
+import { Settings, ChevronLeft, ChevronRight, Layers, Grid as GridIcon, Download, Undo, Redo, ArrowUpToLine, ArrowDownToLine, Sun, Moon, Home } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { useYjs } from '../hooks/useYjs';
 import { useCanvasStore } from '../stores/useCanvasStore';
@@ -9,15 +10,22 @@ import { LayersPanel } from './LayersPanel';
 
 interface SidebarProps {
     onExport: () => void;
+    roomId?: string;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ onExport }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ onExport, roomId }) => {
+    const navigate = useNavigate();
     const [isOpen, setIsOpen] = useState(false);
     const [activePanel, setActivePanel] = useState<'layers' | 'none'>('none');
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-    const { undo, redo, updateShape } = useYjs();
+    const { undo, redo, updateShape, leaveRoom } = useYjs(roomId);
     const { selectedIds, shapes, showGrid, toggleGrid: toggleGridStore, isGuest } = useCanvasStore();
     const { theme, toggleTheme } = useThemeStore();
+
+    const handleBackToRooms = () => {
+        leaveRoom();
+        navigate('/rooms');
+    };
 
     const handleBringToFront = () => {
         if (selectedIds.length === 0) return;
@@ -70,6 +78,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ onExport }) => {
                 <div className="flex-1 overflow-y-auto py-4">
                     {/* Menu Items */}
                     <div className="flex flex-col gap-1 px-2">
+                        {/* 返回房间列表按钮 */}
+                        <SidebarItem 
+                            icon={Home} 
+                            label="房间列表" 
+                            isOpen={isOpen} 
+                            onClick={handleBackToRooms} 
+                            theme={theme} 
+                        />
+                        <div className={cn("h-px my-2 mx-2", theme === 'dark' ? "bg-slate-700" : "bg-slate-100")} />
+
                         {!isGuest && (
                             <>
                                 <SidebarItem icon={Undo} label="撤销" isOpen={isOpen} onClick={undo} theme={theme} />

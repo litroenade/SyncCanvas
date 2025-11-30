@@ -14,3 +14,4 @@ dist
 *.VscodeCounter
 *.vscode
 *.devcontainer
+uv.lock

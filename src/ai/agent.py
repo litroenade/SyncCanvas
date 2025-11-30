@@ -34,7 +34,6 @@ class AIAgent:
     def __init__(self):
         """初始化 AI 智能体"""
         if not OPENAI_API_KEY:
-            logger.warning("未配置 OPENAI_API_KEY，AI 功能将不可用")
             self.client = None
         else:
             self.client = AsyncOpenAI(api_key=OPENAI_API_KEY, base_url=OPENAI_BASE_URL)
