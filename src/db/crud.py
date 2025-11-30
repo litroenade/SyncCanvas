@@ -3,7 +3,7 @@
 """
 
 from typing import List, Optional
-
+from datetime import datetime
 from sqlalchemy import desc
 from sqlmodel import Session, select
 
@@ -240,7 +240,7 @@ def update_stroke(session: Session, shape_id: str, shape_data: dict) -> Optional
     Returns:
         Optional[Stroke]: 更新后的笔画对象
     """
-    from datetime import datetime
+
     stroke = get_stroke_by_shape_id(session, shape_id)
     if stroke:
         stroke.shape_data = shape_data
