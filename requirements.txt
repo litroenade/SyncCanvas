@@ -1,6 +1,8 @@
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 pycrdt>=0.8.0
+pycrdt-websocket>=0.16.0
+pycrdt-store>=0.1.0
 sqlmodel>=0.0.14
 websockets>=12.0
 python-multipart>=0.0.6

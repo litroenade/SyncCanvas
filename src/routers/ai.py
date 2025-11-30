@@ -52,8 +52,8 @@ async def generate_shapes(request: GenerateRequest):
 
     # 将形状注入到 CRDT 文档
     try:
-        # 从 websocket_server 获取房间
-        room = websocket_server.get_room(request.room_id)
+        # 从 websocket_server 获取房间 (注意: get_room 是异步方法)
+        room = await websocket_server.get_room(request.room_id)
         doc = room.ydoc
         shapes_map = doc.get("shapes", type=Map)
 

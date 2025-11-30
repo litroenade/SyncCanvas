@@ -1,7 +1,7 @@
 """模块名称: sync
-主要功能: 基于 pycrdt.websocket 的实时同步功能，带持久化存储
+主要功能: 基于 pycrdt_websocket 的实时同步功能，带持久化存储
 
-使用 pycrdt.websocket 模块实现与 Yjs 客户端的完全兼容同步。
+使用 pycrdt_websocket 模块实现与 Yjs 客户端的完全兼容同步。
 通过 SQLiteYStore 实现数据持久化。
 """
 
