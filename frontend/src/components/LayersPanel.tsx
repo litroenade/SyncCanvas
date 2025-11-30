@@ -31,9 +31,11 @@ export const LayersPanel: React.FC = () => {
         switch (type) {
             case 'rect': return '⬜';
             case 'circle': return '⭕';
+            case 'diamond': return '◇';
             case 'text': return '📝';
             case 'arrow': return '↗️';
             case 'line': return '➖';
+            case 'freedraw': return '✏️';
             case 'image': return '🖼️';
             default: return '❓';
         }

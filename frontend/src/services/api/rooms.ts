@@ -162,4 +162,149 @@ export const roomsApi = {
     })
     return response.data
   },
+
+  /**
+   * 获取房间版本历史
+   * @param roomId - 房间 ID
+   * @returns 历史信息
+   */
+  async getHistory(roomId: string): Promise<HistoryResponse> {
+    const response = await axios.get(`${config.apiBaseUrl}/rooms/${roomId}/history`, {
+      headers: getAuthHeaders(),
+    })
+    return response.data
+  },
+
+  /**
+   * 创建提交
+   * @param roomId - 房间 ID
+   * @param data - 提交请求数据
+   * @returns 创建的提交信息
+   */
+  async createCommit(roomId: string, data: CreateCommitRequest): Promise<CreateCommitResponse> {
+    const response = await axios.post(
+      `${config.apiBaseUrl}/rooms/${roomId}/commit`,
+      data,
+      { headers: getAuthHeaders() }
+    )
+    return response.data
+  },
+
+  /**
+   * 检出提交
+   * @param roomId - 房间 ID
+   * @param commitId - 提交 ID
+   * @returns 检出结果
+   */
+  async checkoutCommit(roomId: string, commitId: number): Promise<{ status: string; commit_id: number; commit_hash: string; message: string }> {
+    const response = await axios.post(
+      `${config.apiBaseUrl}/rooms/${roomId}/checkout/${commitId}`,
+      {},
+      { headers: getAuthHeaders() }
+    )
+    return response.data
+  },
+
+  /**
+   * 回滚到指定提交
+   * @param roomId - 房间 ID
+   * @param commitId - 提交 ID
+   * @returns 回滚结果
+   */
+  async revertToCommit(roomId: string, commitId: number): Promise<{ status: string; new_commit: CommitInfo; reverted_to: { id: number; hash: string } }> {
+    const response = await axios.post(
+      `${config.apiBaseUrl}/rooms/${roomId}/revert/${commitId}`,
+      {},
+      { headers: getAuthHeaders() }
+    )
+    return response.data
+  },
+
+  /**
+   * 创建房间快照 (兼容旧 API)
+   * @param roomId - 房间 ID
+   * @returns 创建结果
+   */
+  async createSnapshot(roomId: string): Promise<{ status: string; room_id: string }> {
+    const response = await axios.post(
+      `${config.apiBaseUrl}/rooms/${roomId}/snapshot`,
+      {},
+      { headers: getAuthHeaders() }
+    )
+    return response.data
+  },
+}
+
+/**
+ * 快照信息接口
+ */
+export interface SnapshotInfo {
+  /** 快照 ID */
+  id: number
+  /** 时间戳 (毫秒) */
+  timestamp: number
+  /** 数据大小 (字节) */
+  size: number
+}
+
+/**
+ * 提交信息接口
+ */
+export interface CommitInfo {
+  /** 提交 ID */
+  id: number
+  /** 提交哈希 (7位) */
+  hash: string
+  /** 父提交 ID */
+  parent_id: number | null
+  /** 作者 ID */
+  author_id: number | null
+  /** 作者名称 */
+  author_name: string
+  /** 提交消息 */
+  message: string
+  /** 时间戳 (毫秒) */
+  timestamp: number
+  /** 数据大小 (字节) */
+  size: number
+}
+
+/**
+ * 历史响应接口
+ */
+export interface HistoryResponse {
+  /** 房间 ID */
+  room_id: string
+  /** 当前 HEAD 指向的提交 ID */
+  head_commit_id: number | null
+  /** 提交列表 (从新到旧) */
+  commits: CommitInfo[]
+  /** 待提交的更改数量 */
+  pending_changes: number
+  /** 总数据大小 */
+  total_size: number
+}
+
+/**
+ * 创建提交请求接口
+ */
+export interface CreateCommitRequest {
+  /** 提交消息 */
+  message: string
+  /** 作者名称 (可选) */
+  author_name?: string
+}
+
+/**
+ * 创建提交响应接口
+ */
+export interface CreateCommitResponse {
+  status: string
+  commit: {
+    id: number
+    hash: string
+    message: string
+    author_name: string
+    timestamp: number
+  }
 }

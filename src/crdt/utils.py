@@ -33,7 +33,7 @@ def create_shape_in_doc(
             shapes_map[shape_id] = shape_data
         logger.debug("创建图形: %s", shape_id)
         return True
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         logger.error("创建图形失败: %s, 错误: %s", shape_id, e)
         return False
 
@@ -70,7 +70,7 @@ def update_shape_in_doc(
             shapes_map[shape_id] = current_dict
         logger.debug("更新图形: %s", shape_id)
         return True
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         logger.error("更新图形失败: %s, 错误: %s", shape_id, e)
         return False
 
@@ -100,7 +100,7 @@ def delete_shape_in_doc(
             del shapes_map[shape_id]
         logger.debug("删除图形: %s", shape_id)
         return True
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         logger.error("删除图形失败: %s, 错误: %s", shape_id, e)
         return False
 
@@ -131,7 +131,7 @@ def batch_create_shapes(
                     count += 1
         logger.info("批量创建 %d 个图形", count)
         return count
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         logger.error("批量创建图形失败: %s", e)
         return 0
 
@@ -152,7 +152,7 @@ def get_shape_from_doc(doc: Doc, shape_id: str) -> Optional[Dict[str, Any]]:
         if value is None:
             return None
         return dict(value) if hasattr(value, "__iter__") else value
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         logger.error("获取图形失败: %s, 错误: %s", shape_id, e)
         return None
 
@@ -174,7 +174,7 @@ def get_all_shapes_from_doc(doc: Doc) -> Dict[str, Any]:
             if value:
                 result[key] = dict(value) if hasattr(value, "__iter__") else value
         return result
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         logger.error("获取所有图形失败: %s", e)
         return {}
 
@@ -198,6 +198,6 @@ def clear_all_shapes(doc: Doc, origin: str = "server") -> int:
                 del shapes_map[key]
         logger.info("清空 %d 个图形", count)
         return count
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         logger.error("清空图形失败: %s", e)
         return 0

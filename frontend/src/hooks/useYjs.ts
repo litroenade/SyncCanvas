@@ -130,8 +130,8 @@ export const useYjs = (roomId?: string) => {
         });
     }, []);
 
-    const leaveRoom = useCallback(() => {
-        yjsManager.disconnect();
+    const leaveRoom = useCallback(async () => {
+        await yjsManager.disconnect();
         setShapes({});
         setCursors({});
     }, [setShapes, setCursors]);

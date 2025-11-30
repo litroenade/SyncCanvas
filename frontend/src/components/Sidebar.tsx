@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, ChevronLeft, ChevronRight, Layers, Grid as GridIcon, Download, Undo, Redo, ArrowUpToLine, ArrowDownToLine, Sun, Moon, Home } from 'lucide-react';
+import { Settings, ChevronLeft, ChevronRight, Layers, Grid as GridIcon, Download, Undo, Redo, ArrowUpToLine, ArrowDownToLine, Sun, Moon, Home, History } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { useYjs } from '../hooks/useYjs';
@@ -7,6 +7,7 @@ import { useCanvasStore } from '../stores/useCanvasStore';
 import { useThemeStore } from '../stores/useThemeStore';
 import { SettingsModal } from './SettingsModal';
 import { LayersPanel } from './LayersPanel';
+import { HistoryPanel } from './HistoryPanel';
 
 interface SidebarProps {
     onExport: () => void;
@@ -16,7 +17,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ onExport, roomId }) => {
     const navigate = useNavigate();
     const [isOpen, setIsOpen] = useState(false);
-    const [activePanel, setActivePanel] = useState<'layers' | 'none'>('none');
+    const [activePanel, setActivePanel] = useState<'layers' | 'history' | 'none'>('none');
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const { undo, redo, updateShape, leaveRoom } = useYjs(roomId);
     const { selectedIds, shapes, showGrid, toggleGrid: toggleGridStore, isGuest } = useCanvasStore();
@@ -43,7 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onExport, roomId }) => {
         });
     };
 
-    const togglePanel = (panel: 'layers') => {
+    const togglePanel = (panel: 'layers' | 'history') => {
         if (activePanel === panel) {
             setActivePanel('none');
         } else {
@@ -120,6 +121,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ onExport, roomId }) => {
                                         <LayersPanel />
                                     </div>
                                 )}
+
+                                <SidebarItem
+                                    icon={History}
+                                    label="历史"
+                                    isOpen={isOpen}
+                                    onClick={() => togglePanel('history')}
+                                    active={activePanel === 'history'}
+                                    theme={theme}
+                                />
+
+                                {/* History Panel Content */}
+                                {activePanel === 'history' && isOpen && roomId && (
+                                    <div className={cn(
+                                        "mt-2 mb-2 border-t border-b py-2 max-h-96 overflow-y-auto custom-scrollbar",
+                                        theme === 'dark' ? "border-slate-700" : "border-slate-100"
+                                    )}>
+                                        <HistoryPanel roomId={roomId} />
+                                    </div>
+                                )}
+
                                 <div className={cn("h-px my-2 mx-2", theme === 'dark' ? "bg-slate-700" : "bg-slate-100")} />
                             </>
                         )}

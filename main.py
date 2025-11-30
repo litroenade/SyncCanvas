@@ -30,7 +30,7 @@ async def lifespan(_app: FastAPI):
     logger.info("初始化数据库")
     init_db()
 
-    # 启动 pycrdt-websocket 服务器   
+    # 启动 pycrdt-websocket 服务器
     async with websocket_server:
         # 启动后台任务 (快照压缩)
         task = asyncio.create_task(background_compaction_task())

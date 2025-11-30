@@ -60,17 +60,23 @@ class ShapeObserver:
                         new_value = self.shapes_map.get(key)
                         if new_value and self.on_add:
                             logger.debug("图形添加: %s", key)
-                            self.on_add(key, dict(new_value) if hasattr(new_value, "__iter__") else new_value)
+                            self.on_add(
+                                key,
+                                dict(new_value) if hasattr(new_value, "__iter__") else new_value
+                                )
                     elif action == "update":
                         new_value = self.shapes_map.get(key)
                         if new_value and self.on_update:
                             logger.debug("图形更新: %s", key)
-                            self.on_update(key, dict(new_value) if hasattr(new_value, "__iter__") else new_value)
+                            self.on_update(
+                                key,
+                                dict(new_value) if hasattr(new_value, "__iter__") else new_value
+                                )
                     elif action == "delete":
                         if self.on_delete:
                             logger.debug("图形删除: %s", key)
                             self.on_delete(key)
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
                 logger.error("处理图形变更失败: %s", e, exc_info=True)
 
         self._subscription = self.shapes_map.observe(observer)

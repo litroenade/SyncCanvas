@@ -1,17 +1,38 @@
+# Python
 .venv
 __pycache__
 *.pyc
+*.pyo
+*.egg-info
+
+# Environment
 .env
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Node
 node_modules
 dist
 .npm-cache
-*.sqlite
-*.db
-*.venv
-*logs
-*data
+
+# IDE
+.vscode
+.devcontainer
+.idea
 *.VscodeCounter
-*.vscode
-*.devcontainer
+
+# Logs
+logs/
+*.log
+
+# Lock files
 uv.lock
+
+# Data directory - keep structure, ignore contents
+data/*.db
+data/*.json
+data/images/*
+!data/.gitkeep
+!data/images/.gitkeep
