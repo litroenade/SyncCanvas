@@ -13,7 +13,7 @@ websocket_api_token = ""
 
 [logging]
 # 全局日志级别: DEBUG, INFO, WARNING, ERROR, CRITICAL
-level = "INFO"
+level = "DEBUG"
 
 # 日志输出格式
 format = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"

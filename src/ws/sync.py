@@ -56,7 +56,10 @@ class PersistentWebsocketServer(WebsocketServer):
 
             # 为每个房间创建独立的 SQLiteYStore
             room_db_path = self.db_path.replace(".db", f"_{clean_name}.db")
-            ystore = SQLiteYStore(path=room_db_path)
+            ystore = SQLiteYStore(path=room_db_path, log=self.log)
+            
+            # 启动 ystore (确保数据库初始化)
+            await ystore.start()
 
             provider_factory = (
                 partial(self.provider_factory, path=name)

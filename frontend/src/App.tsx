@@ -97,7 +97,10 @@ const GlobalErrorHandler = () => {
 // ==================== 路由保护 ====================
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const token = localStorage.getItem('token');
-  if (!token) {
+  const isGuest = localStorage.getItem('isGuest') === 'true';
+  
+  // 允许有 token 或游客模式访问
+  if (!token && !isGuest) {
     return <Navigate to="/login" replace />;
   }
   return <>{children}</>;
