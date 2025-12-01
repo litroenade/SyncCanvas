@@ -15,7 +15,7 @@ from sqlmodel import Session, select, delete
 from sqlalchemy import desc
 
 from src.db.database import get_session
-from src.db.models import Room, RoomMember, Snapshot, Update, Commit
+from src.db.models import Room, RoomMember, Update, Commit
 from src.db import crud
 from src.auth.utils import get_current_user_optional, get_current_user
 from src.models.user import User
@@ -530,10 +530,10 @@ class CreateCommitRequest(BaseModel):
 
 
 class SnapshotInfo(BaseModel):
-    """快照信息 (兼容旧 API)
+    """快照信息 (兼容旧 API，映射到 Commit)
 
     Attributes:
-        id (int): 快照 ID
+        id (int): 提交 ID
         timestamp (int): 时间戳 (毫秒)
         size (int): 数据大小 (字节)
     """
@@ -635,29 +635,27 @@ async def create_commit(
             detail="房间不存在"
         )
 
-
-
     # 构建完整文档状态
     ydoc = Doc()
 
-    # 从 Snapshot 和 Update 中恢复状态
-    snapshot_stmt = (
-        select(Snapshot)
-        .where(Snapshot.room_id == room_id)
-        .order_by(desc(Snapshot.timestamp))
+    # 从最新 Commit 和 Update 中恢复状态
+    commit_stmt = (
+        select(Commit)
+        .where(Commit.room_id == room_id)
+        .order_by(desc(Commit.timestamp))
         .limit(1)
     )
-    snapshot = session.exec(snapshot_stmt).first()
+    latest_commit = session.exec(commit_stmt).first()
 
-    if snapshot:
-        ydoc.apply_update(snapshot.data)
+    if latest_commit:
+        ydoc.apply_update(latest_commit.data)
 
     # 获取增量更新
-    if snapshot:
+    if latest_commit:
         updates_stmt = (
             select(Update)
             .where(Update.room_id == room_id)
-            .where(Update.timestamp > snapshot.timestamp)
+            .where(Update.timestamp > latest_commit.timestamp)
             .order_by(Update.timestamp)
         )
     else:
@@ -677,6 +675,13 @@ async def create_commit(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="没有数据可提交"
+        )
+
+    # 检查是否有新的更改
+    if not updates and latest_commit:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="没有新的更改可提交"
         )
 
     # 确定作者信息
@@ -708,18 +713,6 @@ async def create_commit(
     delete_stmt = delete(Update).where(Update.room_id == room_id)
     session.exec(delete_stmt)
 
-    # 更新 Snapshot (保持 YStore 的状态)
-    # 删除旧快照，创建新快照
-    delete_snapshot_stmt = delete(Snapshot).where(Snapshot.room_id == room_id)
-    session.exec(delete_snapshot_stmt)
-
-    new_snapshot = Snapshot(
-        room_id=room_id,
-        data=doc_data,
-        timestamp=current_time
-    )
-    session.add(new_snapshot)
-
     session.commit()
 
     logger.info("创建提交: 房间 %s, 哈希 %s, 消息: %s", room_id, commit.hash, request.message)
@@ -746,6 +739,7 @@ async def checkout_commit(
     """检出指定提交
 
     类似 Git checkout，将房间状态恢复到指定提交。
+    注意：这会清空当前未提交的更改！
 
     Args:
         room_id: 房间 ID
@@ -771,19 +765,18 @@ async def checkout_commit(
             detail="提交不存在"
         )
 
-    # 更新 Snapshot 为该提交的状态
-    delete_snapshot_stmt = delete(Snapshot).where(Snapshot.room_id == room_id)
-    session.exec(delete_snapshot_stmt)
-
+    # 清理所有 Update (未提交的更改会丢失)
     delete_update_stmt = delete(Update).where(Update.room_id == room_id)
     session.exec(delete_update_stmt)
 
-    new_snapshot = Snapshot(
+    # 将 Commit 数据写入 Update 表，让 YStore 能够读取
+    # 这样 WebSocket 客户端重新连接时会收到正确的状态
+    new_update = Update(
         room_id=room_id,
         data=commit.data,
         timestamp=int(time.time() * 1000)
     )
-    session.add(new_snapshot)
+    session.add(new_update)
 
     # 更新 HEAD
     room.head_commit_id = commit_id
@@ -855,19 +848,9 @@ async def revert_commit(
 
     new_revert_commit.hash = generate_commit_hash(new_revert_commit.id, current_time)
 
-    # 更新 Snapshot
-    delete_snapshot_stmt = delete(Snapshot).where(Snapshot.room_id == room_id)
-    session.exec(delete_snapshot_stmt)
-
+    # 清理 Update 表
     delete_update_stmt = delete(Update).where(Update.room_id == room_id)
     session.exec(delete_update_stmt)
-
-    new_snapshot = Snapshot(
-        room_id=room_id,
-        data=commit.data,
-        timestamp=current_time
-    )
-    session.add(new_snapshot)
 
     # 更新 HEAD
     room.head_commit_id = new_revert_commit.id
@@ -891,6 +874,25 @@ async def revert_commit(
     }
 
 
+@router.get("/{room_id}/commits", response_model=HistoryResponse)
+async def get_commits(
+    room_id: str,
+    limit: int = 50,
+    session: Session = Depends(get_session)
+):
+    """获取房间提交历史 (别名 API)
+
+    Args:
+        room_id: 房间 ID
+        limit: 返回的提交数量限制
+        session: 数据库会话
+
+    Returns:
+        HistoryResponse: 历史信息
+    """
+    return await get_room_history(room_id, limit, session)
+
+
 # ==================== 兼容旧 API ====================
 
 @router.get("/{room_id}/snapshots", response_model=List[SnapshotInfo])
@@ -898,14 +900,14 @@ async def get_room_snapshots(
     room_id: str,
     session: Session = Depends(get_session)
 ):
-    """获取房间快照列表 (兼容旧 API)
+    """获取房间快照列表 (兼容旧 API，返回 Commit 列表)
 
     Args:
         room_id: 房间 ID
         session: 数据库会话
 
     Returns:
-        List[SnapshotInfo]: 快照列表
+        List[SnapshotInfo]: 快照列表 (实际是 Commit)
     """
     room = crud.get_room(session, room_id)
     if not room:
@@ -914,20 +916,20 @@ async def get_room_snapshots(
             detail="房间不存在"
         )
 
-    snapshots_stmt = (
-        select(Snapshot)
-        .where(Snapshot.room_id == room_id)
-        .order_by(desc(Snapshot.timestamp))
+    commits_stmt = (
+        select(Commit)
+        .where(Commit.room_id == room_id)
+        .order_by(desc(Commit.timestamp))
     )
-    snapshots = session.exec(snapshots_stmt).all()
+    commits = session.exec(commits_stmt).all()
 
     return [
         SnapshotInfo(
-            id=s.id,
-            timestamp=s.timestamp,
-            size=len(s.data) if s.data else 0
+            id=c.id,
+            timestamp=c.timestamp,
+            size=len(c.data) if c.data else 0
         )
-        for s in snapshots
+        for c in commits
     ]
 
 

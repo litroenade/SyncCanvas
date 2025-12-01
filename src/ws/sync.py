@@ -21,7 +21,7 @@ from sqlalchemy import desc
 
 from src.db.ystore import SQLModelYStore
 from src.db.database import engine
-from src.db.models import Room, Snapshot, Update, Commit
+from src.db.models import Room, Update, Commit
 from src.logger import get_logger
 
 logger = get_logger(__name__)
@@ -173,24 +173,24 @@ class PersistentWebsocketServer(WebsocketServer):
                 # 构建完整文档状态
                 ydoc = Doc()
 
-                # 获取最新快照
-                snapshot_stmt = (
-                    select(Snapshot)
-                    .where(Snapshot.room_id == room_id)
-                    .order_by(desc(Snapshot.timestamp))
+                # 获取最新 Commit
+                commit_stmt = (
+                    select(Commit)
+                    .where(Commit.room_id == room_id)
+                    .order_by(desc(Commit.timestamp))
                     .limit(1)
                 )
-                snapshot = session.exec(snapshot_stmt).first()
+                latest_commit = session.exec(commit_stmt).first()
 
-                if snapshot:
-                    ydoc.apply_update(snapshot.data)
+                if latest_commit:
+                    ydoc.apply_update(latest_commit.data)
 
                 # 获取增量更新
-                if snapshot:
+                if latest_commit:
                     updates_stmt = (
                         select(Update)
                         .where(Update.room_id == room_id)
-                        .where(Update.timestamp > snapshot.timestamp)
+                        .where(Update.timestamp > latest_commit.timestamp)
                         .order_by(Update.timestamp)
                     )
                 else:
@@ -210,8 +210,8 @@ class PersistentWebsocketServer(WebsocketServer):
                     logger.debug("房间 %s 没有数据可提交", room_id)
                     return False
 
-                # 检查是否有新的更改 (如果没有 Update 且有快照，说明没有新更改)
-                if not updates and snapshot:
+                # 检查是否有新的更改 (如果没有 Update 且有 Commit，说明没有新更改)
+                if not updates and latest_commit:
                     logger.debug("房间 %s 没有新的更改", room_id)
                     return False
 
@@ -238,17 +238,6 @@ class PersistentWebsocketServer(WebsocketServer):
                 # 清理 Update 表
                 delete_stmt = delete(Update).where(Update.room_id == room_id)
                 session.exec(delete_stmt)
-
-                # 更新 Snapshot
-                delete_snapshot_stmt = delete(Snapshot).where(Snapshot.room_id == room_id)
-                session.exec(delete_snapshot_stmt)
-
-                new_snapshot = Snapshot(
-                    room_id=room_id,
-                    data=doc_data,
-                    timestamp=current_time
-                )
-                session.add(new_snapshot)
 
                 session.commit()
 

@@ -1,5 +1,5 @@
 """模块名称: crud
-主要功能: 数据库 CRUD 操作，提供房间、快照、更新、成员、笔画等数据的增删改查
+主要功能: 数据库 CRUD 操作，提供房间、提交、更新、成员、笔画等数据的增删改查
 """
 
 from typing import List, Optional
@@ -7,7 +7,7 @@ from datetime import datetime
 from sqlalchemy import desc
 from sqlmodel import Session, select
 
-from .models import Room, Snapshot, Update, RoomMember, Stroke
+from .models import Room, Update, RoomMember, Stroke, Commit
 
 
 # ==================== Room CRUD ====================
@@ -269,41 +269,74 @@ def delete_stroke(session: Session, shape_id: str) -> bool:
     return False
 
 
-# ==================== Snapshot CRUD ====================
+# ==================== Commit CRUD ====================
 
-def create_snapshot(session: Session, snapshot: Snapshot) -> Snapshot:
-    """创建快照
+def create_commit(session: Session, commit: Commit) -> Commit:
+    """创建提交
 
     Args:
         session: 数据库会话
-        snapshot: 快照对象
+        commit: 提交对象
 
     Returns:
-        Snapshot: 创建后的快照对象
+        Commit: 创建后的提交对象
     """
-    session.add(snapshot)
+    session.add(commit)
     session.commit()
-    session.refresh(snapshot)
-    return snapshot
+    session.refresh(commit)
+    return commit
 
 
-def get_latest_snapshot(session: Session, room_id: str) -> Optional[Snapshot]:
-    """获取房间最新的快照
+def get_latest_commit(session: Session, room_id: str) -> Optional[Commit]:
+    """获取房间最新的提交
 
     Args:
         session: 数据库会话
         room_id: 房间 ID
 
     Returns:
-        Optional[Snapshot]: 最新的快照对象，若不存在则返回 None
+        Optional[Commit]: 最新的提交对象，若不存在则返回 None
     """
     statement = (
-        select(Snapshot)
-        .where(Snapshot.room_id == room_id)
-        .order_by(desc(Snapshot.timestamp))
+        select(Commit)
+        .where(Commit.room_id == room_id)
+        .order_by(desc(Commit.timestamp))
         .limit(1)
     )
     return session.exec(statement).first()
+
+
+def get_commit_by_id(session: Session, commit_id: int) -> Optional[Commit]:
+    """根据 ID 获取提交
+
+    Args:
+        session: 数据库会话
+        commit_id: 提交 ID
+
+    Returns:
+        Optional[Commit]: 提交对象，若不存在则返回 None
+    """
+    return session.get(Commit, commit_id)
+
+
+def get_commits_by_room(session: Session, room_id: str, limit: int = 50) -> List[Commit]:
+    """获取房间的提交历史
+
+    Args:
+        session: 数据库会话
+        room_id: 房间 ID
+        limit: 返回数量限制
+
+    Returns:
+        List[Commit]: 提交列表 (从新到旧)
+    """
+    statement = (
+        select(Commit)
+        .where(Commit.room_id == room_id)
+        .order_by(desc(Commit.timestamp))
+        .limit(limit)
+    )
+    return session.exec(statement).all()
 
 
 # ==================== Update CRUD ====================

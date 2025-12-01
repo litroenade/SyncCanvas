@@ -3,7 +3,7 @@
 """
 
 from .database import engine, init_db, get_session
-from .models import Room, RoomMember, Stroke, Snapshot, Update
+from .models import Room, RoomMember, Stroke, Update, Commit
 from .ystore import SQLModelYStore
 
 __all__ = [
@@ -13,7 +13,7 @@ __all__ = [
     "Room",
     "RoomMember",
     "Stroke",
-    "Snapshot",
     "Update",
+    "Commit",
     "SQLModelYStore",
 ]

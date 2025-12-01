@@ -8,7 +8,7 @@ from sqlmodel import SQLModel, create_engine, Session
 
 from src.models.user import User  # noqa: F401  # pylint: disable=unused-import
 from src.db.models import (  # noqa: F401  # pylint: disable=unused-import
-    Room, RoomMember, Stroke, Snapshot, Update, Commit
+    Room, RoomMember, Stroke, Update, Commit
 )
 from src.config import DATABASE_URL, DB_ECHO
 

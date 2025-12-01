@@ -1,5 +1,12 @@
 """模块名称: models
 主要功能: SyncCanvas 核心数据模型定义
+
+数据模型设计：
+- Room: 房间基本信息，head_commit_id 指向当前版本 (类似 Git HEAD)
+- RoomMember: 房间成员关系
+- Commit: 版本提交记录，存储完整的文档状态 (类似 Git Commit)
+- Update: 实时增量更新缓冲，定期合并到 Commit
+- Stroke: 图形统计记录 (可选)
 """
 
 from datetime import datetime
@@ -35,17 +42,7 @@ class Room(SQLModel, table=True):
 
 
 class RoomMember(SQLModel, table=True):
-    """房间成员模型
-
-    存储用户与房间的关联关系。
-
-    Attributes:
-        id (int): 主键 ID
-        room_id (str): 房间 ID
-        user_id (int): 用户 ID
-        role (str): 角色: owner/editor/viewer
-        joined_at (int): 加入时间戳 (秒)
-    """
+    """房间成员模型"""
 
     id: Optional[int] = Field(default=None, primary_key=True)
     room_id: str = Field(foreign_key="room.id", index=True, max_length=36)
@@ -55,20 +52,7 @@ class RoomMember(SQLModel, table=True):
 
 
 class Stroke(SQLModel, table=True):
-    """笔画/图形模型
-
-    存储每个图形的完整数据，用于历史追溯和统计。
-
-    Attributes:
-        id (int): 主键 ID
-        room_id (str): 所属房间 ID
-        user_id (int): 创建者用户 ID
-        shape_id (str): 图形 UUID (对应 Yjs 中的 ID)
-        shape_type (str): 图形类型 (rect/circle/text/arrow/line/freedraw/image)
-        shape_data (dict): 图形完整数据 (JSON)
-        created_at (int): 创建时间戳 (毫秒)
-        updated_at (int): 最后更新时间戳 (毫秒)
-    """
+    """笔画/图形模型 (用于统计)"""
 
     id: Optional[int] = Field(default=None, primary_key=True)
     room_id: str = Field(foreign_key="room.id", index=True, max_length=36)
@@ -83,19 +67,8 @@ class Stroke(SQLModel, table=True):
 class Commit(SQLModel, table=True):
     """提交模型 (类似 Git Commit)
 
-    存储文档在某个时刻的完整二进制状态，以及提交信息。
-    使用链表结构，每个提交指向其父提交。
-
-    Attributes:
-        id (int): 主键 ID (提交 ID)
-        room_id (str): 所属房间 ID
-        parent_id (int): 父提交 ID，None 表示初始提交
-        author_id (int): 提交作者用户 ID
-        author_name (str): 提交作者名称 (用于未登录用户)
-        message (str): 提交消息
-        data (bytes): 文档状态的二进制数据 (Yjs 状态向量)
-        timestamp (int): 提交时间戳 (毫秒)
-        hash (str): 提交哈希 (7位短哈希)
+    存储文档在某个时刻的完整状态，以及提交元信息。
+    使用链表结构，每个提交指向其父提交，形成版本历史链。
     """
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -109,35 +82,11 @@ class Commit(SQLModel, table=True):
     hash: str = Field(default="", max_length=7, index=True)
 
 
-class Snapshot(SQLModel, table=True):
-    """快照模型 (用于 Yjs 持久化)
-
-    存储文档在某个时刻的完整二进制状态。
-    这是 YStore 内部使用的表，与 Commit 不同。
-
-    Attributes:
-        id (int): 主键 ID
-        room_id (str): 所属房间 ID
-        data (bytes): 文档状态的二进制数据
-        timestamp (int): 快照时间戳 (毫秒)
-    """
-
-    id: Optional[int] = Field(default=None, primary_key=True)
-    room_id: str = Field(index=True, max_length=36)
-    data: bytes = Field()
-    timestamp: int = Field(default_factory=lambda: int(datetime.utcnow().timestamp() * 1000))
-
-
 class Update(SQLModel, table=True):
-    """增量更新模型
+    """增量更新模型 (实时缓冲)
 
-    存储自上次快照以来所有的细碎更新。
-
-    Attributes:
-        id (int): 主键 ID
-        room_id (str): 所属房间 ID
-        data (bytes): 更新的二进制数据
-        timestamp (int): 更新时间戳 (毫秒)
+    存储用户实时操作的增量更新，作为临时缓冲。
+    当用户提交或离开房间时，这些更新会被合并到新的 Commit 中。
     """
 
     id: Optional[int] = Field(default=None, primary_key=True)
