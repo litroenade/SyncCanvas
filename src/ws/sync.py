@@ -17,6 +17,7 @@ from pycrdt import Channel
 from pycrdt.websocket import WebsocketServer, ASGIServer, YRoom
 from pycrdt import Doc
 from sqlmodel import Session, select, delete
+from sqlalchemy import desc
 
 from src.db.ystore import SQLModelYStore
 from src.db.database import engine
@@ -176,7 +177,7 @@ class PersistentWebsocketServer(WebsocketServer):
                 snapshot_stmt = (
                     select(Snapshot)
                     .where(Snapshot.room_id == room_id)
-                    .order_by(Snapshot.timestamp.desc())
+                    .order_by(desc(Snapshot.timestamp))
                     .limit(1)
                 )
                 snapshot = session.exec(snapshot_stmt).first()

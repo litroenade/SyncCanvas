@@ -10,11 +10,7 @@ import logging.handlers
 import sys
 from pathlib import Path
 from typing import Any, Dict
-
-try:  # Python 3.11+
-    import tomllib as _toml
-except ModuleNotFoundError:  # pragma: no cover - fallback for <=3.10
-    import tomli as _toml  # type: ignore[no-redef]
+import tomllib as _toml
 
 # 默认日志配置
 _DEFAULT_LOGGING: Dict[str, Any] = {

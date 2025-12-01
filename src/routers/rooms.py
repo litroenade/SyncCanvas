@@ -6,13 +6,13 @@ import uuid
 import hashlib
 import secrets
 import time
-from datetime import datetime
 from typing import Optional, List
 
 from pycrdt import Doc
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select, delete
+from sqlalchemy import desc
 
 from src.db.database import get_session
 from src.db.models import Room, RoomMember, Snapshot, Update, Commit
@@ -20,7 +20,10 @@ from src.db import crud
 from src.auth.utils import get_current_user_optional, get_current_user
 from src.models.user import User
 from src.logger import get_logger
-from src.ws.sync import websocket_server
+
+# websocket_server 用于未来实现 WebSocket 通知机制
+# 暂时未使用，但保留以备后续实现
+# from src.ws.sync import websocket_server
 
 router = APIRouter(prefix="/rooms", tags=["Rooms"])
 logger = get_logger(__name__)
@@ -568,7 +571,7 @@ async def get_room_history(
     commits_stmt = (
         select(Commit)
         .where(Commit.room_id == room_id)
-        .order_by(Commit.timestamp.desc())
+        .order_by(desc(Commit.timestamp))
         .limit(limit)
     )
     commits = session.exec(commits_stmt).all()
@@ -634,8 +637,6 @@ async def create_commit(
 
 
 
-    ws_path = f"/ws/{room_id}"
-
     # 构建完整文档状态
     ydoc = Doc()
 
@@ -643,7 +644,7 @@ async def create_commit(
     snapshot_stmt = (
         select(Snapshot)
         .where(Snapshot.room_id == room_id)
-        .order_by(Snapshot.timestamp.desc())
+        .order_by(desc(Snapshot.timestamp))
         .limit(1)
     )
     snapshot = session.exec(snapshot_stmt).first()
@@ -740,7 +741,7 @@ async def checkout_commit(
     room_id: str,
     commit_id: int,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    _current_user: User = Depends(get_current_user)  # 用于身份验证
 ):
     """检出指定提交
 
@@ -750,7 +751,7 @@ async def checkout_commit(
         room_id: 房间 ID
         commit_id: 提交 ID
         session: 数据库会话
-        current_user: 当前用户
+        _current_user: 当前用户（用于身份验证，未在函数体内直接使用）
 
     Returns:
         dict: 检出结果
@@ -840,7 +841,7 @@ async def revert_commit(
 
     # 创建回滚提交
     current_time = int(time.time() * 1000)
-    revert_commit = Commit(
+    new_revert_commit = Commit(
         room_id=room_id,
         parent_id=room.head_commit_id,
         author_id=current_user.id,
@@ -849,10 +850,10 @@ async def revert_commit(
         data=commit.data,
         timestamp=current_time,
     )
-    session.add(revert_commit)
+    session.add(new_revert_commit)
     session.flush()
 
-    revert_commit.hash = generate_commit_hash(revert_commit.id, current_time)
+    new_revert_commit.hash = generate_commit_hash(new_revert_commit.id, current_time)
 
     # 更新 Snapshot
     delete_snapshot_stmt = delete(Snapshot).where(Snapshot.room_id == room_id)
@@ -869,7 +870,7 @@ async def revert_commit(
     session.add(new_snapshot)
 
     # 更新 HEAD
-    room.head_commit_id = revert_commit.id
+    room.head_commit_id = new_revert_commit.id
     session.add(room)
 
     session.commit()
@@ -879,9 +880,9 @@ async def revert_commit(
     return {
         "status": "reverted",
         "new_commit": {
-            "id": revert_commit.id,
-            "hash": revert_commit.hash,
-            "message": revert_commit.message
+            "id": new_revert_commit.id,
+            "hash": new_revert_commit.hash,
+            "message": new_revert_commit.message
         },
         "reverted_to": {
             "id": commit.id,
@@ -916,7 +917,7 @@ async def get_room_snapshots(
     snapshots_stmt = (
         select(Snapshot)
         .where(Snapshot.room_id == room_id)
-        .order_by(Snapshot.timestamp.desc())
+        .order_by(desc(Snapshot.timestamp))
     )
     snapshots = session.exec(snapshots_stmt).all()
 

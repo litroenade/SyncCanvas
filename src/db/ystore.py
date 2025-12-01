@@ -34,7 +34,10 @@ class WriteBuffer:
     用于累积 Yjs 更新，减少数据库写入次数。
     """
 
-    def __init__(self, flush_callback: Callable[[], None], flush_interval: float = 5.0, max_size: int = 50):
+    def __init__(
+            self,
+            flush_callback: Callable[[], None], flush_interval: float = 5.0, max_size: int = 50
+            ):
         self._buffer: list[tuple[bytes, int]] = []
         self._lock = threading.Lock()
         self._flush_callback = flush_callback

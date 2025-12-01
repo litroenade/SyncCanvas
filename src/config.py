@@ -7,18 +7,8 @@ from __future__ import annotations
 import json
 import os
 import secrets
-import sys
 from typing import List, Any
-
-# Python 3.11+ has tomllib, otherwise use tomli
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    try:
-        import tomli as tomllib
-    except ImportError:
-        print("Error: tomli is required for Python < 3.11")
-        sys.exit(1)
+import tomllib
 
 
 def load_config() -> dict[str, Any]:
