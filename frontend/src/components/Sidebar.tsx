@@ -1,13 +1,49 @@
 import React, { useState } from 'react';
-import { Settings, ChevronLeft, ChevronRight, Layers, Grid as GridIcon, Download, Undo, Redo, ArrowUpToLine, ArrowDownToLine, Sun, Moon, Home, History } from 'lucide-react';
+import { Settings, ChevronLeft, ChevronRight, Box, Grid as GridIcon, Download, Undo, Redo, ArrowUpToLine, ArrowDownToLine, Sun, Moon, Home, History } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
-import { useYjs } from '../hooks/useYjs';
-import { useCanvasStore } from '../stores/useCanvasStore';
+import { yjsManager } from '../lib/yjs';
+import { useCanvasStore, Shape } from '../stores/useCanvasStore';
 import { useThemeStore } from '../stores/useThemeStore';
 import { SettingsModal } from './SettingsModal';
-import { LayersPanel } from './LayersPanel';
+import { ElementsPanel } from './ElementsPanel';
 import { HistoryPanel } from './HistoryPanel';
+
+// 直接使用 yjsManager 的操作
+const undo = () => {
+    const undoManager = yjsManager.undoManager;
+    if (!undoManager) {
+        console.warn('Yjs 未连接，无法撤销');
+        return;
+    }
+    undoManager.undo();
+};
+
+const redo = () => {
+    const undoManager = yjsManager.undoManager;
+    if (!undoManager) {
+        console.warn('Yjs 未连接，无法重做');
+        return;
+    }
+    undoManager.redo();
+};
+
+const updateShape = (id: string, attrs: Partial<Shape>) => {
+    const shapesMap = yjsManager.shapesMap;
+    if (!shapesMap) {
+        console.warn('Yjs 未连接，无法更新图形');
+        return;
+    }
+    const currentShape = shapesMap.get(id) as Shape | undefined;
+    if (currentShape) {
+        const updatedShape = { ...currentShape, ...attrs };
+        shapesMap.set(id, updatedShape);
+    }
+};
+
+const leaveRoom = () => {
+    yjsManager.disconnect();
+};
 
 interface SidebarProps {
     onExport: () => void;
@@ -17,14 +53,15 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ onExport, roomId }) => {
     const navigate = useNavigate();
     const [isOpen, setIsOpen] = useState(false);
-    const [activePanel, setActivePanel] = useState<'layers' | 'history' | 'none'>('none');
+    const [activePanel, setActivePanel] = useState<'elements' | 'history' | 'none'>('none');
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-    const { undo, redo, updateShape, leaveRoom } = useYjs(roomId);
-    const { selectedIds, shapes, showGrid, toggleGrid: toggleGridStore, isGuest } = useCanvasStore();
+    const { selectedIds, shapes, showGrid, toggleGrid: toggleGridStore, isGuest, setShapes, setCursors } = useCanvasStore();
     const { theme, toggleTheme } = useThemeStore();
 
     const handleBackToRooms = () => {
         leaveRoom();
+        setShapes({});
+        setCursors({});
         navigate('/rooms');
     };
 
@@ -44,7 +81,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onExport, roomId }) => {
         });
     };
 
-    const togglePanel = (panel: 'layers' | 'history') => {
+    const togglePanel = (panel: 'elements' | 'history') => {
         if (activePanel === panel) {
             setActivePanel('none');
         } else {
@@ -104,21 +141,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ onExport, roomId }) => {
                                 )}
 
                                 <SidebarItem
-                                    icon={Layers}
-                                    label="图层"
+                                    icon={Box}
+                                    label="元素"
                                     isOpen={isOpen}
-                                    onClick={() => togglePanel('layers')}
-                                    active={activePanel === 'layers'}
+                                    onClick={() => togglePanel('elements')}
+                                    active={activePanel === 'elements'}
                                     theme={theme}
                                 />
 
-                                {/* Layers Panel Content */}
-                                {activePanel === 'layers' && isOpen && (
+                                {/* Elements Panel Content */}
+                                {activePanel === 'elements' && isOpen && (
                                     <div className={cn(
                                         "mt-2 mb-2 border-t border-b py-2 max-h-96 overflow-y-auto custom-scrollbar",
                                         theme === 'dark' ? "border-slate-700" : "border-slate-100"
                                     )}>
-                                        <LayersPanel />
+                                        <ElementsPanel />
                                     </div>
                                 )}
 

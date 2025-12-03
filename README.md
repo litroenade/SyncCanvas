@@ -5,12 +5,12 @@
 ## 项目结构
 
 ```
-scanves/
+SyncCanvas/
 ├── main.py                 # 应用入口，FastAPI 服务器
 ├── config.toml             # 配置文件
 ├── pyproject.toml          # Python 项目配置 (uv)
 ├── requirements.txt        # Python 依赖列表
-├── create_user.py          # 创建用户脚本
+├── uv.lock                 # uv 锁定文件
 │
 ├── src/                    # 后端源代码
 │   ├── __init__.py
@@ -23,7 +23,7 @@ scanves/
 │   │
 │   ├── auth/               # 认证模块
 │   │   ├── __init__.py
-│   │   ├── router.py       # 认证路由 (登录/登出)
+│   │   ├── router.py       # 认证路由 (登录/注册)
 │   │   └── utils.py        # JWT 工具函数
 │   │
 │   ├── crdt/               # CRDT 模块 (预留)
@@ -31,9 +31,10 @@ scanves/
 │   │
 │   ├── db/                 # 数据库模块
 │   │   ├── __init__.py
+│   │   ├── crud.py         # CRUD 操作
 │   │   ├── database.py     # 数据库连接
-│   │   ├── models.py       # SQLModel 模型
-│   │   └── crud.py         # CRUD 操作
+│   │   ├── models.py       # SQLModel 模型 (Commit, Update, Room, User)
+│   │   └── ystore.py       # 自定义 YStore (SQLModel 持久化)
 │   │
 │   ├── models/             # Pydantic 模型
 │   │   ├── __init__.py
@@ -41,7 +42,17 @@ scanves/
 │   │
 │   ├── routers/            # API 路由
 │   │   ├── __init__.py
-│   │   └── ai.py           # AI 相关路由
+│   │   ├── ai.py           # AI 相关路由
+│   │   ├── rooms.py        # 房间管理路由
+│   │   ├── upload.py       # 文件上传路由
+│   │   └── igit/           # IGit 版本控制路由
+│   │       ├── __init__.py
+│   │       ├── models.py   # IGit 请求/响应模型
+│   │       ├── router.py   # IGit 路由
+│   │       └── utils.py    # IGit 工具函数
+│   │
+│   ├── services/           # 业务逻辑服务
+│   │   └── igit.py         # IGit 版本控制服务
 │   │
 │   └── ws/                 # WebSocket 模块
 │       ├── __init__.py
@@ -54,50 +65,58 @@ scanves/
 │   ├── vite.config.ts      # Vite 配置
 │   ├── tsconfig.json       # TypeScript 配置
 │   ├── tailwind.config.js  # Tailwind CSS 配置
+│   ├── postcss.config.js   # PostCSS 配置
+│   ├── eslint.config.js    # ESLint 配置
 │   │
 │   ├── dist/               # 构建输出 (由后端静态服务)
 │   │
 │   └── src/
 │       ├── main.tsx        # React 入口
-│       ├── App.tsx         # 应用主组件
+│       ├── App.tsx         # 应用主组件 (路由配置)
 │       ├── index.css       # 全局样式
 │       │
 │       ├── components/     # UI 组件
+│       │   ├── AIGenerateModal.tsx # AI 生成弹窗
 │       │   ├── Canvas.tsx          # 画布主组件 (Konva)
-│       │   ├── Toolbar.tsx         # 工具栏
-│       │   ├── Sidebar.tsx         # 侧边栏
-│       │   ├── Grid.tsx            # 网格背景
+│       │   ├── CommitDiffPanel.tsx # 提交差异面板
+│       │   ├── ContextMenu.tsx     # 右键菜单
 │       │   ├── Cursors.tsx         # 远程光标显示
-│       │   ├── PropertiesPanel.tsx # 属性面板
-│       │   ├── LayersPanel.tsx     # 图层面板
-│       │   ├── ZoomControls.tsx    # 缩放控件
+│       │   ├── ElementsPanel.tsx   # 元素面板
 │       │   ├── ExportButtons.tsx   # 导出按钮
+│       │   ├── Grid.tsx            # 网格背景
+│       │   ├── HistoryPanel.tsx    # 历史版本面板
+│       │   ├── Modal.tsx           # 通用弹窗组件
+│       │   ├── PropertiesPanel.tsx # 属性面板
 │       │   ├── SettingsModal.tsx   # 设置弹窗
+│       │   ├── Sidebar.tsx         # 侧边栏
+│       │   ├── Toolbar.tsx         # 工具栏
 │       │   ├── WelcomeModal.tsx    # 欢迎弹窗
-│       │   └── AIGenerateModal.tsx # AI 生成弹窗
+│       │   └── ZoomControls.tsx    # 缩放控件
 │       │
 │       ├── stores/         # Zustand 状态管理
-│       │   ├── useCanvasStore.ts   # 画布状态
-│       │   ├── useThemeStore.ts    # 主题状态
 │       │   ├── connection_store.ts # 连接状态
 │       │   ├── history_store.ts    # 历史记录
-│       │   └── preferences_store.ts# 用户偏好
+│       │   ├── preferences_store.ts# 用户偏好
+│       │   ├── useCanvasStore.ts   # 画布状态
+│       │   └── useThemeStore.ts    # 主题状态
 │       │
 │       ├── hooks/          # React Hooks
 │       │   ├── useYjs.ts           # Yjs 同步 Hook
 │       │   └── use_websocket.ts    # WebSocket Hook
 │       │
 │       ├── lib/            # 工具库
-│       │   ├── yjs.ts              # Yjs 初始化
+│       │   ├── d3-layout.ts        # D3 布局算法
 │       │   ├── utils.ts            # 通用工具
-│       │   └── d3-layout.ts        # D3 布局算法
+│       │   └── yjs.ts              # Yjs 房间管理器
 │       │
 │       ├── pages/          # 页面组件
-│       │   └── Login.tsx           # 登录页
+│       │   ├── Login.tsx           # 登录页
+│       │   └── Rooms.tsx           # 房间列表页
 │       │
 │       ├── services/       # API 服务
 │       │   └── api/
-│       │       └── ai.ts           # AI API 调用
+│       │       ├── ai.ts           # AI API 调用
+│       │       └── rooms.ts        # 房间 API 调用
 │       │
 │       ├── config/         # 前端配置
 │       │   ├── env.ts              # 环境变量
@@ -120,10 +139,8 @@ scanves/
 │   ├── features.md         # 功能说明
 │   └── todo.md             # 待办事项
 │
-├── logs/                   # 日志目录
-│
-└── tests/                  # 测试
-    └── test_persistence.py
+└── logs/                   # 日志目录
+    └── app.log             # 应用日志
 ```
 
 ## 快速开始

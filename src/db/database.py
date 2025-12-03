@@ -8,7 +8,10 @@ from sqlmodel import SQLModel, create_engine, Session
 
 from src.models.user import User  # noqa: F401  # pylint: disable=unused-import
 from src.db.models import (  # noqa: F401  # pylint: disable=unused-import
-    Room, RoomMember, Stroke, Update, Commit
+    Room,
+    RoomMember,
+    Update,
+    Commit,
 )
 from src.config import DATABASE_URL, DB_ECHO
 
@@ -19,8 +22,10 @@ _db_dir.mkdir(parents=True, exist_ok=True)
 
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
-    echo=DB_ECHO
+    connect_args={"check_same_thread": False}
+    if DATABASE_URL.startswith("sqlite")
+    else {},
+    echo=DB_ECHO,
 )
 
 
@@ -32,7 +37,6 @@ def init_db():
     """
     # 导入所有模型以注册到 SQLModel.metadata
     # pylint: disable=import-outside-toplevel,unused-import
-
 
     SQLModel.metadata.create_all(engine)
 

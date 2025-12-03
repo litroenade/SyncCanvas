@@ -1,6 +1,6 @@
 import React from 'react';
-import { useYjs } from '../hooks/useYjs';
-import { useCanvasStore, ToolType } from '../stores/useCanvasStore';
+import { yjsManager } from '../lib/yjs';
+import { useCanvasStore, ToolType, Shape } from '../stores/useCanvasStore';
 import { 
     MousePointer2, Hand, Square, Circle, Diamond, 
     ArrowRight, Minus, Pencil, Type, Image as ImageIcon, 
@@ -8,6 +8,54 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { applyForceLayout } from '../lib/d3-layout';
+import { useModal } from './Modal';
+
+// 直接使用 yjsManager 的操作
+const addShape = (shape: Shape) => {
+    const shapesMap = yjsManager.shapesMap;
+    if (!shapesMap) {
+        console.warn('Yjs 未连接，无法添加图形');
+        return;
+    }
+    shapesMap.set(shape.id, shape);
+};
+
+const updateShapes = (updates: Record<string, Partial<Shape>>) => {
+    const ydoc = yjsManager.ydoc;
+    const shapesMap = yjsManager.shapesMap;
+    if (!ydoc || !shapesMap) {
+        console.warn('Yjs 未连接，无法批量更新');
+        return;
+    }
+    
+    ydoc.transact(() => {
+        Object.entries(updates).forEach(([id, attrs]) => {
+            const currentShape = shapesMap.get(id) as Shape | undefined;
+            if (currentShape) {
+                const updatedShape = { ...currentShape, ...attrs };
+                shapesMap.set(id, updatedShape);
+            }
+        });
+    });
+};
+
+const undo = () => {
+    const undoManager = yjsManager.undoManager;
+    if (!undoManager) {
+        console.warn('Yjs 未连接，无法撤销');
+        return;
+    }
+    undoManager.undo();
+};
+
+const redo = () => {
+    const undoManager = yjsManager.undoManager;
+    if (!undoManager) {
+        console.warn('Yjs 未连接，无法重做');
+        return;
+    }
+    undoManager.redo();
+};
 
 /**
  * 工具栏组件 - Excalidraw 风格
@@ -15,9 +63,11 @@ import { applyForceLayout } from '../lib/d3-layout';
  * 提供工具选择和快捷操作。
  */
 export const Toolbar: React.FC = () => {
-    const { addShape, updateShapes, undo, redo } = useYjs();
     const { shapes, currentTool, setCurrentTool, currentStrokeColor, currentFillColor, setCurrentStrokeColor, setCurrentFillColor } = useCanvasStore();
     const fileInputRef = React.useRef<HTMLInputElement>(null);
+    
+    // 自定义弹窗
+    const { showAlert, showToast, ModalRenderer } = useModal();
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -55,9 +105,11 @@ export const Toolbar: React.FC = () => {
                 height: 200,
                 imageUrl: data.url
             });
+            
+            showToast('图片上传成功', 'success');
         } catch (error) {
             console.error('图片上传失败:', error);
-            alert(error instanceof Error ? error.message : '图片上传失败');
+            showAlert(error instanceof Error ? error.message : '图片上传失败', { type: 'error', title: '上传失败' });
         }
 
         if (fileInputRef.current) {
@@ -214,6 +266,9 @@ export const Toolbar: React.FC = () => {
                     ))}
                 </div>
             </div>
+            
+            {/* Modal 渲染器 */}
+            <ModalRenderer />
         </div>
     );
 };

@@ -15,12 +15,12 @@ from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
+from src.config import config
 from src.db.database import get_session
 from src.models.user import User
 from .utils import (
     create_access_token,
     ACCESS_TOKEN_EXPIRE_MINUTES,
-    SECRET_KEY,
     ALGORITHM,
     get_current_user,
     get_current_user_optional,
@@ -29,43 +29,6 @@ from .utils import (
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-# 设置文件路径
-SETTINGS_FILE = Path(__file__).resolve().parents[2] / "data" / "settings.json"
-
-
-def _load_or_create_secret_key() -> str:
-    """加载或创建服务端 secret_key"""
-    SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
-
-    if SETTINGS_FILE.exists():
-        try:
-            with SETTINGS_FILE.open("r", encoding="utf-8") as f:
-                data = json.load(f)
-                if "secret_key" in data:
-                    return data["secret_key"]
-        except (json.JSONDecodeError, OSError):
-            pass
-
-    # 生成新的 secret_key
-    new_key = secrets.token_hex(32)
-    settings = {}
-    if SETTINGS_FILE.exists():
-        try:
-            with SETTINGS_FILE.open("r", encoding="utf-8") as f:
-                settings = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            pass
-
-    settings["secret_key"] = new_key
-    with SETTINGS_FILE.open("w", encoding="utf-8") as f:
-        json.dump(settings, f, indent=2)
-
-    return new_key
-
-
-# 加载服务端 secret_key
-SERVER_SECRET_KEY = _load_or_create_secret_key()
 
 
 class Token(BaseModel):
@@ -92,7 +55,7 @@ async def login_for_access_token(
     用户名可以随意填写，密码需要是服务端的 secret_key
     """
     # 验证 secret_key
-    if not secrets.compare_digest(form_data.password, SERVER_SECRET_KEY):
+    if not secrets.compare_digest(form_data.password, config.secret_key):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid secret key",
@@ -122,12 +85,12 @@ async def login_for_access_token(
 @router.get("/secret-key-hint")
 async def get_secret_key_hint():
     """获取 secret_key 的提示（仅显示前后几位）"""
-    key = SERVER_SECRET_KEY
+    key = config.secret_key
     if len(key) > 12:
         hint = f"{key[:4]}...{key[-4:]}"
     else:
         hint = "****"
-    return {"hint": hint, "message": "完整 key 在 data/settings.json 中"}
+    return {"hint": hint, "message": "完整 key 在 config.toml 中"}
 
 
 @router.get("/me", response_model=UserCreate)

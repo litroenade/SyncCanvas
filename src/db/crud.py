@@ -3,14 +3,12 @@
 """
 
 from typing import List, Optional
-from datetime import datetime
+
 from sqlalchemy import desc
 from sqlmodel import Session, select
 
-from .models import Room, Update, RoomMember, Stroke, Commit
+from .models import Room, Update, RoomMember, Commit
 
-
-# ==================== Room CRUD ====================
 
 def create_room(session: Session, room: Room) -> Room:
     """创建新房间
@@ -46,7 +44,7 @@ def get_rooms(
     user_id: Optional[int] = None,
     is_public: Optional[bool] = None,
     limit: int = 50,
-    offset: int = 0
+    offset: int = 0,
 ) -> List[Room]:
     """获取房间列表
 
@@ -86,8 +84,6 @@ def delete_room(session: Session, room_id: str) -> bool:
         return True
     return False
 
-
-# ==================== RoomMember CRUD ====================
 
 def add_room_member(session: Session, member: RoomMember) -> RoomMember:
     """添加房间成员
@@ -150,8 +146,7 @@ def is_room_member(session: Session, room_id: str, user_id: int) -> bool:
         bool: 是否是成员
     """
     statement = select(RoomMember).where(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == user_id
+        RoomMember.room_id == room_id, RoomMember.user_id == user_id
     )
     return session.exec(statement).first() is not None
 
@@ -168,8 +163,7 @@ def remove_room_member(session: Session, room_id: str, user_id: int) -> bool:
         bool: 是否移除成功
     """
     statement = select(RoomMember).where(
-        RoomMember.room_id == room_id,
-        RoomMember.user_id == user_id
+        RoomMember.room_id == room_id, RoomMember.user_id == user_id
     )
     member = session.exec(statement).first()
     if member:
@@ -178,98 +172,6 @@ def remove_room_member(session: Session, room_id: str, user_id: int) -> bool:
         return True
     return False
 
-
-# ==================== Stroke CRUD ====================
-
-def create_stroke(session: Session, stroke: Stroke) -> Stroke:
-    """创建笔画记录
-
-    Args:
-        session: 数据库会话
-        stroke: 笔画对象
-
-    Returns:
-        Stroke: 创建后的笔画对象
-    """
-    session.add(stroke)
-    session.commit()
-    session.refresh(stroke)
-    return stroke
-
-
-def get_room_strokes(session: Session, room_id: str) -> List[Stroke]:
-    """获取房间所有笔画
-
-    Args:
-        session: 数据库会话
-        room_id: 房间 ID
-
-    Returns:
-        List[Stroke]: 笔画列表
-    """
-    statement = (
-        select(Stroke)
-        .where(Stroke.room_id == room_id)
-        .order_by(Stroke.created_at)
-    )
-    return list(session.exec(statement))
-
-
-def get_stroke_by_shape_id(session: Session, shape_id: str) -> Optional[Stroke]:
-    """根据图形 ID 获取笔画
-
-    Args:
-        session: 数据库会话
-        shape_id: 图形 UUID
-
-    Returns:
-        Optional[Stroke]: 笔画对象
-    """
-    statement = select(Stroke).where(Stroke.shape_id == shape_id)
-    return session.exec(statement).first()
-
-
-def update_stroke(session: Session, shape_id: str, shape_data: dict) -> Optional[Stroke]:
-    """更新笔画数据
-
-    Args:
-        session: 数据库会话
-        shape_id: 图形 UUID
-        shape_data: 新的图形数据
-
-    Returns:
-        Optional[Stroke]: 更新后的笔画对象
-    """
-
-    stroke = get_stroke_by_shape_id(session, shape_id)
-    if stroke:
-        stroke.shape_data = shape_data
-        stroke.updated_at = int(datetime.utcnow().timestamp() * 1000)
-        session.add(stroke)
-        session.commit()
-        session.refresh(stroke)
-    return stroke
-
-
-def delete_stroke(session: Session, shape_id: str) -> bool:
-    """删除笔画
-
-    Args:
-        session: 数据库会话
-        shape_id: 图形 UUID
-
-    Returns:
-        bool: 是否删除成功
-    """
-    stroke = get_stroke_by_shape_id(session, shape_id)
-    if stroke:
-        session.delete(stroke)
-        session.commit()
-        return True
-    return False
-
-
-# ==================== Commit CRUD ====================
 
 def create_commit(session: Session, commit: Commit) -> Commit:
     """创建提交
@@ -319,7 +221,9 @@ def get_commit_by_id(session: Session, commit_id: int) -> Optional[Commit]:
     return session.get(Commit, commit_id)
 
 
-def get_commits_by_room(session: Session, room_id: str, limit: int = 50) -> List[Commit]:
+def get_commits_by_room(
+    session: Session, room_id: str, limit: int = 50
+) -> List[Commit]:
     """获取房间的提交历史
 
     Args:
@@ -338,8 +242,6 @@ def get_commits_by_room(session: Session, room_id: str, limit: int = 50) -> List
     )
     return session.exec(statement).all()
 
-
-# ==================== Update CRUD ====================
 
 def create_update(session: Session, update: Update) -> Update:
     """创建增量更新

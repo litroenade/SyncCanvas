@@ -11,8 +11,9 @@ from fastapi.staticfiles import StaticFiles
 
 from src.config import ALLOWED_ORIGINS
 from src.logger import get_logger
-from src.ws.sync import websocket_server
 from .ai import router as ai_router
+from .rooms import router as rooms_router
+from .igit import igit_router
 
 
 logger = get_logger(__name__)
@@ -68,20 +69,21 @@ def mount_api_routes(app: FastAPI):
         
         @returns 在线用户数等统计数据
         """
-        # 从 websocket_server 获取房间统计
-        room_count = len(websocket_server.rooms)
-
+        from src.ws.sync import websocket_server
         return {
             "code": 0,
             "msg": "success",
             "data": {
-                "online_rooms": room_count
+                "online_rooms": len(websocket_server.rooms)
             }
         }
 
     # 挂载 API 路由到主应用
     app.include_router(api)
     app.include_router(ai_router, prefix="/api")
+    app.include_router(rooms_router, prefix="/api")
+    # igit_router 需要挂载到 /api/rooms 下，因为它的端点是 /{room_id}/history 等
+    app.include_router(igit_router, prefix="/api/rooms")
 
     # 挂载前端静态文件到 /webui 路径
     static_dir = Path("frontend/dist")

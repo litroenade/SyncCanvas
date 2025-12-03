@@ -221,30 +221,34 @@ export const roomsApi = {
   },
 
   /**
-   * 创建房间快照 (兼容旧 API)
+   * 获取提交详情
    * @param roomId - 房间 ID
-   * @returns 创建结果
+   * @param commitId - 提交 ID
+   * @returns 提交详情
    */
-  async createSnapshot(roomId: string): Promise<{ status: string; room_id: string }> {
-    const response = await axios.post(
-      `${config.apiBaseUrl}/rooms/${roomId}/snapshot`,
-      {},
+  async getCommitDetail(roomId: string, commitId: number): Promise<CommitDetailResponse> {
+    const response = await axios.get(
+      `${config.apiBaseUrl}/rooms/${roomId}/commits/${commitId}`,
       { headers: getAuthHeaders() }
     )
     return response.data
   },
-}
 
-/**
- * 快照信息接口
- */
-export interface SnapshotInfo {
-  /** 快照 ID */
-  id: number
-  /** 时间戳 (毫秒) */
-  timestamp: number
-  /** 数据大小 (字节) */
-  size: number
+  /**
+   * 获取提交差异
+   * @param roomId - 房间 ID
+   * @param commitId - 目标提交 ID
+   * @param baseCommitId - 基准提交 ID (可选)
+   * @returns 差异信息
+   */
+  async getCommitDiff(roomId: string, commitId: number, baseCommitId?: number): Promise<CommitDiffResponse> {
+    const params = baseCommitId !== undefined ? { base_commit_id: baseCommitId } : {}
+    const response = await axios.get(
+      `${config.apiBaseUrl}/rooms/${roomId}/diff/${commitId}`,
+      { params, headers: getAuthHeaders() }
+    )
+    return response.data
+  },
 }
 
 /**
@@ -307,4 +311,52 @@ export interface CreateCommitResponse {
     author_name: string
     timestamp: number
   }
+}
+
+/**
+ * 笔画变更信息接口
+ */
+export interface StrokeChange {
+  /** 图形 ID */
+  shape_id: string
+  /** 变更类型 */
+  action: 'added' | 'removed' | 'modified'
+  /** 笔画类型 */
+  stroke_type: string | null
+  /** 点数量 */
+  points_count: number | null
+}
+
+/**
+ * Commit 差异响应接口
+ */
+export interface CommitDiffResponse {
+  /** 房间 ID */
+  room_id: string
+  /** 基准提交 */
+  from_commit: CommitInfo | null
+  /** 目标提交 */
+  to_commit: CommitInfo
+  /** 新增笔画数 */
+  strokes_added: number
+  /** 删除笔画数 */
+  strokes_removed: number
+  /** 修改笔画数 */
+  strokes_modified: number
+  /** 变更详情列表 */
+  changes: StrokeChange[]
+  /** 大小差异 (字节) */
+  size_diff: number
+}
+
+/**
+ * Commit 详情响应接口
+ */
+export interface CommitDetailResponse {
+  /** 提交信息 */
+  commit: CommitInfo
+  /** 笔画总数 */
+  strokes_count: number
+  /** 笔画类型统计 */
+  stroke_types: Record<string, number>
 }

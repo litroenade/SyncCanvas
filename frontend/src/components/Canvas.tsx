@@ -1,4 +1,11 @@
+/**
+ * 模块名称：Canvas
+ * 主要功能：画布组件
+ * 
+ * 主绘图区域，处理图形渲染、交互（拖拽、缩放、选择、绘制）以及与 Yjs 的同步。
+ */
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import { Stage, Layer, Rect, Circle, Text, Arrow, Line, Image as KonvaImage, Transformer } from 'react-konva';
 import useImage from 'use-image';
 import { useCanvasStore, Shape, ToolType } from '../stores/useCanvasStore';
@@ -13,6 +20,8 @@ import { Cursors } from './Cursors';
 
 /**
  * 获取鼠标在画布世界坐标系中的位置
+ * @param stage - Konva Stage 实例
+ * @returns 世界坐标点 {x, y} 或 null
  */
 const getWorldPos = (stage: any): { x: number; y: number } | null => {
     const pointer = stage.getPointerPosition();
@@ -23,13 +32,14 @@ const getWorldPos = (stage: any): { x: number; y: number } | null => {
 };
 
 interface CanvasProps {
+    /** 房间 ID */
     roomId?: string;
 }
 
 /**
  * 画布组件
  * 
- * 主绘图区域，处理图形渲染、交互（拖拽、缩放、选择、绘制）以及与 Yjs 的同步。
+ * @param roomId - 房间 ID
  */
 export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
     const {
@@ -39,7 +49,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
         setScale, setOffset, setSelectedId, toggleSelection, clearSelection,
         setIsDrawing, setCurrentTool
     } = useCanvasStore();
-    const { addShape, updateShape, deleteShape, undo, redo, updateAwareness } = useYjs(roomId);
+    const { addShape, updateShape, deleteShape, undo, redo, updateAwareness, isConnected, isSynced } = useYjs(roomId);
     const { theme } = useThemeStore();
     const shapeRefs = useRef<Record<string, any>>({});
     const trRef = useRef<any>(null);
@@ -244,7 +254,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
 
         // text 工具：直接创建文本并同步
         if (currentTool === 'text') {
-            const id = crypto.randomUUID();
+            const id = uuidv4();
             const newShape: Shape = {
                 id,
                 type: 'text',
@@ -268,7 +278,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
         drawStartRef.current = pos;
         setIsDrawing(true);
 
-        const id = crypto.randomUUID();
+        const id = uuidv4();
         let newShape: Shape;
 
         if (currentTool === 'freedraw') {
@@ -310,6 +320,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
         // 同时设置 ref 和 state
         drawingShapeRef.current = newShape;
         setDrawingShape(newShape);
+        console.log('Draw start:', newShape);
     }, [isGuest, currentTool, currentFillColor, currentStrokeColor, currentStrokeWidth, addShape, clearSelection, setSelectedId, setCurrentTool, setIsDrawing]);
 
     /**
@@ -318,7 +329,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
     const handleDrawMove = useCallback((e: any) => {
         const stage = e.target.getStage();
         const pos = getWorldPos(stage);
-        
+
         // 更新光标位置
         if (pos) {
             updateAwareness(pos.x, pos.y);
@@ -336,7 +347,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
             const lastX = points[points.length - 2];
             const lastY = points[points.length - 1];
             const dist = Math.hypot(pos.x - lastX, pos.y - lastY);
-            
+
             // 距离阈值优化
             if (dist > 2) {
                 drawingShapeRef.current = {
@@ -395,12 +406,12 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
         if (!isDrawing || !shape) return;
 
         // 检查图形是否太小
-        const isTooSmall = 
+        const isTooSmall =
             (shape.type === 'freedraw' && (shape.points?.length || 0) < 6) ||
-            ((shape.type === 'rect' || shape.type === 'circle' || shape.type === 'diamond') && 
-             ((shape.width || 0) < 5 || (shape.height || 0) < 5)) ||
-            ((shape.type === 'arrow' || shape.type === 'line') && shape.points && 
-             Math.hypot(shape.points[2] - shape.points[0], shape.points[3] - shape.points[1]) < 5);
+            ((shape.type === 'rect' || shape.type === 'circle' || shape.type === 'diamond') &&
+                ((shape.width || 0) < 5 || (shape.height || 0) < 5)) ||
+            ((shape.type === 'arrow' || shape.type === 'line') && shape.points &&
+                Math.hypot(shape.points[2] - shape.points[0], shape.points[3] - shape.points[1]) < 5);
 
         if (!isTooSmall) {
             // 同步到 Yjs
@@ -440,13 +451,25 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
     };
 
     return (
-        <div 
+        <div
             className={cn("w-full h-screen overflow-hidden relative", theme === 'dark' ? "bg-[#121212]" : "bg-gray-100")}
             style={{ cursor: getStageCursor() }}
         >
             {!isGuest && <Toolbar />}
             <Sidebar onExport={handleExport} roomId={roomId} />
             {!isGuest && <PropertiesPanel />}
+
+            {/* 连接状态指示器 */}
+            <div className={cn(
+                "absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-medium z-50",
+                isConnected
+                    ? (isSynced ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700")
+                    : "bg-red-100 text-red-700"
+            )}>
+                {isConnected
+                    ? (isSynced ? "● 已同步" : "◐ 同步中...")
+                    : "○ 连接中..."}
+            </div>
 
             {/* 渲染远程光标 */}
             <Cursors cursors={
@@ -594,7 +617,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
                                 return (
                                     <Line
                                         {...commonProps}
-                                        points={[w/2, 0, w, h/2, w/2, h, 0, h/2]}
+                                        points={[w / 2, 0, w, h / 2, w / 2, h, 0, h / 2]}
                                         closed
                                         fill={shape.fill}
                                     />
@@ -656,7 +679,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
                             }
                             return null;
                         })}
-                    
+
                     {/* 渲染正在绘制的临时图形 */}
                     {drawingShape && (
                         (() => {
@@ -694,7 +717,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
                                 return (
                                     <Line
                                         {...tempProps}
-                                        points={[w/2, 0, w, h/2, w/2, h, 0, h/2]}
+                                        points={[w / 2, 0, w, h / 2, w / 2, h, 0, h / 2]}
                                         closed
                                         fill={shape.fill}
                                     />

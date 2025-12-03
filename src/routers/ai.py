@@ -9,8 +9,8 @@ from pydantic import BaseModel
 from pycrdt import Map
 
 from src.ai.agent import ai_agent
-from src.ws.sync import websocket_server
 from src.logger import get_logger
+from src.ws.sync import websocket_server
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 logger = get_logger(__name__)

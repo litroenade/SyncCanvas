@@ -11,7 +11,7 @@
  */
 export const config = {
   /** API 基础路径 */
-  apiBaseUrl: import.meta.env.DEV ? 'http://localhost:8021' : '',
+  apiBaseUrl: import.meta.env.DEV ? 'http://localhost:8021/api' : '/api',
 
   /** WebSocket 基础路径 */
   wsBaseUrl: import.meta.env.DEV ? 'ws://localhost:8021/ws' : '/ws',

@@ -1,31 +1,11 @@
+# SyncCanvas 配置文件
+
+[security]
+# 服务端密钥，用于认证
+secret_key = "80201c67006fe5b3b5ecd64367d81d2637818dadf0d9cbdbf0efb9704a42d914"
+
 [server]
+# 服务端口
+port = 8000
+# 绑定主机
 host = "0.0.0.0"
-port = 8021
-reload = true
-
-[app]
-# 允许的 CORS 域名 (逗号分隔)
-allowed_origins = "*"
-# 数据库连接地址
-database_url = "sqlite:///./data/sync_canvas.db"
-# WebSocket 接入令牌 (可选)
-websocket_api_token = ""
-
-[logging]
-# 全局日志级别: DEBUG, INFO, WARNING, ERROR, CRITICAL
-# 使用 INFO 减少终端输出，需要调试时改为 DEBUG
-level = "INFO"
-
-# 日志输出格式
-format = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-
-datefmt = "%Y-%m-%d %H:%M:%S"
-
-# 可选的日志文件路径, 若留空仅输出到控制台
-file = "logs/app.log"
-
-# 单个日志文件最大尺寸 (字节)，超出后滚动备份
-max_bytes = 1048576
-
-# 保留的滚动日志文件数量
-backup_count = 3

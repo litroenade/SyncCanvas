@@ -1,6 +1,6 @@
 /**
  * 模块名称: HistoryPanel
- * 主要功能: Git 风格的版本历史面板，支持提交、回滚、查看历史
+ * 主要功能: Git 风格的版本历史面板，支持提交、回滚、查看历史、查看 diff
  */
 
 import React, { useEffect, useState, useCallback } from 'react'
@@ -13,11 +13,17 @@ import {
   RotateCcw,
   User,
   MessageSquare,
-  Check
+  Check,
+  GitCompare,
+  Eye
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { useThemeStore } from '../stores/useThemeStore'
 import { roomsApi, HistoryResponse, CommitInfo, CreateCommitRequest } from '../services/api/rooms'
+import { CommitDiffPanel } from './CommitDiffPanel'
+import { useModal } from './Modal'
+import { ContextMenu } from './ContextMenu'
+import { yjsManager } from '../lib/yjs'
 
 interface HistoryPanelProps {
   /** 房间 ID */
@@ -76,6 +82,25 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) => {
   const [showCommitDialog, setShowCommitDialog] = useState(false)
   const [commitMessage, setCommitMessage] = useState('')
   const [revertingId, setRevertingId] = useState<number | null>(null)
+  const [diffCommitId, setDiffCommitId] = useState<number | null>(null)
+  const [hasLocalChanges, setHasLocalChanges] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; commit: CommitInfo } | null>(null)
+  
+  // 自定义弹窗
+  const { showAlert, showConfirm, showToast, ModalRenderer } = useModal()
+
+  // 监听本地更改 - 简化版：监听 shapesMap 变化
+  useEffect(() => {
+    if (!roomId || !yjsManager.isConnected) return
+
+    const shapesMap = yjsManager.shapesMap
+    if (!shapesMap) return
+    
+    const handleChange = () => setHasLocalChanges(true)
+    shapesMap.observeDeep(handleChange)
+
+    return () => shapesMap.unobserveDeep(handleChange)
+  }, [roomId])
 
   /**
    * 加载历史数据
@@ -110,6 +135,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) => {
       await roomsApi.createCommit(roomId, request)
       setCommitMessage('')
       setShowCommitDialog(false)
+      setHasLocalChanges(false) // 重置本地更改状态
       await loadHistory()
     } catch (err: any) {
       console.error('创建提交失败:', err)
@@ -122,26 +148,51 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) => {
   /**
    * 回滚到指定提交
    */
-  const handleRevert = async (commitId: number) => {
+  const handleRevert = (commitId: number) => {
     if (!roomId || revertingId !== null) return
 
-    if (!confirm('确定要回滚到此版本吗？当前未保存的更改将丢失。')) {
-      return
-    }
+    showConfirm(
+      '确定要回滚到此版本吗？当前未保存的更改将丢失。',
+      async () => {
+        setRevertingId(commitId)
+        try {
+          await roomsApi.revertToCommit(roomId, commitId)
+          await loadHistory()
+          showToast('已回滚到指定版本，即将刷新页面...', 'success')
+          setTimeout(() => window.location.reload(), 1500)
+        } catch (err: any) {
+          console.error('回滚失败:', err)
+          setError(err.response?.data?.detail || '回滚失败')
+          showAlert(err.response?.data?.detail || '回滚失败', { type: 'error', title: '回滚失败' })
+        } finally {
+          setRevertingId(null)
+        }
+      },
+      { title: '确认回滚', type: 'danger' }
+    )
+  }
 
-    setRevertingId(commitId)
-    try {
-      await roomsApi.revertToCommit(roomId, commitId)
-      await loadHistory()
-      // 通知用户刷新页面以查看更改
-      alert('已回滚到指定版本，请刷新页面查看更改。')
-      window.location.reload()
-    } catch (err: any) {
-      console.error('回滚失败:', err)
-      setError(err.response?.data?.detail || '回滚失败')
-    } finally {
-      setRevertingId(null)
-    }
+  /**
+   * 检出指定提交 (预览历史版本，不创建新提交)
+   */
+  const handleCheckout = (commitId: number, commitHash: string) => {
+    if (!roomId) return
+
+    showConfirm(
+      '检出此版本将丢弃当前未保存的更改，确定继续吗？\n\n提示：检出后可以继续编辑，编辑内容会基于此版本。',
+      async () => {
+        try {
+          await roomsApi.checkoutCommit(roomId, commitId)
+          await loadHistory()
+          showToast(`已检出到 ${commitHash}，即将刷新页面...`, 'success')
+          setTimeout(() => window.location.reload(), 1500)
+        } catch (err: any) {
+          console.error('检出失败:', err)
+          showAlert(err.response?.data?.detail || '检出失败', { type: 'error', title: '检出失败' })
+        }
+      },
+      { title: '确认检出', type: 'warning' }
+    )
   }
 
   useEffect(() => {
@@ -166,10 +217,28 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) => {
     )
   }
 
-  const hasUncommittedChanges = history && history.pending_changes > 0
+  const hasUncommittedChanges = (history && history.pending_changes > 0) || hasLocalChanges
+
+  const handleContextMenu = (e: React.MouseEvent, commit: CommitInfo) => {
+    e.preventDefault()
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      commit
+    })
+  }
+
+  const handleCopyHash = async (hash: string) => {
+    try {
+      await navigator.clipboard.writeText(hash)
+      showToast('提交哈希已复制', 'success')
+    } catch (err) {
+      showToast('复制失败', 'error')
+    }
+  }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full" onClick={() => setContextMenu(null)}>
       {/* 头部操作栏 */}
       <div className={cn(
         'flex items-center justify-between px-3 py-2 border-b',
@@ -320,25 +389,31 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) => {
           const isLast = index === history.commits.length - 1
           const isExpanded = expandedId === commit.id
           const isReverting = revertingId === commit.id
+          const showingDiff = diffCommitId === commit.id
 
           return (
             <CommitNode
               key={commit.id}
               commit={commit}
+              roomId={roomId}
               isHead={isHead}
               isFirst={isFirst}
               isLast={isLast}
               isExpanded={isExpanded}
               isReverting={isReverting}
+              showingDiff={showingDiff}
               theme={theme}
               onToggle={() => setExpandedId(isExpanded ? null : commit.id)}
               onRevert={() => handleRevert(commit.id)}
+              onCheckout={() => handleCheckout(commit.id, commit.hash)}
+              onShowDiff={() => setDiffCommitId(showingDiff ? null : commit.id)}
+              onContextMenu={(e) => handleContextMenu(e, commit)}
             />
           )
         })}
 
         {/* 空状态 */}
-        {(!history || (history.commits.length === 0 && history.pending_changes === 0)) && (
+        {(!history || (history.commits.length === 0 && !hasUncommittedChanges)) && (
           <div className={cn('flex flex-col items-center justify-center py-8', theme === 'dark' ? 'text-slate-500' : 'text-slate-400')}>
             <Clock size={32} className="mb-3 opacity-40" />
             <span className="text-sm">暂无提交历史</span>
@@ -346,6 +421,42 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) => {
           </div>
         )}
       </div>
+
+      {/* 右键菜单 */}
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          items={[
+            {
+              label: '复制哈希',
+              onClick: () => handleCopyHash(contextMenu.commit.hash)
+            },
+            {
+              label: '查看差异',
+              disabled: !contextMenu.commit.parent_id,
+              onClick: () => setDiffCommitId(contextMenu.commit.id)
+            },
+            {
+              separator: true,
+              label: '',
+              onClick: () => {}
+            },
+            {
+              label: '检出此版本',
+              disabled: contextMenu.commit.id === history?.head_commit_id,
+              onClick: () => handleCheckout(contextMenu.commit.id, contextMenu.commit.hash)
+            },
+            {
+              label: '回滚到此版本',
+              danger: true,
+              disabled: contextMenu.commit.id === history?.head_commit_id,
+              onClick: () => handleRevert(contextMenu.commit.id)
+            }
+          ]}
+        />
+      )}
 
       {/* 底部状态栏 */}
       {history && (
@@ -357,20 +468,28 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) => {
           <span>{formatSize(history.total_size)}</span>
         </div>
       )}
+
+      {/* Modal 渲染器 */}
+      <ModalRenderer />
     </div>
   )
 }
 
 interface CommitNodeProps {
   commit: CommitInfo
+  roomId: string
   isHead: boolean
   isFirst: boolean
   isLast: boolean
   isExpanded: boolean
   isReverting: boolean
+  showingDiff: boolean
   theme: 'light' | 'dark'
   onToggle: () => void
   onRevert: () => void
+  onCheckout: () => void
+  onShowDiff: () => void
+  onContextMenu: (e: React.MouseEvent) => void
 }
 
 /**
@@ -378,14 +497,19 @@ interface CommitNodeProps {
  */
 const CommitNode: React.FC<CommitNodeProps> = ({
   commit,
+  roomId,
   isHead,
   isFirst,
   isLast,
   isExpanded,
   isReverting,
+  showingDiff,
   theme,
   onToggle,
   onRevert,
+  onCheckout,
+  onShowDiff,
+  onContextMenu,
 }) => {
   return (
     <div
@@ -393,6 +517,7 @@ const CommitNode: React.FC<CommitNodeProps> = ({
         'group transition-colors',
         theme === 'dark' ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'
       )}
+      onContextMenu={onContextMenu}
     >
       <div className="flex items-center px-2 py-2 cursor-pointer" onClick={onToggle}>
         {/* Graph 线条和节点 */}
@@ -455,25 +580,64 @@ const CommitNode: React.FC<CommitNodeProps> = ({
 
         {/* 操作按钮 */}
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {!isHead && (
+          {/* 查看 diff */}
+          {commit.parent_id && (
             <button
               onClick={(e) => {
                 e.stopPropagation()
-                onRevert()
+                onShowDiff()
               }}
-              disabled={isReverting}
               className={cn(
                 'p-1 rounded transition-colors',
-                isReverting
-                  ? 'opacity-50 cursor-not-allowed'
+                showingDiff
+                  ? theme === 'dark'
+                    ? 'bg-blue-900/50 text-blue-400'
+                    : 'bg-blue-100 text-blue-600'
                   : theme === 'dark'
-                    ? 'hover:bg-slate-700 text-orange-400'
-                    : 'hover:bg-slate-200 text-orange-600'
+                    ? 'hover:bg-slate-700 text-slate-400'
+                    : 'hover:bg-slate-200 text-slate-500'
               )}
-              title="回滚到此版本"
+              title={showingDiff ? '关闭差异视图' : '查看与上一版本的差异'}
             >
-              <RotateCcw size={12} className={isReverting ? 'animate-spin' : ''} />
+              <GitCompare size={12} />
             </button>
+          )}
+          {!isHead && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onCheckout()
+                }}
+                className={cn(
+                  'p-1 rounded transition-colors',
+                  theme === 'dark'
+                    ? 'hover:bg-slate-700 text-cyan-400'
+                    : 'hover:bg-slate-200 text-cyan-600'
+                )}
+                title="检出此版本 (预览)"
+              >
+                <Eye size={12} />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onRevert()
+                }}
+                disabled={isReverting}
+                className={cn(
+                  'p-1 rounded transition-colors',
+                  isReverting
+                    ? 'opacity-50 cursor-not-allowed'
+                    : theme === 'dark'
+                      ? 'hover:bg-slate-700 text-orange-400'
+                      : 'hover:bg-slate-200 text-orange-600'
+                )}
+                title="回滚到此版本"
+              >
+                <RotateCcw size={12} className={isReverting ? 'animate-spin' : ''} />
+              </button>
+            </>
           )}
           <ChevronRight
             size={12}
@@ -532,6 +696,43 @@ const CommitNode: React.FC<CommitNodeProps> = ({
               {commit.message}
             </p>
           </div>
+
+          {/* 在详情中显示 diff 按钮 */}
+          {commit.parent_id && (
+            <div className={cn(
+              'mt-2 pt-2 border-t',
+              theme === 'dark' ? 'border-slate-700' : 'border-slate-200'
+            )}>
+              <button
+                onClick={onShowDiff}
+                className={cn(
+                  'flex items-center gap-1.5 px-2 py-1 text-[10px] rounded transition-colors',
+                  showingDiff
+                    ? theme === 'dark'
+                      ? 'bg-blue-900/50 text-blue-400'
+                      : 'bg-blue-100 text-blue-600'
+                    : theme === 'dark'
+                      ? 'bg-slate-700 hover:bg-slate-600 text-slate-300'
+                      : 'bg-slate-200 hover:bg-slate-300 text-slate-600'
+                )}
+              >
+                <GitCompare size={10} />
+                {showingDiff ? '隐藏差异' : '查看与上一版本的差异'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Diff 面板 */}
+      {showingDiff && commit.parent_id && (
+        <div className="ml-10 mr-2 mb-2">
+          <CommitDiffPanel
+            roomId={roomId}
+            commit={commit}
+            onClose={onShowDiff}
+            inline
+          />
         </div>
       )}
     </div>

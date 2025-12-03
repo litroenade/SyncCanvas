@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { X, Sparkles, Loader2 } from 'lucide-react'
 import { aiApi } from '../services/api/ai'
 import { cn } from '../lib/utils'
+import { yjsManager } from '../lib/yjs'
 
 interface AIGenerateModalProps {
   isOpen: boolean
@@ -28,7 +29,12 @@ export function AIGenerateModal({ isOpen, onClose }: AIGenerateModalProps) {
     setError(null)
 
     try {
-      await aiApi.generateShapes(prompt, 'default-room')
+      const roomId = yjsManager.roomId
+      if (!roomId) {
+        setError('未连接到房间')
+        return
+      }
+      await aiApi.generateShapes(prompt, roomId)
       onClose()
       setPrompt('')
     } catch (err) {

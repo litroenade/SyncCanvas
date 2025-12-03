@@ -11,7 +11,7 @@ export const aiApi = {
      * @param roomId - 房间 ID
      * @returns 生成结果
      */
-    generateShapes: async (prompt: string, roomId: string = 'default-room') => {
+    generateShapes: async (prompt: string, roomId: string) => {
         const response = await axios.post(`${config.apiBaseUrl}/ai/generate`, {
             prompt,
             room_id: roomId,

@@ -7,31 +7,22 @@
 """
 
 import asyncio
-import time
 import hashlib
+import time
 from functools import partial
 from typing import Any
 
-from anyio import create_task_group
-from pycrdt import Channel
+from anyio import get_cancelled_exc_class
+from pycrdt import Channel, Doc
 from pycrdt.websocket import WebsocketServer, ASGIServer, YRoom
-from pycrdt import Doc
 from sqlmodel import Session, select, delete
-from sqlalchemy import desc
 
 from src.db.ystore import SQLModelYStore
 from src.db.database import engine
-from src.db.models import Room, Update, Commit
+from src.db.models import Commit, Update, Room
 from src.logger import get_logger
 
 logger = get_logger(__name__)
-
-
-def generate_commit_hash(commit_id: int, timestamp: int) -> str:
-    """生成提交哈希"""
-    data = f"{commit_id}-{timestamp}"
-    full_hash = hashlib.sha1(data.encode()).hexdigest()
-    return full_hash[:7]
 
 
 class PersistentWebsocketServer(WebsocketServer):
@@ -61,22 +52,74 @@ class PersistentWebsocketServer(WebsocketServer):
         """
         name = websocket.path
 
+        # 增加连接计数（在连接建立时）
+        self._room_connections[name] = self._room_connections.get(name, 0) + 1
+        self._room_last_activity[name] = time.time()
+        logger.debug("房间 '%s' 新连接，当前连接数: %d", name, self._room_connections[name])
+
         try:
-            async with create_task_group():
-                room = await self.get_room(name)
-                await self.start_room(room)
-                await room.serve(websocket)
+            # 调用父类的 serve 方法
+            await super().serve(websocket)
+        except get_cancelled_exc_class():
+            # 客户端正常断开，不需要处理
+            logger.debug("客户端主动取消: %s", name)
+        except BaseExceptionGroup as eg:
+            # 展开异常组，判断是否存在真实错误
+            unhandled = [
+                exc for exc in self._iter_exceptions(eg)
+                if not self._is_disconnect_error(exc)
+            ]
+            if unhandled:
+                for exc in unhandled:
+                    logger.exception("WebSocket 服务异常 [%s]: %s", name, exc)
+            else:
+                logger.debug("客户端断开连接: %s", name)
         except Exception as exception:  # pylint: disable=broad-except
-            self._handle_exception(exception)
+            if not self._is_disconnect_error(exception):
+                logger.exception("WebSocket 异常 [%s]", name, exc_info=exception)
+            else:
+                logger.debug("客户端断开连接: %s", name)
         finally:
             # 连接断开后处理
-            await self._on_client_disconnect(name)
+            try:
+                await self._on_client_disconnect(name)
+            except asyncio.CancelledError:
+                # 服务器关闭时忽略
+                pass
+            except Exception as e:
+                logger.debug("断开处理异常: %s", e)
+
+    def _is_disconnect_error(self, exception: Exception) -> bool:
+        """检查是否是断开连接相关的错误"""
+        error_str = str(exception).lower()
+        disconnect_keywords = [
+            'clientdisconnected', 
+            'connectionclosed', 
+            'no close frame',
+            'websocket.close',
+            'websocket.send',
+            'response already completed',
+            'unexpected asgi message'
+        ]
+        return any(keyword in error_str for keyword in disconnect_keywords)
+
+    def _iter_exceptions(
+            self,
+            exception: BaseException | BaseExceptionGroup
+            ) -> list[BaseException]:
+        """展开 BaseExceptionGroup，返回所有底层异常"""
+        if isinstance(exception, BaseExceptionGroup):
+            exceptions: list[BaseException] = []
+            for inner in exception.exceptions:
+                exceptions.extend(self._iter_exceptions(inner))
+            return exceptions
+        return [exception]
 
     async def get_room(self, name: str) -> YRoom:
         """获取或创建房间，带持久化存储
         
         Args:
-            name: 房间名称 (WebSocket 路径，如 /ws/room-uuid)
+            name: 房间名称 (WebSocket)
             
         Returns:
             配置了 SQLModelYStore 的 YRoom 实例
@@ -104,15 +147,7 @@ class PersistentWebsocketServer(WebsocketServer):
             )
             logger.info("创建房间 '%s'，房间 ID: %s", name, room_id)
 
-        room = self.rooms[name]
-        await self.start_room(room)
-
-        # 增加连接计数
-        self._room_connections[name] = self._room_connections.get(name, 0) + 1
-        self._room_last_activity[name] = time.time()
-        logger.debug("房间 '%s' 连接数: %d", name, self._room_connections[name])
-
-        return room
+        return self.rooms[name]
 
     async def _on_client_disconnect(self, name: str) -> None:
         """处理客户端断开连接
@@ -124,9 +159,15 @@ class PersistentWebsocketServer(WebsocketServer):
             self._room_connections[name] = max(0, self._room_connections[name] - 1)
             logger.debug("房间 '%s' 断开连接，剩余连接数: %d", name, self._room_connections[name])
 
-            # 如果是最后一个用户离开，触发自动提交
+            # 如果是最后一个用户离开，延迟检查后再触发自动提交
+            # 这样可以避免因为短暂的重连导致误判
             if self._room_connections[name] == 0:
-                await self._auto_commit_on_last_leave(name)
+                # 延迟 2 秒再检查，给重连留出时间
+                await asyncio.sleep(2.0)
+
+                # 再次检查连接数，如果仍然为 0 才触发自动提交
+                if self._room_connections.get(name, 0) == 0:
+                    await self._auto_commit_on_last_leave(name)
 
     async def _auto_commit_on_last_leave(self, name: str) -> None:
         """最后一个用户离开时自动提交
@@ -153,99 +194,77 @@ class PersistentWebsocketServer(WebsocketServer):
             logger.error("房间 '%s' 自动提交失败: %s", name, e)
 
     async def _create_auto_commit(self, room_id: str, message: str) -> bool:
-        """创建自动提交
-        
-        Args:
-            room_id: 房间 ID
-            message: 提交消息
-            
-        Returns:
-            bool: 是否成功创建提交
-        """
+        """创建自动提交（内联实现，避免循环依赖）"""
         try:
             with Session(engine) as session:
-                # 检查房间是否存在
-                room = session.get(Room, room_id)
+                room = session.exec(select(Room).where(Room.id == room_id)).first()
                 if not room:
-                    logger.warning("自动提交失败: 房间 %s 不存在", room_id)
                     return False
 
-                # 构建完整文档状态
-                ydoc = Doc()
-
-                # 获取最新 Commit
-                commit_stmt = (
+                # 获取最新提交
+                latest = session.exec(
                     select(Commit)
                     .where(Commit.room_id == room_id)
-                    .order_by(desc(Commit.timestamp))
+                    .order_by(Commit.timestamp.desc())
                     .limit(1)
-                )
-                latest_commit = session.exec(commit_stmt).first()
-
-                if latest_commit:
-                    ydoc.apply_update(latest_commit.data)
+                ).first()
 
                 # 获取增量更新
-                if latest_commit:
-                    updates_stmt = (
+                if latest:
+                    updates = session.exec(
                         select(Update)
                         .where(Update.room_id == room_id)
-                        .where(Update.timestamp > latest_commit.timestamp)
+                        .where(Update.timestamp > latest.timestamp)
                         .order_by(Update.timestamp)
-                    )
+                    ).all()
                 else:
-                    updates_stmt = (
+                    updates = session.exec(
                         select(Update)
                         .where(Update.room_id == room_id)
                         .order_by(Update.timestamp)
-                    )
+                    ).all()
 
-                updates = session.exec(updates_stmt).all()
-                for update in updates:
-                    ydoc.apply_update(update.data)
+                if not updates:
+                    return False
 
-                # 检查是否有数据
+                # 构建文档
+                ydoc = Doc()
+                if latest:
+                    ydoc.apply_update(latest.data)
+                for u in updates:
+                    ydoc.apply_update(u.data)
+
                 doc_data = ydoc.get_update()
-                if not doc_data or len(doc_data) <= 2:
-                    logger.debug("房间 %s 没有数据可提交", room_id)
-                    return False
-
-                # 检查是否有新的更改 (如果没有 Update 且有 Commit，说明没有新更改)
-                if not updates and latest_commit:
-                    logger.debug("房间 %s 没有新的更改", room_id)
-                    return False
-
-                # 创建提交
                 current_time = int(time.time() * 1000)
+
+                # 生成哈希
+                hash_input = f"{room_id}:{current_time}:{len(doc_data)}"
+                commit_hash = hashlib.sha1(hash_input.encode()).hexdigest()[:7]
+
                 commit = Commit(
                     room_id=room_id,
                     parent_id=room.head_commit_id,
-                    author_id=None,
                     author_name="System",
                     message=message,
                     data=doc_data,
                     timestamp=current_time,
+                    hash=commit_hash,
                 )
                 session.add(commit)
                 session.flush()
 
-                commit.hash = generate_commit_hash(commit.id, current_time)
-
-                # 更新 HEAD
                 room.head_commit_id = commit.id
                 session.add(room)
 
-                # 清理 Update 表
-                delete_stmt = delete(Update).where(Update.room_id == room_id)
-                session.exec(delete_stmt)
-
+                # 清理 updates
+                session.exec(delete(Update).where(Update.room_id == room_id))
                 session.commit()
 
-                logger.info("自动提交成功: 房间 %s, 哈希 %s", room_id, commit.hash)
+                logger.info("自动提交: 房间 %s, 哈希 %s", room_id, commit_hash)
                 return True
 
-        except Exception as e:  # pylint: disable=broad-except
-            logger.error("自动提交失败: 房间 %s, 错误: %s", room_id, e)
+        except Exception as e:
+            logger.debug("自动提交跳过: 房间 %s, 原因: %s", room_id, e)
             return False
 
     def update_room_activity(self, name: str) -> None:
@@ -313,6 +332,57 @@ class PersistentWebsocketServer(WebsocketServer):
 
         if name in self.rooms:
             del self.rooms[name]
+
+    async def flush_room(self, room_id: str) -> None:
+        """强制刷新房间数据到数据库
+        
+        Args:
+            room_id: 房间 ID
+        """
+        # 查找房间名称
+        target_name = None
+        for name in self.rooms:
+            if name.endswith(f"/{room_id}") or name == room_id:
+                target_name = name
+                break
+
+        if target_name and target_name in self._ystores:
+            self._ystores[target_name].flush()
+            logger.debug("房间 %s 已强制刷新", room_id)
+
+    async def evict_room(self, room_id: str, discard_changes: bool = False) -> None:
+        """从内存中移除房间（用于强制重载）
+        
+        Args:
+            room_id: 房间 ID
+            discard_changes: 是否丢弃未保存的更改
+        """
+        # 查找房间名称
+        target_name = None
+        for name in self.rooms:
+            if name.endswith(f"/{room_id}") or name == room_id:
+                target_name = name
+                break
+
+        if not target_name:
+            return
+
+        if target_name in self._ystores:
+            ystore = self._ystores[target_name]
+            if discard_changes:
+                ystore.discard()
+            # stop 会触发 flush，但如果已经 discard 了，就只会 flush 空缓冲
+            ystore.stop()
+            del self._ystores[target_name]
+
+        if target_name in self.rooms:
+            del self.rooms[target_name]
+
+        # 清理统计信息
+        self._room_connections.pop(target_name, None)
+        self._room_last_activity.pop(target_name, None)
+
+        logger.info("房间 %s 已从内存移除 (discard=%s)", room_id, discard_changes)
 
 
 # 创建带持久化的 WebsocketServer 实例

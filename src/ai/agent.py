@@ -9,7 +9,7 @@ import json_repair
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field, ValidationError
 
-from src.config import OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL
+from src.config import config
 from src.logger import get_logger
 
 logger = get_logger(__name__)
@@ -33,11 +33,13 @@ class AIAgent:
 
     def __init__(self):
         """初始化 AI 智能体"""
-        if not OPENAI_API_KEY:
+        if not config.openai_api_key:
             self.client = None
         else:
-            self.client = AsyncOpenAI(api_key=OPENAI_API_KEY, base_url=OPENAI_BASE_URL)
-        self.model = OPENAI_MODEL
+            self.client = AsyncOpenAI(
+                api_key=config.openai_api_key, base_url=config.openai_base_url
+            )
+        self.model = config.openai_model
 
     async def generate_shapes(self, prompt: str) -> List[Dict[str, Any]]:
         """根据提示词生成图形列表

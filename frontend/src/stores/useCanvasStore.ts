@@ -1,3 +1,9 @@
+/**
+ * 模块名称：useCanvasStore
+ * 主要功能：画布状态管理
+ * 
+ * 使用 Zustand 管理画布的全局状态，包括工具、图形、选中状态、视图变换等。
+ */
 import { create } from 'zustand'
 
 /**
@@ -122,7 +128,7 @@ export const useCanvasStore = create<CanvasState>((set) => ({
   scale: 1,
   offset: { x: 0, y: 0 },
   shapes: {},
-  selectedIds: [], 
+  selectedIds: [],
   showGrid: true,
   currentFillColor: 'transparent',
   currentStrokeColor: '#1e1e1e',
@@ -159,7 +165,7 @@ export const useCanvasStore = create<CanvasState>((set) => ({
     const { [id]: _, ...rest } = state.shapes;
     return { shapes: rest };
   }),
-  isGuest: localStorage.getItem('isGuest') === 'true',
+  isGuest: localStorage.getItem('isGuest') === 'true' && !localStorage.getItem('token'),
   setIsGuest: (isGuest) => set({ isGuest }),
   isDrawing: false,
   setIsDrawing: (isDrawing) => set({ isDrawing }),

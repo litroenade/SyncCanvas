@@ -1,8 +1,22 @@
 import React from 'react';
-import { useCanvasStore } from '../stores/useCanvasStore';
-import { useYjs } from '../hooks/useYjs';
+import { useCanvasStore, Shape } from '../stores/useCanvasStore';
+import { yjsManager } from '../lib/yjs';
 import { cn } from '../lib/utils';
 import { useThemeStore } from '../stores/useThemeStore';
+
+// 直接使用 yjsManager 的操作
+const updateShape = (id: string, attrs: Partial<Shape>) => {
+    const shapesMap = yjsManager.shapesMap;
+    if (!shapesMap) {
+        console.warn('Yjs 未连接，无法更新图形');
+        return;
+    }
+    const currentShape = shapesMap.get(id) as Shape | undefined;
+    if (currentShape) {
+        const updatedShape = { ...currentShape, ...attrs };
+        shapesMap.set(id, updatedShape);
+    }
+};
 
 const COLORS = [
     '#000000', '#ffffff', '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981',
@@ -11,7 +25,6 @@ const COLORS = [
 
 export const PropertiesPanel: React.FC = () => {
     const { selectedIds, shapes } = useCanvasStore();
-    const { updateShape } = useYjs();
     const { theme } = useThemeStore();
 
     if (selectedIds.length === 0) return null;

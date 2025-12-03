@@ -3,7 +3,6 @@ import React, { Component, ErrorInfo, ReactNode, useEffect } from 'react';
 import { Canvas } from './components/Canvas';
 import { Login } from './pages/Login';
 import { Rooms } from './pages/Rooms';
-import { useYjs } from './hooks/useYjs';
 
 // ==================== 错误边界组件 ====================
 interface ErrorBoundaryProps {
@@ -146,7 +145,7 @@ function App() {
 
 const Board = () => {
   const { roomId } = useParams<{ roomId: string }>();
-  useYjs(roomId); // Initialize Yjs sync with room ID
+  // 注意：useYjs 在 Canvas 组件内部调用，不需要在这里重复调用
   return (
     <div className="App">
       <Canvas roomId={roomId} />

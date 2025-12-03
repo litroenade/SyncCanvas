@@ -12,7 +12,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlmodel import Field, SQLModel, JSON, Column
+from sqlmodel import Field, SQLModel
 
 
 class Room(SQLModel, table=True):
@@ -51,19 +51,6 @@ class RoomMember(SQLModel, table=True):
     joined_at: int = Field(default_factory=lambda: int(datetime.utcnow().timestamp()))
 
 
-class Stroke(SQLModel, table=True):
-    """笔画/图形模型 (用于统计)"""
-
-    id: Optional[int] = Field(default=None, primary_key=True)
-    room_id: str = Field(foreign_key="room.id", index=True, max_length=36)
-    user_id: Optional[int] = Field(default=None, foreign_key="user.id", index=True)
-    shape_id: str = Field(index=True, max_length=36)
-    shape_type: str = Field(max_length=20)
-    shape_data: dict = Field(default_factory=dict, sa_column=Column(JSON))
-    created_at: int = Field(default_factory=lambda: int(datetime.utcnow().timestamp() * 1000))
-    updated_at: int = Field(default_factory=lambda: int(datetime.utcnow().timestamp() * 1000))
-
-
 class Commit(SQLModel, table=True):
     """提交模型 (类似 Git Commit)
 
@@ -78,7 +65,9 @@ class Commit(SQLModel, table=True):
     author_name: str = Field(default="Anonymous", max_length=100)
     message: str = Field(default="Auto save", max_length=500)
     data: bytes = Field()
-    timestamp: int = Field(default_factory=lambda: int(datetime.utcnow().timestamp() * 1000))
+    timestamp: int = Field(
+        default_factory=lambda: int(datetime.utcnow().timestamp() * 1000)
+    )
     hash: str = Field(default="", max_length=7, index=True)
 
 
@@ -92,4 +81,6 @@ class Update(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     room_id: str = Field(index=True, max_length=36)
     data: bytes = Field()
-    timestamp: int = Field(default_factory=lambda: int(datetime.utcnow().timestamp() * 1000))
+    timestamp: int = Field(
+        default_factory=lambda: int(datetime.utcnow().timestamp() * 1000)
+    )

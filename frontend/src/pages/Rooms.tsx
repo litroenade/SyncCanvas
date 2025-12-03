@@ -23,6 +23,7 @@ import {
 import { roomsApi, Room, CreateRoomRequest } from '../services/api/rooms'
 import { useThemeStore } from '../stores/useThemeStore'
 import { cn } from '../lib/utils'
+import { useModal } from '../components/Modal'
 
 /**
  * 房间列表页面组件
@@ -36,7 +37,11 @@ export const Rooms: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showJoinModal, setShowJoinModal] = useState<Room | null>(null)
 
+  // 自定义弹窗
+  const { showAlert, showConfirm, showToast, ModalRenderer } = useModal()
+
   const isLoggedIn = !!localStorage.getItem('token')
+  const isGuest = localStorage.getItem('isGuest') === 'true'
   const username = localStorage.getItem('username') || 'Guest'
 
   useEffect(() => {
@@ -62,6 +67,12 @@ export const Rooms: React.FC = () => {
     navigate('/login')
   }
 
+  const handleGuestLogin = () => {
+    localStorage.removeItem('isGuest')
+    localStorage.removeItem('username')
+    navigate('/login')
+  }
+
   const handleEnterRoom = (roomId: string) => {
     // 设置当前房间 ID 并跳转到画布
     localStorage.setItem('currentRoomId', roomId)
@@ -69,13 +80,19 @@ export const Rooms: React.FC = () => {
   }
 
   const handleDeleteRoom = async (roomId: string) => {
-    if (!confirm('确定要删除这个房间吗?')) return
-    try {
-      await roomsApi.delete(roomId)
-      loadRooms()
-    } catch (err: any) {
-      alert(err.response?.data?.detail || '删除失败')
-    }
+    showConfirm(
+      '确定要删除这个房间吗？此操作不可撤销。',
+      async () => {
+        try {
+          await roomsApi.delete(roomId)
+          showToast('房间已删除', 'success')
+          loadRooms()
+        } catch (err: any) {
+          showAlert(err.response?.data?.detail || '删除失败', { type: 'error', title: '删除失败' })
+        }
+      },
+      { title: '删除房间', type: 'danger' }
+    )
   }
 
   const handleCopyInvite = async (roomId: string) => {
@@ -83,9 +100,9 @@ export const Rooms: React.FC = () => {
       const { invite_url } = await roomsApi.getInviteLink(roomId)
       const fullUrl = `${window.location.origin}${invite_url}`
       await navigator.clipboard.writeText(fullUrl)
-      alert('邀请链接已复制')
+      showToast('邀请链接已复制到剪贴板', 'success')
     } catch (err) {
-      alert('复制失败')
+      showAlert('复制邀请链接失败', { type: 'error' })
     }
   }
 
@@ -122,18 +139,18 @@ export const Rooms: React.FC = () => {
               {theme === 'dark' ? <Moon size={20} /> : <Sun size={20} />}
             </button>
 
-            {isLoggedIn && (
+            {(isLoggedIn || isGuest) && (
               <>
                 <span className={cn('text-sm', theme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
-                  {username}
+                  {isGuest ? 'Guest' : username}
                 </span>
                 <button
-                  onClick={handleLogout}
+                  onClick={isGuest ? handleGuestLogin : handleLogout}
                   className={cn(
                     'p-2 rounded-lg transition-colors',
                     theme === 'dark' ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'
                   )}
-                  title="退出登录"
+                  title={isGuest ? "登录" : "退出登录"}
                 >
                   <LogOut size={20} />
                 </button>
@@ -250,6 +267,9 @@ export const Rooms: React.FC = () => {
           }}
         />
       )}
+
+      {/* Modal 渲染器 */}
+      <ModalRenderer />
     </div>
   )
 }

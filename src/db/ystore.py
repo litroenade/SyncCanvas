@@ -59,12 +59,28 @@ class WriteBuffer:
             self._timer.start()
             return False
 
-    def get_and_clear(self) -> list[tuple[bytes, int]]:
-        """获取并清空缓冲区"""
+    def flush(self) -> None:
+        """立即刷新缓冲区"""
         with self._lock:
             if self._timer:
                 self._timer.cancel()
                 self._timer = None
+            if self._buffer:
+                self._flush_callback()
+
+    def clear(self) -> None:
+        """清空缓冲区（不保存）"""
+        with self._lock:
+            if self._timer:
+                self._timer.cancel()
+                self._timer = None
+            self._buffer.clear()
+
+    def get_and_clear(self) -> list[tuple[bytes, int]]:
+        """获取并清空缓冲区"""
+        with self._lock:
+            # 注意：这里不取消定时器，由调用者决定是否需要刷新
+            # 但通常 get_and_clear 是为了刷新，所以逻辑上没问题
             data = self._buffer.copy()
             self._buffer.clear()
             return data
@@ -198,6 +214,14 @@ class SQLModelYStore(BaseYStore):
         if should_flush:
             self._sync_flush()
 
+    def flush(self) -> None:
+        """强制刷新缓冲区到数据库"""
+        self._buffer.flush()
+
+    def discard(self) -> None:
+        """丢弃缓冲区中的更改"""
+        self._buffer.clear()
+
     def stop(self) -> None:
         """停止 YStore，清理资源"""
         self._buffer.stop()
@@ -213,7 +237,7 @@ class SQLModelYStore(BaseYStore):
     def get_current_doc(self) -> Doc:
         """获取当前完整文档状态"""
         ydoc = Doc()
-        
+
         with Session(engine) as session:
             # 获取最新 Commit
             commit_stmt = (

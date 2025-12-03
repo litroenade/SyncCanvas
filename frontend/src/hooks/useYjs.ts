@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { useCanvasStore, Shape } from '../stores/useCanvasStore';
 import { yjsManager } from '../lib/yjs';
 
@@ -13,22 +13,65 @@ const getRandomColor = (str?: string) => {
     return colors[Math.abs(hash) % colors.length];
 };
 
-const storedUsername = localStorage.getItem('username');
-const myName = storedUsername || `Guest ${Math.floor(Math.random() * 1000)}`;
-const myColor = getRandomColor(myName);
+// 生成稳定的用户信息（只在模块加载时生成一次）
+const generateUserInfo = () => {
+    const storedUsername = localStorage.getItem('username');
+    const name = storedUsername || `Guest ${Math.floor(Math.random() * 1000)}`;
+    const color = getRandomColor(name);
+    return { name, color };
+};
+
+// 缓存用户信息
+let cachedUserInfo: { name: string; color: string } | null = null;
+const getUserInfo = () => {
+    if (!cachedUserInfo) {
+        cachedUserInfo = generateUserInfo();
+    }
+    return cachedUserInfo;
+};
 
 export const useYjs = (roomId?: string) => {
     const { setShapes, setCursors } = useCanvasStore();
+    const [isConnected, setIsConnected] = useState(false);
+    const [isSynced, setIsSynced] = useState(false);
+    
+    // 使用 ref 存储用户信息，避免触发重新渲染
+    const userInfoRef = useRef(getUserInfo());
 
     useEffect(() => {
-        // 如果没有 roomId，使用默认房间
-        const targetRoomId = roomId || 'default-room';
+        // 如果没有 roomId，不连接
+        if (!roomId) {
+            console.log('没有 roomId，跳过连接');
+            return;
+        }
         
         // 连接到房间
-        yjsManager.connect(targetRoomId);
+        yjsManager.connect(roomId);
 
         const shapesMap = yjsManager.shapesMap;
         const provider = yjsManager.provider;
+
+        // 连接失败，退出
+        if (!shapesMap || !provider) {
+            console.error('Yjs 连接失败');
+            return;
+        }
+
+        // 立即设置 isConnected（provider 已创建）
+        setIsConnected(true);
+
+        // 监听连接状态
+        const handleStatus = (event: { status: string }) => {
+            console.log(`Yjs 连接状态: ${event.status}`);
+        };
+        
+        const handleSync = (synced: boolean) => {
+            console.log(`Yjs 同步状态: ${synced ? '已同步' : '同步中'}`);
+            setIsSynced(synced);
+        };
+        
+        provider.on('status', handleStatus);
+        provider.on('sync', handleSync);
 
         // 从 Yjs 同步到 Store
         const observer = () => {
@@ -43,6 +86,9 @@ export const useYjs = (roomId?: string) => {
 
         // Awareness
         const awareness = provider.awareness;
+        
+        // 获取用户信息
+        const { name: myName, color: myColor } = userInfoRef.current;
 
         // 设置本地状态
         awareness.setLocalStateField('user', {
@@ -71,6 +117,8 @@ export const useYjs = (roomId?: string) => {
         return () => {
             shapesMap.unobserve(observer);
             awareness.off('change', awarenessObserver);
+            provider.off('status', handleStatus);
+            provider.off('sync', handleSync);
             // 注意：不在这里断开连接，因为可能是组件重新渲染
             // 断开连接应该在用户主动离开房间时进行
         };
@@ -78,13 +126,20 @@ export const useYjs = (roomId?: string) => {
 
     // 更新 Yjs 的操作
     const addShapeToYjs = useCallback((shape: Shape) => {
-        if (!yjsManager.isConnected) return;
-        yjsManager.shapesMap.set(shape.id, shape);
+        const shapesMap = yjsManager.shapesMap;
+        if (!shapesMap) {
+            console.warn('Yjs 未连接，无法添加图形');
+            return;
+        }
+        shapesMap.set(shape.id, shape);
     }, []);
 
     const updateShapeInYjs = useCallback((id: string, attrs: Partial<Shape>) => {
-        if (!yjsManager.isConnected) return;
         const shapesMap = yjsManager.shapesMap;
+        if (!shapesMap) {
+            console.warn('Yjs 未连接，无法更新图形');
+            return;
+        }
         const currentShape = shapesMap.get(id) as Shape | undefined;
         if (currentShape) {
             const updatedShape = { ...currentShape, ...attrs };
@@ -93,18 +148,30 @@ export const useYjs = (roomId?: string) => {
     }, []);
 
     const deleteShapeInYjs = useCallback((id: string) => {
-        if (!yjsManager.isConnected) return;
-        yjsManager.shapesMap.delete(id);
+        const shapesMap = yjsManager.shapesMap;
+        if (!shapesMap) {
+            console.warn('Yjs 未连接，无法删除图形');
+            return;
+        }
+        shapesMap.delete(id);
     }, []);
 
     const undo = useCallback(() => {
-        if (!yjsManager.isConnected) return;
-        yjsManager.undoManager.undo();
+        const undoManager = yjsManager.undoManager;
+        if (!undoManager) {
+            console.warn('Yjs 未连接，无法撤销');
+            return;
+        }
+        undoManager.undo();
     }, []);
 
     const redo = useCallback(() => {
-        if (!yjsManager.isConnected) return;
-        yjsManager.undoManager.redo();
+        const undoManager = yjsManager.undoManager;
+        if (!undoManager) {
+            console.warn('Yjs 未连接，无法重做');
+            return;
+        }
+        undoManager.redo();
     }, []);
 
     const updateAwareness = useCallback((x: number, y: number) => {
@@ -115,9 +182,9 @@ export const useYjs = (roomId?: string) => {
     }, []);
 
     const updateShapesInYjs = useCallback((updates: Record<string, Partial<Shape>>) => {
-        if (!yjsManager.isConnected) return;
         const ydoc = yjsManager.ydoc;
         const shapesMap = yjsManager.shapesMap;
+        if (!ydoc || !shapesMap) return;
         
         ydoc.transact(() => {
             Object.entries(updates).forEach(([id, attrs]) => {
@@ -130,8 +197,8 @@ export const useYjs = (roomId?: string) => {
         });
     }, []);
 
-    const leaveRoom = useCallback(async () => {
-        await yjsManager.disconnect();
+    const leaveRoom = useCallback(() => {
+        yjsManager.disconnect();
         setShapes({});
         setCursors({});
     }, [setShapes, setCursors]);
@@ -145,7 +212,8 @@ export const useYjs = (roomId?: string) => {
         redo,
         updateAwareness,
         leaveRoom,
-        isConnected: yjsManager.isConnected,
+        isConnected,
+        isSynced,
         currentRoomId: yjsManager.roomId,
     };
 };

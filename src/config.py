@@ -1,118 +1,151 @@
 """模块名称: config
-主要功能: 应用配置管理，从 config.toml 和环境变量加载配置项
+主要功能: 配置管理，支持 TOML 文件和热重载
 """
 
-from __future__ import annotations
-
-import json
 import os
 import secrets
-from typing import List, Any
-import tomllib
+import time
+from pathlib import Path
+from typing import Any, Dict
+
+try:
+    import tomllib  # Python 3.11+
+except ImportError:
+    import tomli as tomllib  # Fallback
+
+from src.logger import get_logger
+
+logger = get_logger(__name__)
+
+# 配置文件路径
+CONFIG_FILE = Path(__file__).resolve().parents[1] / "config.toml"
 
 
-def load_config() -> dict[str, Any]:
-    """加载 config.toml 配置文件
+class Config:
+    """配置管理类，支持热重载"""
 
-    Returns:
-        dict[str, Any]: 配置字典，若加载失败返回空字典
-    """
-    config_path = "config.toml"
-    if not os.path.exists(config_path):
-        return {}
+    def __init__(self, config_file: Path = CONFIG_FILE):
+        self._config_file = config_file
+        self._config: Dict[str, Any] = {}
+        self._last_mtime = 0.0
+        self._load_config()
 
-    try:
-        with open(config_path, "rb") as f:
-            return tomllib.load(f)
-    except (tomllib.TOMLDecodeError, OSError) as e:
-        print(f"Error loading config.toml: {e}")
-        return {}
+    def _load_config(self) -> None:
+        """加载配置文件"""
+        if not self._config_file.exists():
+            self._create_default_config()
 
-
-_CONFIG = load_config()
-_SERVER = _CONFIG.get("server", {})
-_APP = _CONFIG.get("app", {})
-_LOGGING = _CONFIG.get("logging", {})
-
-
-def _get(section: dict, key: str, env_key: str, default: Any = None) -> Any:
-    """优先从 config.toml 读取，其次环境变量，最后默认值"""
-    val = section.get(key)
-    if val is not None:
-        return val
-    return os.getenv(env_key, default)
-
-
-def _parse_csv(value: str | list) -> List[str]:
-    """解析逗号分隔的字符串或列表
-
-    Args:
-        value: 逗号分隔的字符串或列表
-
-    Returns:
-        List[str]: 解析后的字符串列表
-    """
-    if isinstance(value, list):
-        return value
-    if not value:
-        return []
-    return [item.strip() for item in value.split(",") if item.strip()]
-
-
-# 确保 data 目录存在
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
-if not os.path.exists(DATA_DIR):
-    os.makedirs(DATA_DIR)
-
-SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
-
-
-def get_or_create_secret_key() -> str:
-    """获取或创建密钥
-
-    Returns:
-        str: 64 字符的十六进制密钥
-    """
-    settings: dict = {}
-    if os.path.exists(SETTINGS_FILE):
         try:
-            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-                settings = json.load(f)
-        except (json.JSONDecodeError, OSError) as e:
-            print(f"Error loading settings.json: {e}")
+            mtime = self._config_file.stat().st_mtime
+            if mtime > self._last_mtime:
+                with self._config_file.open("rb") as f:
+                    self._config = tomllib.load(f)
+                self._last_mtime = mtime
+                logger.info(f"配置已加载: {self._config_file}")
+        except Exception as e:
+            logger.error(f"加载配置失败: {e}")
 
-    if "secret_key" not in settings:
-        print("Generating new secret key...")
-        settings["secret_key"] = secrets.token_hex(32)  # 64 字符
+    def _create_default_config(self) -> None:
+        """创建默认配置文件"""
+        secret_key = secrets.token_hex(32)
+        content = f"""# SyncCanvas 配置文件
+
+[security]
+# 服务端密钥，用于认证
+secret_key = "{secret_key}"
+
+[server]
+# 服务端口
+port = 8000
+# 绑定主机
+host = "0.0.0.0"
+"""
         try:
-            with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-                json.dump(settings, f, indent=2)
-        except OSError as e:
-            print(f"Error saving settings.json: {e}")
+            with self._config_file.open("w", encoding="utf-8") as f:
+                f.write(content)
+            logger.info(f"已创建默认配置文件: {self._config_file}")
+        except Exception as e:
+            logger.error(f"创建默认配置失败: {e}")
 
-    return settings["secret_key"]
+    def _check_reload(self) -> None:
+        """检查文件是否修改并重载"""
+        try:
+            if self._config_file.exists():
+                mtime = self._config_file.stat().st_mtime
+                if mtime > self._last_mtime:
+                    logger.info("检测到配置变更，正在重载...")
+                    self._load_config()
+        except Exception as e:
+            logger.error(f"检查配置变更失败: {e}")
+
+    @property
+    def secret_key(self) -> str:
+        """获取 secret_key，支持热重载"""
+        self._check_reload()
+        return self._config.get("security", {}).get("secret_key", "")
+
+    @property
+    def database_url(self) -> str:
+        """获取数据库连接 URL"""
+        self._check_reload()
+        return self._config.get("database", {}).get(
+            "url", "sqlite:///./data/sync_canvas.db"
+        )
+
+    @property
+    def db_echo(self) -> bool:
+        """获取数据库 Echo 设置"""
+        self._check_reload()
+        return self._config.get("database", {}).get("echo", False)
+
+    @property
+    def host(self) -> str:
+        """获取服务绑定主机"""
+        self._check_reload()
+        return self._config.get("server", {}).get("host", "0.0.0.0")
+
+    @property
+    def port(self) -> int:
+        """获取服务端口"""
+        self._check_reload()
+        return self._config.get("server", {}).get("port", 8000)
+
+    @property
+    def allowed_origins(self) -> list[str]:
+        """获取允许的跨域来源"""
+        self._check_reload()
+        return self._config.get("server", {}).get("allowed_origins", ["*"])
+
+    @property
+    def openai_api_key(self) -> str:
+        """获取 OpenAI API Key"""
+        self._check_reload()
+        return self._config.get("ai", {}).get("openai_api_key", "")
+
+    @property
+    def openai_base_url(self) -> str:
+        """获取 OpenAI Base URL"""
+        self._check_reload()
+        return self._config.get("ai", {}).get(
+            "openai_base_url", "https://api.openai.com/v1"
+        )
+
+    @property
+    def openai_model(self) -> str:
+        """获取 OpenAI 模型名称"""
+        self._check_reload()
+        return self._config.get("ai", {}).get("openai_model", "gpt-3.5-turbo")
 
 
-# Server Config (服务器配置)
-HOST = _get(_SERVER, "host", "HOST", "0.0.0.0")
-PORT = int(_get(_SERVER, "port", "PORT", 8021))
-RELOAD = _get(_SERVER, "reload", "RELOAD", True)
+# 全局配置实例
+config = Config()
 
-# App Config (应用配置)
-ALLOWED_ORIGINS = _parse_csv(_get(_APP, "allowed_origins", "ALLOWED_ORIGINS", "*"))
-DATABASE_URL = _get(
-    _APP, "database_url", "DATABASE_URL", "sqlite:///./data/sync_canvas.db"
-)
-WEBSOCKET_API_TOKEN = _get(_APP, "websocket_api_token", "WEBSOCKET_API_TOKEN")
-SECRET_KEY = get_or_create_secret_key()
-
-# Logging Config (日志配置)
-LOG_LEVEL = _get(_LOGGING, "level", "LOG_LEVEL", "INFO")
-
-# Database Config (数据库配置)
-DB_ECHO = _get(_APP, "db_echo", "DB_ECHO", False)
-
-# OpenAI Config (OpenAI 配置)
-OPENAI_API_KEY = _get(_APP, "openai_api_key", "OPENAI_API_KEY")
-OPENAI_BASE_URL = _get(_APP, "openai_base_url", "OPENAI_BASE_URL")
-OPENAI_MODEL = _get(_APP, "openai_model", "OPENAI_MODEL", "gpt-3.5-turbo")
+# 导出常用配置项，保持兼容性
+DATABASE_URL = config.database_url
+DB_ECHO = config.db_echo
+HOST = config.host
+PORT = config.port
+ALLOWED_ORIGINS = config.allowed_origins
+OPENAI_API_KEY = config.openai_api_key
+OPENAI_BASE_URL = config.openai_base_url
+OPENAI_MODEL = config.openai_model
