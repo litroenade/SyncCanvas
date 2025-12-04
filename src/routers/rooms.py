@@ -7,10 +7,11 @@ import hashlib
 import secrets
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Header
 from pydantic import BaseModel, Field
 from sqlmodel import Session
 
+from src.config import config
 from src.db.database import get_session
 from src.db.models import Room, RoomMember
 from src.db import crud
@@ -57,6 +58,7 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 # ==================== 请求/响应模型 ====================
 
+
 class RoomCreate(BaseModel):
     """创建房间请求
 
@@ -66,6 +68,7 @@ class RoomCreate(BaseModel):
         is_public (bool): 是否公开
         max_users (int): 最大用户数
     """
+
     name: str = Field(..., min_length=1, max_length=100)
     password: Optional[str] = Field(default=None, max_length=100)
     is_public: bool = Field(default=True)
@@ -78,6 +81,7 @@ class RoomJoin(BaseModel):
     Attributes:
         password (str): 房间密码，可选
     """
+
     password: Optional[str] = Field(default=None)
 
 
@@ -94,6 +98,7 @@ class RoomResponse(BaseModel):
         has_password (bool): 是否有密码
         member_count (int): 当前成员数
     """
+
     id: str
     name: str
     owner_id: Optional[int]
@@ -111,6 +116,7 @@ class RoomListResponse(BaseModel):
         rooms (List[RoomResponse]): 房间列表
         total (int): 总数
     """
+
     rooms: List[RoomResponse]
     total: int
 
@@ -122,11 +128,13 @@ class InviteLinkResponse(BaseModel):
         room_id (str): 房间 ID
         invite_url (str): 邀请 URL
     """
+
     room_id: str
     invite_url: str
 
 
 # ==================== API 路由 ====================
+
 
 @router.get("", response_model=RoomListResponse)
 async def list_rooms(
@@ -134,7 +142,7 @@ async def list_rooms(
     limit: int = 50,
     offset: int = 0,
     session: Session = Depends(get_session),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """获取房间列表
 
@@ -157,16 +165,18 @@ async def list_rooms(
     room_responses = []
     for room in rooms:
         members = crud.get_room_members(session, room.id)
-        room_responses.append(RoomResponse(
-            id=room.id,
-            name=room.name,
-            owner_id=room.owner_id,
-            is_public=room.is_public,
-            max_users=room.max_users,
-            created_at=room.created_at,
-            has_password=room.password_hash is not None,
-            member_count=len(members)
-        ))
+        room_responses.append(
+            RoomResponse(
+                id=room.id,
+                name=room.name,
+                owner_id=room.owner_id,
+                is_public=room.is_public,
+                max_users=room.max_users,
+                created_at=room.created_at,
+                has_password=room.password_hash is not None,
+                member_count=len(members),
+            )
+        )
 
     return RoomListResponse(rooms=room_responses, total=len(room_responses))
 
@@ -175,7 +185,7 @@ async def list_rooms(
 async def create_room(
     request: RoomCreate,
     session: Session = Depends(get_session),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """创建新房间
 
@@ -200,7 +210,7 @@ async def create_room(
         owner_id=current_user.id if current_user else None,
         password_hash=password_hash,
         is_public=request.is_public,
-        max_users=request.max_users
+        max_users=request.max_users,
     )
 
     room = crud.create_room(session, room)
@@ -208,11 +218,7 @@ async def create_room(
 
     # 如果有用户，自动加入房间
     if current_user:
-        member = RoomMember(
-            room_id=room.id,
-            user_id=current_user.id,
-            role="owner"
-        )
+        member = RoomMember(room_id=room.id, user_id=current_user.id, role="owner")
         crud.add_room_member(session, member)
 
     return RoomResponse(
@@ -223,15 +229,12 @@ async def create_room(
         max_users=room.max_users,
         created_at=room.created_at,
         has_password=room.password_hash is not None,
-        member_count=1 if current_user else 0
+        member_count=1 if current_user else 0,
     )
 
 
 @router.get("/{room_id}", response_model=RoomResponse)
-async def get_room(
-    room_id: str,
-    session: Session = Depends(get_session)
-):
+async def get_room(room_id: str, session: Session = Depends(get_session)):
     """获取房间详情
 
     Args:
@@ -246,10 +249,7 @@ async def get_room(
     """
     room = crud.get_room(session, room_id)
     if not room:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="房间不存在"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="房间不存在")
 
     members = crud.get_room_members(session, room.id)
 
@@ -261,7 +261,7 @@ async def get_room(
         max_users=room.max_users,
         created_at=room.created_at,
         has_password=room.password_hash is not None,
-        member_count=len(members)
+        member_count=len(members),
     )
 
 
@@ -270,7 +270,7 @@ async def join_room(
     room_id: str,
     request: RoomJoin,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """加入房间
 
@@ -288,83 +288,106 @@ async def join_room(
     """
     room = crud.get_room(session, room_id)
     if not room:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="房间不存在"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="房间不存在")
+
+    # 检查权限: 管理员密钥
+    is_admin_login = config.admin_key and request.password == config.admin_key
 
     # 检查是否已是成员
-    if crud.is_room_member(session, room_id, current_user.id):
+    existing_member = crud.get_room_member(session, room_id, current_user.id)
+    if existing_member:
+        # 如果用管理员密钥加入，升级为 owner
+        if is_admin_login and existing_member.role != "owner":
+            existing_member.role = "owner"
+            session.add(existing_member)
+            session.commit()
+            logger.info(
+                "用户 %s 使用管理员密钥升级为房间 %s 的 Owner",
+                current_user.username,
+                room_id,
+            )
+            return {"status": "upgraded_to_owner", "room_id": room_id}
         return {"status": "already_member", "room_id": room_id}
 
-    # 验证密码
-    if room.password_hash:
+    # 设置角色
+    role = "owner" if is_admin_login else "editor"
+    if is_admin_login:
+        logger.info(
+            "用户 %s 使用管理员密钥加入房间 %s (Owner)", current_user.username, room_id
+        )
+
+    # 验证密码 (如果不是管理员登录)
+    if not is_admin_login and room.password_hash:
         if not request.password:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="需要房间密码"
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="需要房间密码"
             )
         if not verify_password(request.password, room.password_hash):
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="密码错误"
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="密码错误"
             )
 
-    # 检查人数限制
+    # 检查人数限制 (管理员可忽略?)
     members = crud.get_room_members(session, room_id)
-    if len(members) >= room.max_users:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="房间已满员"
-        )
+    if not is_admin_login and len(members) >= room.max_users:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="房间已满员")
 
     # 加入房间
-    member = RoomMember(
-        room_id=room_id,
-        user_id=current_user.id,
-        role="editor"
-    )
+    member = RoomMember(room_id=room_id, user_id=current_user.id, role=role)
     crud.add_room_member(session, member)
     logger.info("用户 %s 加入房间 %s", current_user.username, room_id)
 
     return {"status": "joined", "room_id": room_id}
 
 
+class RoomDelete(BaseModel):
+    """删除房间请求"""
+
+    password: Optional[str] = Field(default=None)
+
+
 @router.delete("/{room_id}")
 async def delete_room(
     room_id: str,
+    request: Optional[RoomDelete] = None,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """删除房间
 
+    只有登录用户才能删除房间。如果房间有密码，需要提供密码。
+
     Args:
         room_id: 房间 ID
+        request: 删除请求 (包含密码)
         session: 数据库会话
-        current_user: 当前用户
+        current_user: 当前用户 (必须登录)
 
     Returns:
         dict: 删除结果
 
     Raises:
-        HTTPException: 房间不存在或无权限
+        HTTPException: 房间不存在或密码错误
     """
     room = crud.get_room(session, room_id)
     if not room:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="房间不存在"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="房间不存在")
 
-    # 检查权限
-    if room.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="无权删除此房间"
-        )
+    # 如果房间有密码，需要验证
+    if room.password_hash:
+        password = request.password if request else None
+        if not password:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="此房间需要密码才能删除",
+            )
+        if not verify_password(password, room.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="密码错误"
+            )
 
     crud.delete_room(session, room_id)
-    logger.info("删除房间: %s", room_id)
+    logger.info("删除房间: %s (操作者: %s)", room_id, current_user.username)
 
     return {"status": "deleted", "room_id": room_id}
 
@@ -373,7 +396,7 @@ async def delete_room(
 async def leave_room(
     room_id: str,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """离开房间
 
@@ -387,23 +410,18 @@ async def leave_room(
     """
     room = crud.get_room(session, room_id)
     if not room:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="房间不存在"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="房间不存在")
 
     # 房主不能离开
     if room.owner_id == current_user.id:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="房主不能离开房间，请删除房间"
+            status_code=status.HTTP_403_FORBIDDEN, detail="房主不能离开房间，请删除房间"
         )
 
     removed = crud.remove_room_member(session, room_id, current_user.id)
     if not removed:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="您不是此房间成员"
+            status_code=status.HTTP_404_NOT_FOUND, detail="您不是此房间成员"
         )
 
     logger.info("用户 %s 离开房间 %s", current_user.username, room_id)
@@ -411,10 +429,7 @@ async def leave_room(
 
 
 @router.get("/{room_id}/invite", response_model=InviteLinkResponse)
-async def get_invite_link(
-    room_id: str,
-    session: Session = Depends(get_session)
-):
+async def get_invite_link(room_id: str, session: Session = Depends(get_session)):
     """获取房间邀请链接
 
     Args:
@@ -426,10 +441,7 @@ async def get_invite_link(
     """
     room = crud.get_room(session, room_id)
     if not room:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="房间不存在"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="房间不存在")
 
     # 生成邀请 URL (前端处理)
     invite_url = f"/join/{room_id}"
@@ -440,7 +452,7 @@ async def get_invite_link(
 @router.get("/my/rooms", response_model=RoomListResponse)
 async def get_my_rooms(
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """获取当前用户加入的所有房间
 
@@ -456,15 +468,17 @@ async def get_my_rooms(
     room_responses = []
     for room in rooms:
         members = crud.get_room_members(session, room.id)
-        room_responses.append(RoomResponse(
-            id=room.id,
-            name=room.name,
-            owner_id=room.owner_id,
-            is_public=room.is_public,
-            max_users=room.max_users,
-            created_at=room.created_at,
-            has_password=room.password_hash is not None,
-            member_count=len(members)
-        ))
+        room_responses.append(
+            RoomResponse(
+                id=room.id,
+                name=room.name,
+                owner_id=room.owner_id,
+                is_public=room.is_public,
+                max_users=room.max_users,
+                created_at=room.created_at,
+                has_password=room.password_hash is not None,
+                member_count=len(members),
+            )
+        )
 
     return RoomListResponse(rooms=room_responses, total=len(room_responses))

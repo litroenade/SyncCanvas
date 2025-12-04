@@ -27,7 +27,7 @@ logger = get_logger(__name__)
 
 class PersistentWebsocketServer(WebsocketServer):
     """带持久化的 WebsocketServer
-    
+
     继承自 WebsocketServer，为每个房间自动配置 SQLModelYStore 持久化。
     所有房间数据存储在同一个 SQLite 数据库 (sync_canvas.db) 中。
     支持用户连接追踪和自动提交功能。
@@ -36,7 +36,7 @@ class PersistentWebsocketServer(WebsocketServer):
     def __init__(self, **kwargs: Any):
         """初始化服务器"""
         # 禁用自动清理房间，我们自己管理
-        kwargs['auto_clean_rooms'] = False
+        kwargs["auto_clean_rooms"] = False
         super().__init__(**kwargs)
         self._ystores: dict[str, SQLModelYStore] = {}
         # 追踪每个房间的连接数
@@ -46,7 +46,7 @@ class PersistentWebsocketServer(WebsocketServer):
 
     async def serve(self, websocket: Channel) -> None:
         """重写 serve 方法以追踪连接
-        
+
         Args:
             websocket: WebSocket 通道
         """
@@ -55,7 +55,9 @@ class PersistentWebsocketServer(WebsocketServer):
         # 增加连接计数（在连接建立时）
         self._room_connections[name] = self._room_connections.get(name, 0) + 1
         self._room_last_activity[name] = time.time()
-        logger.debug(f"房间 '{name}' 新连接，当前连接数: {self._room_connections[name]}")
+        logger.debug(
+            f"房间 '{name}' 新连接，当前连接数: {self._room_connections[name]}"
+        )
 
         try:
             # 调用父类的 serve 方法
@@ -66,7 +68,8 @@ class PersistentWebsocketServer(WebsocketServer):
         except Exception as eg:
             # 展开异常组，判断是否存在真实错误
             unhandled = [
-                exc for exc in self._iter_exceptions(eg)
+                exc
+                for exc in self._iter_exceptions(eg)
                 if not self._is_disconnect_error(exc)
             ]
             if unhandled:
@@ -93,20 +96,19 @@ class PersistentWebsocketServer(WebsocketServer):
         """检查是否是断开连接相关的错误"""
         error_str = str(exception).lower()
         disconnect_keywords = [
-            'clientdisconnected', 
-            'connectionclosed', 
-            'no close frame',
-            'websocket.close',
-            'websocket.send',
-            'response already completed',
-            'unexpected asgi message'
+            "clientdisconnected",
+            "connectionclosed",
+            "no close frame",
+            "websocket.close",
+            "websocket.send",
+            "response already completed",
+            "unexpected asgi message",
         ]
         return any(keyword in error_str for keyword in disconnect_keywords)
 
     def _iter_exceptions(
-            self,
-            exception: BaseException | Exception
-            ) -> list[BaseException]:
+        self, exception: BaseException | Exception
+    ) -> list[BaseException]:
         """展开 BaseExceptionGroup，返回所有底层异常"""
         if isinstance(exception, Exception):
             exceptions: list[BaseException] = []
@@ -117,10 +119,10 @@ class PersistentWebsocketServer(WebsocketServer):
 
     async def get_room(self, name: str) -> YRoom:
         """获取或创建房间，带持久化存储
-        
+
         Args:
             name: 房间名称 (WebSocket)
-            
+
         Returns:
             配置了 SQLModelYStore 的 YRoom 实例
         """
@@ -151,13 +153,15 @@ class PersistentWebsocketServer(WebsocketServer):
 
     async def _on_client_disconnect(self, name: str) -> None:
         """处理客户端断开连接
-        
+
         Args:
             name: 房间名称
         """
         if name in self._room_connections:
             self._room_connections[name] = max(0, self._room_connections[name] - 1)
-            logger.debug(f"房间 '{name}' 断开连接，剩余连接数: {self._room_connections[name]}")
+            logger.debug(
+                f"房间 '{name}' 断开连接，剩余连接数: {self._room_connections[name]}"
+            )
 
             # 如果是最后一个用户离开，延迟检查后再触发自动提交
             # 这样可以避免因为短暂的重连导致误判
@@ -171,7 +175,7 @@ class PersistentWebsocketServer(WebsocketServer):
 
     async def _auto_commit_on_last_leave(self, name: str) -> None:
         """最后一个用户离开时自动提交
-        
+
         Args:
             name: 房间名称
         """
@@ -268,7 +272,7 @@ class PersistentWebsocketServer(WebsocketServer):
 
     def update_room_activity(self, name: str) -> None:
         """更新房间活动时间
-        
+
         Args:
             name: 房间名称
         """
@@ -276,10 +280,10 @@ class PersistentWebsocketServer(WebsocketServer):
 
     def get_room_connections(self, name: str) -> int:
         """获取房间连接数
-        
+
         Args:
             name: 房间名称
-            
+
         Returns:
             连接数
         """
@@ -287,7 +291,7 @@ class PersistentWebsocketServer(WebsocketServer):
 
     async def check_idle_rooms(self, idle_threshold: float = 300.0) -> None:
         """检查并处理空闲房间
-        
+
         Args:
             idle_threshold: 空闲阈值 (秒)
         """
@@ -303,7 +307,7 @@ class PersistentWebsocketServer(WebsocketServer):
 
     async def close_room(self, name: str) -> None:
         """关闭房间并创建自动提交
-        
+
         Args:
             name: 房间名称
         """
@@ -334,7 +338,7 @@ class PersistentWebsocketServer(WebsocketServer):
 
     async def flush_room(self, room_id: str) -> None:
         """强制刷新房间数据到数据库
-        
+
         Args:
             room_id: 房间 ID
         """
@@ -351,7 +355,7 @@ class PersistentWebsocketServer(WebsocketServer):
 
     async def evict_room(self, room_id: str, discard_changes: bool = False) -> None:
         """从内存中移除房间（用于强制重载）
-        
+
         Args:
             room_id: 房间 ID
             discard_changes: 是否丢弃未保存的更改
@@ -382,6 +386,21 @@ class PersistentWebsocketServer(WebsocketServer):
         self._room_last_activity.pop(target_name, None)
 
         logger.info(f"房间 {room_id} 已从内存移除 (discard={discard_changes})")
+
+    def get_ystore(self, room_id: str) -> SQLModelYStore | None:
+        """获取房间的 YStore 实例
+
+        Args:
+            room_id: 房间 ID
+
+        Returns:
+            SQLModelYStore 实例或 None
+        """
+        # 查找房间名称
+        for name in self.rooms:
+            if name.endswith(f"/{room_id}") or name == room_id:
+                return self._ystores.get(name)
+        return None
 
 
 # 创建带持久化的 WebsocketServer 实例

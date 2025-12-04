@@ -117,6 +117,10 @@ interface CanvasState {
   drawingShapeId: string | null
   /** 设置绘制中的图形 ID */
   setDrawingShapeId: (id: string | null) => void
+  /** 快捷键锁定状态 */
+  isShortcutLocked: boolean
+  /** 切换快捷键锁定状态 */
+  toggleShortcutLock: () => void
 }
 
 /**
@@ -171,5 +175,7 @@ export const useCanvasStore = create<CanvasState>((set) => ({
   setIsDrawing: (isDrawing) => set({ isDrawing }),
   drawingShapeId: null,
   setDrawingShapeId: (id) => set({ drawingShapeId: id }),
+  isShortcutLocked: false,
+  toggleShortcutLock: () => set((state) => ({ isShortcutLocked: !state.isShortcutLocked })),
 }))
 

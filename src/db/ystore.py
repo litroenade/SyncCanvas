@@ -30,10 +30,10 @@ class WriteBuffer:
     """线程安全的写入缓冲区"""
 
     def __init__(
-            self,
-            flush_callback: Callable[[], None],
-            flush_interval: float = 5.0,
-            max_size: int = 50
+        self,
+        flush_callback: Callable[[], None],
+        flush_interval: float = 5.0,
+        max_size: int = 50,
     ):
         self._buffer: list[tuple[bytes, int]] = []
         self._lock = threading.Lock()
@@ -152,27 +152,40 @@ class SQLModelYStore(BaseYStore):
                     session.add(update)
                 session.commit()
                 # 使用 DEBUG 级别，避免刷屏
-                self.log.debug(f"房间 {self.room_id}: 写入 {len(buffer_data)} 个更新到缓冲")
+                self.log.debug(
+                    f"房间 {self.room_id}: 写入 {len(buffer_data)} 个更新到缓冲"
+                )
         except Exception as e:
             self.log.error(f"房间 {self.room_id} 刷新缓冲区失败: {e}")
 
     async def read(self) -> AsyncIterator[tuple[bytes, bytes, float]]:
         """读取房间的所有数据
-        
+
         按顺序返回：最新 Commit → 后续 Update → 内存缓冲
         """
         found = False
 
         async with self.lock:
             with Session(engine) as session:
-                # 1. 获取最新的 Commit
-                commit_stmt = (
-                    select(Commit)
-                    .where(Commit.room_id == self.room_id)
-                    .order_by(Commit.timestamp.desc())
-                    .limit(1)
-                )
-                commit = session.exec(commit_stmt).first()
+                # 0. 获取房间信息，查看 HEAD
+                from src.db.models import Room
+
+                room = session.get(Room, self.room_id)
+
+                commit = None
+                if room and room.head_commit_id:
+                    # 优先使用 HEAD 指向的提交
+                    commit = session.get(Commit, room.head_commit_id)
+
+                if not commit:
+                    # 降级：获取最新的 Commit
+                    commit_stmt = (
+                        select(Commit)
+                        .where(Commit.room_id == self.room_id)
+                        .order_by(Commit.timestamp.desc())
+                        .limit(1)
+                    )
+                    commit = session.exec(commit_stmt).first()
 
                 if commit:
                     found = True
@@ -234,19 +247,38 @@ class SQLModelYStore(BaseYStore):
             "room_id": self.room_id,
         }
 
+    def get_buffer_data(self) -> list[tuple[bytes, int]]:
+        """获取并清空缓冲区数据"""
+        return self._buffer.get_and_clear()
+
+    def get_buffer_copy(self) -> list[tuple[bytes, int]]:
+        """获取缓冲区数据副本"""
+        return self._buffer.get_copy()
+
     def get_current_doc(self) -> Doc:
         """获取当前完整文档状态"""
         ydoc = Doc()
 
         with Session(engine) as session:
-            # 获取最新 Commit
-            commit_stmt = (
-                select(Commit)
-                .where(Commit.room_id == self.room_id)
-                .order_by(Commit.timestamp.desc())
-                .limit(1)
-            )
-            commit = session.exec(commit_stmt).first()
+            # 0. 获取房间信息，查看 HEAD
+            from src.db.models import Room
+
+            room = session.get(Room, self.room_id)
+
+            commit = None
+            if room and room.head_commit_id:
+                # 优先使用 HEAD 指向的提交
+                commit = session.get(Commit, room.head_commit_id)
+
+            if not commit:
+                # 获取最新 Commit
+                commit_stmt = (
+                    select(Commit)
+                    .where(Commit.room_id == self.room_id)
+                    .order_by(Commit.timestamp.desc())
+                    .limit(1)
+                )
+                commit = session.exec(commit_stmt).first()
 
             if commit:
                 ydoc.apply_update(commit.data)

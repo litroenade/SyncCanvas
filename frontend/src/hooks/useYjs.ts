@@ -34,9 +34,21 @@ export const useYjs = (roomId?: string) => {
     const { setShapes, setCursors } = useCanvasStore();
     const [isConnected, setIsConnected] = useState(false);
     const [isSynced, setIsSynced] = useState(false);
-    
+
     // 使用 ref 存储用户信息，避免触发重新渲染
     const userInfoRef = useRef(getUserInfo());
+    const [docVersion, setDocVersion] = useState(0);
+
+    // 监听文档变更 (用于预览)
+    useEffect(() => {
+        const handleDocChange = () => {
+            setDocVersion(v => v + 1);
+        };
+        yjsManager.onDocChange(handleDocChange);
+        return () => {
+            yjsManager.offDocChange(handleDocChange);
+        };
+    }, []);
 
     useEffect(() => {
         // 如果没有 roomId，不连接
@@ -44,34 +56,40 @@ export const useYjs = (roomId?: string) => {
             console.log('没有 roomId，跳过连接');
             return;
         }
-        
+
         // 连接到房间
         yjsManager.connect(roomId);
 
         const shapesMap = yjsManager.shapesMap;
         const provider = yjsManager.provider;
 
-        // 连接失败，退出
-        if (!shapesMap || !provider) {
-            console.error('Yjs 连接失败');
+        // 如果没有 shapesMap，说明初始化失败
+        if (!shapesMap) {
+            console.error('Yjs 初始化失败');
             return;
         }
 
-        // 立即设置 isConnected（provider 已创建）
-        setIsConnected(true);
+        // 设置连接状态
+        setIsConnected(!!provider);
+        if (!provider) {
+            // 预览模式：视为已同步
+            setIsSynced(true);
+        }
 
-        // 监听连接状态
+        // 监听连接状态 (仅当有 provider 时)
         const handleStatus = (event: { status: string }) => {
             console.log(`Yjs 连接状态: ${event.status}`);
         };
-        
+
         const handleSync = (synced: boolean) => {
             console.log(`Yjs 同步状态: ${synced ? '已同步' : '同步中'}`);
             setIsSynced(synced);
         };
-        
-        provider.on('status', handleStatus);
-        provider.on('sync', handleSync);
+
+        if (provider) {
+            provider.on('status', handleStatus);
+            provider.on('sync', handleSync);
+        }
 
         // 从 Yjs 同步到 Store
         const observer = () => {
@@ -80,49 +98,57 @@ export const useYjs = (roomId?: string) => {
         };
 
         shapesMap.observe(observer);
-        
+
         // 初始同步
         observer();
 
-        // Awareness
-        const awareness = provider.awareness;
-        
-        // 获取用户信息
-        const { name: myName, color: myColor } = userInfoRef.current;
+        // Awareness (仅当有 provider 时)
+        let awarenessObserver: (() => void) | null = null;
 
-        // 设置本地状态
-        awareness.setLocalStateField('user', {
-            name: myName,
-            color: myColor,
-        });
+        if (provider) {
+            const awareness = provider.awareness;
 
-        const awarenessObserver = () => {
-            const states = awareness.getStates();
-            const cursors: Record<string, any> = {};
+            // 获取用户信息
+            const { name: myName, color: myColor } = userInfoRef.current;
 
-            states.forEach((state: any, clientId: number) => {
-                if (clientId !== awareness.clientID && state.user && state.cursor) {
-                    cursors[clientId] = {
-                        ...state.cursor,
-                        ...state.user,
-                    };
-                }
+            // 设置本地状态
+            awareness.setLocalStateField('user', {
+                name: myName,
+                color: myColor,
             });
 
-            setCursors(cursors);
-        };
+            awarenessObserver = () => {
+                const states = awareness.getStates();
+                const cursors: Record<string, any> = {};
 
-        awareness.on('change', awarenessObserver);
+                states.forEach((state: any, clientId: number) => {
+                    if (clientId !== awareness.clientID && state.user && state.cursor) {
+                        cursors[clientId] = {
+                            ...state.cursor,
+                            ...state.user,
+                        };
+                    }
+                });
+
+                setCursors(cursors);
+            };
+
+            awareness.on('change', awarenessObserver);
+        }
 
         return () => {
             shapesMap.unobserve(observer);
-            awareness.off('change', awarenessObserver);
-            provider.off('status', handleStatus);
-            provider.off('sync', handleSync);
+            if (provider) {
+                if (awarenessObserver) {
+                    provider.awareness.off('change', awarenessObserver);
+                }
+                provider.off('status', handleStatus);
+                provider.off('sync', handleSync);
+            }
             // 注意：不在这里断开连接，因为可能是组件重新渲染
             // 断开连接应该在用户主动离开房间时进行
         };
-    }, [roomId, setShapes, setCursors]);
+    }, [roomId, setShapes, setCursors, docVersion]);
 
     // 更新 Yjs 的操作
     const addShapeToYjs = useCallback((shape: Shape) => {
@@ -185,7 +211,7 @@ export const useYjs = (roomId?: string) => {
         const ydoc = yjsManager.ydoc;
         const shapesMap = yjsManager.shapesMap;
         if (!ydoc || !shapesMap) return;
-        
+
         ydoc.transact(() => {
             Object.entries(updates).forEach(([id, attrs]) => {
                 const currentShape = shapesMap.get(id) as Shape | undefined;

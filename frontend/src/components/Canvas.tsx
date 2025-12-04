@@ -47,7 +47,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
         currentTool, isDrawing,
         currentFillColor, currentStrokeColor, currentStrokeWidth,
         setScale, setOffset, setSelectedId, toggleSelection, clearSelection,
-        setIsDrawing, setCurrentTool
+        setIsDrawing, setCurrentTool, isShortcutLocked
     } = useCanvasStore();
     const { addShape, updateShape, deleteShape, undo, redo, updateAwareness, isConnected, isSynced } = useYjs(roomId);
     const { theme } = useThemeStore();
@@ -72,6 +72,21 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
 
         const handleKeyDown = (e: KeyboardEvent) => {
             if (editingTextId) return;
+
+            // 如果快捷键被锁定，且不是撤销/重做/删除，则忽略工具切换
+            // 允许撤销/重做/删除即使在锁定时也能使用吗？用户说 "无法输入数字"，说明是工具快捷键冲突。
+            // 通常锁定快捷键是为了防止打字时误触工具。
+            // 如果是输入数字，那是文本编辑状态，`editingTextId` 会拦截。
+            // 但用户可能是在 Commit 信息输入框（HistoryPanel）里输入数字？
+            // 如果焦点在 HistoryPanel 的 input 里，Canvas 的监听器会触发吗？
+            // `window.addEventListener` 会捕获所有。
+            // 所以我们需要检查 activeElement。
+
+            const activeElement = document.activeElement;
+            const isInputActive = activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA';
+            if (isInputActive) return;
+
+            if (isShortcutLocked) return;
 
             // 工具快捷键
             const toolKeys: Record<string, ToolType> = {

@@ -1,8 +1,9 @@
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from src.db.database import init_db
 from src.ws.sync import websocket_server, asgi_server
 from src.core.async_task import async_task_manager
@@ -83,7 +84,23 @@ app.mount("/api/images", StaticFiles(directory=IMAGES_DIR), name="images")
 FRONTEND_DIST_DIR = os.path.join(os.path.dirname(__file__), "frontend", "dist")
 
 if os.path.exists(FRONTEND_DIST_DIR):
-    app.mount("/", StaticFiles(directory=FRONTEND_DIST_DIR, html=True), name="static")
+    # 挂载静态资源 (assets 目录)
+    assets_dir = os.path.join(FRONTEND_DIST_DIR, "assets")
+    if os.path.exists(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    # SPA fallback: 所有未匹配的路由返回 index.html
+    @app.get("/{full_path:path}")
+    async def serve_spa(request: Request, full_path: str):
+        """处理 SPA 路由，返回 index.html"""
+        # 如果是请求静态文件（有文件扩展名），尝试返回对应文件
+        if "." in full_path:
+            file_path = os.path.join(FRONTEND_DIST_DIR, full_path)
+            if os.path.isfile(file_path):
+                return FileResponse(file_path)
+        # 否则返回 index.html (SPA fallback)
+        index_path = os.path.join(FRONTEND_DIST_DIR, "index.html")
+        return FileResponse(index_path)
 else:
     logger.warning(
         f"前端构建目录不存在: {FRONTEND_DIST_DIR}，无法提供静态文件服务。请先运行 'pnpm build'。"

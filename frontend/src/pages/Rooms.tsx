@@ -79,12 +79,20 @@ export const Rooms: React.FC = () => {
     navigate(`/room/${roomId}`)
   }
 
-  const handleDeleteRoom = async (roomId: string) => {
+  const [showDeleteModal, setShowDeleteModal] = useState<Room | null>(null)
+
+  const handleDeleteRoom = async (room: Room, password?: string) => {
+    if (room.has_password && !password) {
+      // 需要密码，显示删除密码弹窗
+      setShowDeleteModal(room)
+      return
+    }
+
     showConfirm(
       '确定要删除这个房间吗？此操作不可撤销。',
       async () => {
         try {
-          await roomsApi.delete(roomId)
+          await roomsApi.delete(room.id, password)
           showToast('房间已删除', 'success')
           loadRooms()
         } catch (err: any) {
@@ -233,7 +241,7 @@ export const Rooms: React.FC = () => {
                     handleEnterRoom(room.id)
                   }
                 }}
-                onDelete={() => handleDeleteRoom(room.id)}
+                onDelete={() => handleDeleteRoom(room)}
                 onCopyInvite={() => handleCopyInvite(room.id)}
                 isOwner={isLoggedIn} // 简化处理，实际应检查 owner_id
               />
@@ -264,6 +272,19 @@ export const Rooms: React.FC = () => {
           onJoined={() => {
             setShowJoinModal(null)
             handleEnterRoom(showJoinModal.id)
+          }}
+        />
+      )}
+
+      {/* 删除房间弹窗 (需要密码) */}
+      {showDeleteModal && (
+        <DeleteRoomModal
+          room={showDeleteModal}
+          theme={theme}
+          onClose={() => setShowDeleteModal(null)}
+          onDeleted={() => {
+            setShowDeleteModal(null)
+            loadRooms()
           }}
         />
       )}
@@ -615,6 +636,98 @@ const JoinRoomModal: React.FC<JoinRoomModalProps> = ({ room, theme, onClose, onJ
             >
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}
               加入
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * 删除房间弹窗 (需要密码)
+ */
+interface DeleteRoomModalProps {
+  room: Room
+  theme: 'light' | 'dark'
+  onClose: () => void
+  onDeleted: () => void
+}
+
+const DeleteRoomModal: React.FC<DeleteRoomModalProps> = ({ room, theme, onClose, onDeleted }) => {
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      await roomsApi.delete(room.id, password)
+      onDeleted()
+    } catch (err: any) {
+      setError(err.response?.data?.detail || '删除失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div
+        className={cn(
+          'w-full max-w-md p-6 rounded-2xl shadow-xl',
+          theme === 'dark' ? 'bg-slate-800' : 'bg-white'
+        )}
+      >
+        <h2 className="text-xl font-bold mb-2 text-red-500">删除房间</h2>
+        <p className={cn('text-sm mb-6', theme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
+          房间 "{room.name}" 需要密码才能删除
+        </p>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className={cn('block text-sm font-medium mb-2', theme === 'dark' ? 'text-slate-300' : 'text-slate-700')}>
+              房间密码
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="输入房间密码"
+              className={cn(
+                'w-full px-4 py-3 rounded-xl border outline-none transition-colors',
+                theme === 'dark'
+                  ? 'bg-slate-900 border-slate-700 focus:border-red-500'
+                  : 'bg-gray-50 border-slate-200 focus:border-red-500'
+              )}
+              autoFocus
+            />
+          </div>
+
+          {error && <div className="text-red-500 text-sm">{error}</div>}
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className={cn(
+                'flex-1 py-3 rounded-xl font-medium transition-colors',
+                theme === 'dark' ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-100 hover:bg-slate-200'
+              )}
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 py-3 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+              删除
             </button>
           </div>
         </form>

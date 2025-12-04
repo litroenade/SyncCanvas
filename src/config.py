@@ -51,6 +51,8 @@ class Config:
 [security]
 # 服务端密钥，用于认证
 secret_key = "{secret_key}"
+# 管理员密钥，用于强制操作 (如删除任意房间)
+admin_key = "admin"
 
 [server]
 # 服务端口
@@ -81,6 +83,12 @@ host = "0.0.0.0"
         """获取 secret_key，支持热重载"""
         self._check_reload()
         return self._config.get("security", {}).get("secret_key", "")
+
+    @property
+    def admin_key(self) -> str:
+        """获取 admin_key，支持热重载"""
+        self._check_reload()
+        return self._config.get("security", {}).get("admin_key", "")
 
     @property
     def database_url(self) -> str:

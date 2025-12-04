@@ -20,7 +20,7 @@ from src.routers.igit.models import (
 from src.routers.igit.utils import (
     generate_commit_hash,
     parse_yjs_strokes,
-    compute_strokes_diff
+    compute_strokes_diff,
 )
 
 logger = get_logger(__name__)
@@ -38,7 +38,7 @@ class IGitService:
         message: str,
         author_id: Optional[int] = None,
         author_name: str = "Anonymous",
-        websocket_server: Any = None
+        websocket_server: Any = None,
     ) -> Commit:
         """创建新提交
 
@@ -52,15 +52,21 @@ class IGitService:
         Returns:
             Commit: 创建的提交对象
         """
+        # 1. 获取内存中的更新 (避免死锁，不调用 flush_room)
+        mem_updates = []
+        if websocket_server:
+            # 尝试获取 YStore
+            # 注意：这里假设 websocket_server 是 PersistentWebsocketServer 实例
+            if hasattr(websocket_server, "get_ystore"):
+                ystore = websocket_server.get_ystore(room_id)
+                if ystore:
+                    # 获取并清空缓冲区，这些数据将直接合并到 Commit 中，不需要写入 Update 表
+                    mem_updates = ystore.get_buffer_data()
+
+        # 2. 获取房间信息
         room = crud.get_room(self.session, room_id)
         if not room:
             raise ValueError("房间不存在")
-
-        # 强制刷新内存中的更新到数据库
-        if websocket_server:
-            await websocket_server.flush_room(room_id)
-            # 提交当前事务以确保能读取到刚才刷新的更新
-            self.session.commit()
 
         # 构建完整文档状态
         ydoc = Doc()
@@ -70,26 +76,30 @@ class IGitService:
         if latest_commit:
             ydoc.apply_update(latest_commit.data)
 
-        # 获取增量更新
+        # 获取数据库中的增量更新
         if latest_commit:
-            updates = crud.get_updates_since(self.session, room_id, latest_commit.timestamp)
+            db_updates = crud.get_updates_since(
+                self.session, room_id, latest_commit.timestamp
+            )
         else:
-            updates = crud.get_all_updates(self.session, room_id)
+            db_updates = crud.get_all_updates(self.session, room_id)
 
-        for update in updates:
+        # 应用数据库更新
+        for update in db_updates:
             ydoc.apply_update(update.data)
+
+        # 应用内存更新
+        for data, _ in mem_updates:
+            ydoc.apply_update(data)
 
         # 检查是否有数据可提交
         doc_data = ydoc.get_update()
-        if not doc_data or len(doc_data) <= 2:  # 空 Yjs 文档大约 2 字节
-            # 检查是否真的没有数据 (可能是第一次提交)
-            if not updates and not latest_commit:
-                 raise ValueError("没有数据可提交")
-            # 如果有 latest_commit 但没有 updates，且 doc_data 为空(或很小)，说明可能被清空了？
-            # 或者只是没有新变化。
+        if not doc_data or len(doc_data) <= 2:
+            if not db_updates and not mem_updates and not latest_commit:
+                raise ValueError("没有数据可提交")
 
         # 检查是否有新的更改
-        if not updates and latest_commit:
+        if not db_updates and not mem_updates and latest_commit:
             raise ValueError("没有新的更改可提交")
 
         # 创建提交
@@ -114,6 +124,7 @@ class IGitService:
         self.session.add(room)
 
         # 清理 Update 表 (已经合并到 Commit 中了)
+        # 注意：只清理数据库中已有的 Update，内存中的 mem_updates 已经被清空且合并
         delete_stmt = delete(Update).where(Update.room_id == room_id)
         self.session.exec(delete_stmt)
 
@@ -124,10 +135,7 @@ class IGitService:
         return commit
 
     async def checkout_commit(
-        self,
-        room_id: str,
-        commit_id: int,
-        websocket_server: Any = None
+        self, room_id: str, commit_id: int, websocket_server: Any = None
     ) -> Commit:
         """检出指定提交
 
@@ -159,9 +167,7 @@ class IGitService:
         # 将 Commit 数据写入 Update 表，让 YStore 能够读取
         # 这是关键一步，YStore 初始化时会读取 Update 表
         new_update = Update(
-            room_id=room_id,
-            data=commit.data,
-            timestamp=int(time.time() * 1000)
+            room_id=room_id, data=commit.data, timestamp=int(time.time() * 1000)
         )
         self.session.add(new_update)
 
@@ -181,7 +187,7 @@ class IGitService:
         commit_id: int,
         author_id: int,
         author_name: str,
-        websocket_server: Any = None
+        websocket_server: Any = None,
     ) -> Tuple[Commit, Commit]:
         """回滚到指定提交
 
@@ -230,9 +236,7 @@ class IGitService:
 
         # 写入新的 Update 确保 YStore 读取正确状态
         new_update = Update(
-            room_id=room_id,
-            data=target_commit.data,
-            timestamp=current_time
+            room_id=room_id, data=target_commit.data, timestamp=current_time
         )
         self.session.add(new_update)
 
@@ -244,9 +248,12 @@ class IGitService:
         self.session.refresh(new_commit)
 
         logger.info(f"回滚提交: 房间 {room_id}, 回滚到 {target_commit.hash}")
+        logger.info(f"回滚数据大小: {len(target_commit.data)} bytes")
         return new_commit, target_commit
 
-    def get_history(self, room_id: str, limit: int = 50) -> HistoryResponse:
+    def get_history(
+        self, room_id: str, limit: int = 50, websocket_server: Any = None
+    ) -> HistoryResponse:
         """获取房间历史"""
         room = crud.get_room(self.session, room_id)
         if not room:
@@ -263,7 +270,7 @@ class IGitService:
                 author_name=c.author_name,
                 message=c.message,
                 timestamp=c.timestamp,
-                size=len(c.data) if c.data else 0
+                size=len(c.data) if c.data else 0,
             )
             for c in commits
         ]
@@ -271,15 +278,26 @@ class IGitService:
         updates = crud.get_all_updates(self.session, room_id)
         pending_changes = len(updates)
 
+        # 加上内存中的更新
+        mem_updates_count = 0
+        if websocket_server and hasattr(websocket_server, "get_ystore"):
+            ystore = websocket_server.get_ystore(room_id)
+            if ystore:
+                mem_updates_count = ystore._buffer.size()
+
+        pending_changes += mem_updates_count
+
         total_size = sum(c.size for c in commit_infos)
         total_size += sum(len(u.data) if u.data else 0 for u in updates)
+        # 估算内存更新大小 (假设平均 100 字节，或者忽略大小统计的精确性)
+        total_size += mem_updates_count * 100
 
         return HistoryResponse(
             room_id=room_id,
             head_commit_id=room.head_commit_id,
             commits=commit_infos,
             pending_changes=pending_changes,
-            total_size=total_size
+            total_size=total_size,
         )
 
     def get_commit_detail(self, room_id: str, commit_id: int) -> CommitDetailResponse:
@@ -304,20 +322,15 @@ class IGitService:
             author_name=commit.author_name,
             message=commit.message,
             timestamp=commit.timestamp,
-            size=len(commit.data) if commit.data else 0
+            size=len(commit.data) if commit.data else 0,
         )
 
         return CommitDetailResponse(
-            commit=commit_info,
-            strokes_count=len(strokes),
-            stroke_types=stroke_types
+            commit=commit_info, strokes_count=len(strokes), stroke_types=stroke_types
         )
 
     def get_commit_diff(
-        self,
-        room_id: str,
-        commit_id: int,
-        base_commit_id: Optional[int] = None
+        self, room_id: str, commit_id: int, base_commit_id: Optional[int] = None
     ) -> CommitDiffResponse:
         """获取提交差异"""
         to_commit = crud.get_commit_by_id(self.session, commit_id)
@@ -335,33 +348,34 @@ class IGitService:
         old_strokes = parse_yjs_strokes(from_commit.data) if from_commit else {}
         new_strokes = parse_yjs_strokes(to_commit.data)
 
-        added, removed, modified, changes = compute_strokes_diff(old_strokes, new_strokes)
+        added, removed, modified, changes = compute_strokes_diff(
+            old_strokes, new_strokes
+        )
 
         from_commit_info = None
         if from_commit:
             from_commit_info = CommitInfo(
                 id=from_commit.id,
-                hash=from_commit.hash or generate_commit_hash(
-                    from_commit.id,
-                    from_commit.timestamp
-                    ),
+                hash=from_commit.hash
+                or generate_commit_hash(from_commit.id, from_commit.timestamp),
                 parent_id=from_commit.parent_id,
                 author_id=from_commit.author_id,
                 author_name=from_commit.author_name,
                 message=from_commit.message,
                 timestamp=from_commit.timestamp,
-                size=len(from_commit.data) if from_commit.data else 0
+                size=len(from_commit.data) if from_commit.data else 0,
             )
 
         to_commit_info = CommitInfo(
             id=to_commit.id,
-            hash=to_commit.hash or generate_commit_hash(to_commit.id, to_commit.timestamp),
+            hash=to_commit.hash
+            or generate_commit_hash(to_commit.id, to_commit.timestamp),
             parent_id=to_commit.parent_id,
             author_id=to_commit.author_id,
             author_name=to_commit.author_name,
             message=to_commit.message,
             timestamp=to_commit.timestamp,
-            size=len(to_commit.data) if to_commit.data else 0
+            size=len(to_commit.data) if to_commit.data else 0,
         )
 
         from_size = len(from_commit.data) if from_commit and from_commit.data else 0
@@ -375,5 +389,5 @@ class IGitService:
             strokes_removed=removed,
             strokes_modified=modified,
             changes=changes,
-            size_diff=to_size - from_size
+            size_diff=to_size - from_size,
         )

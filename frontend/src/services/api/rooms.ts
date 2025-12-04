@@ -133,9 +133,10 @@ export const roomsApi = {
    * @param roomId - 房间 ID
    * @returns 删除结果
    */
-  async delete(roomId: string): Promise<{ status: string; room_id: string }> {
+  async delete(roomId: string, password?: string): Promise<{ status: string; room_id: string }> {
     const response = await axios.delete(`${config.apiBaseUrl}/rooms/${roomId}`, {
       headers: getAuthHeaders(),
+      data: password ? { password } : undefined,
     })
     return response.data
   },
@@ -246,6 +247,23 @@ export const roomsApi = {
     const response = await axios.get(
       `${config.apiBaseUrl}/rooms/${roomId}/diff/${commitId}`,
       { params, headers: getAuthHeaders() }
+    )
+    return response.data
+  },
+
+  /**
+   * 获取提交原始数据 (用于预览)
+   * @param roomId - 房间 ID
+   * @param commitId - 提交 ID
+   * @returns 二进制数据
+   */
+  async getCommitData(roomId: string, commitId: number): Promise<ArrayBuffer> {
+    const response = await axios.get(
+      `${config.apiBaseUrl}/rooms/${roomId}/commits/${commitId}/data`,
+      {
+        headers: getAuthHeaders(),
+        responseType: 'arraybuffer'
+      }
     )
     return response.data
   },

@@ -151,6 +151,25 @@ def is_room_member(session: Session, room_id: str, user_id: int) -> bool:
     return session.exec(statement).first() is not None
 
 
+def get_room_member(
+    session: Session, room_id: str, user_id: int
+) -> Optional[RoomMember]:
+    """获取房间成员信息
+
+    Args:
+        session: 数据库会话
+        room_id: 房间 ID
+        user_id: 用户 ID
+
+    Returns:
+        Optional[RoomMember]: 成员对象，不存在返回 None
+    """
+    statement = select(RoomMember).where(
+        RoomMember.room_id == room_id, RoomMember.user_id == user_id
+    )
+    return session.exec(statement).first()
+
+
 def remove_room_member(session: Session, room_id: str, user_id: int) -> bool:
     """移除房间成员
 

@@ -1,10 +1,10 @@
 import React from 'react';
 import { yjsManager } from '../lib/yjs';
 import { useCanvasStore, ToolType, Shape } from '../stores/useCanvasStore';
-import { 
-    MousePointer2, Hand, Square, Circle, Diamond, 
-    ArrowRight, Minus, Pencil, Type, Image as ImageIcon, 
-    Eraser, Layout, Undo2, Redo2
+import {
+    MousePointer2, Hand, Square, Circle, Diamond,
+    ArrowRight, Minus, Pencil, Type, Image as ImageIcon,
+    Eraser, Layout, Undo2, Redo2, Lock, Unlock
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { applyForceLayout } from '../lib/d3-layout';
@@ -27,7 +27,7 @@ const updateShapes = (updates: Record<string, Partial<Shape>>) => {
         console.warn('Yjs 未连接，无法批量更新');
         return;
     }
-    
+
     ydoc.transact(() => {
         Object.entries(updates).forEach(([id, attrs]) => {
             const currentShape = shapesMap.get(id) as Shape | undefined;
@@ -63,9 +63,14 @@ const redo = () => {
  * 提供工具选择和快捷操作。
  */
 export const Toolbar: React.FC = () => {
-    const { shapes, currentTool, setCurrentTool, currentStrokeColor, currentFillColor, setCurrentStrokeColor, setCurrentFillColor } = useCanvasStore();
+    const {
+        shapes, currentTool, setCurrentTool,
+        currentStrokeColor, currentFillColor,
+        setCurrentStrokeColor, setCurrentFillColor,
+        isShortcutLocked, toggleShortcutLock
+    } = useCanvasStore();
     const fileInputRef = React.useRef<HTMLInputElement>(null);
-    
+
     // 自定义弹窗
     const { showAlert, showToast, ModalRenderer } = useModal();
 
@@ -74,7 +79,7 @@ export const Toolbar: React.FC = () => {
         if (!file) return;
 
         const token = localStorage.getItem('token');
-        
+
         // 创建 FormData
         const formData = new FormData();
         formData.append('file', file);
@@ -94,7 +99,7 @@ export const Toolbar: React.FC = () => {
             }
 
             const data = await response.json();
-            
+
             // 使用服务器返回的 URL
             addShape({
                 id: crypto.randomUUID(),
@@ -105,7 +110,7 @@ export const Toolbar: React.FC = () => {
                 height: 200,
                 imageUrl: data.url
             });
-            
+
             showToast('图片上传成功', 'success');
         } catch (error) {
             console.error('图片上传失败:', error);
@@ -135,16 +140,16 @@ export const Toolbar: React.FC = () => {
         { tool: 'eraser', icon: Eraser, title: '橡皮擦', shortcut: 'E' },
     ];
 
-    const ToolButton = ({ 
-        tool, 
-        icon: Icon, 
-        title, 
+    const ToolButton = ({
+        tool,
+        icon: Icon,
+        title,
         shortcut,
-        active 
-    }: { 
-        tool: ToolType; 
-        icon: any; 
-        title: string; 
+        active
+    }: {
+        tool: ToolType;
+        icon: any;
+        title: string;
         shortcut: string;
         active: boolean;
     }) => (
@@ -152,8 +157,8 @@ export const Toolbar: React.FC = () => {
             onClick={() => setCurrentTool(tool)}
             className={cn(
                 "p-2.5 rounded-lg transition-all relative group",
-                active 
-                    ? "bg-blue-500 text-white shadow-md" 
+                active
+                    ? "bg-blue-500 text-white shadow-md"
                     : "text-slate-600 hover:bg-slate-100"
             )}
             title={`${title} (${shortcut})`}
@@ -166,11 +171,12 @@ export const Toolbar: React.FC = () => {
         </button>
     );
 
-    const ActionButton = ({ onClick, icon: Icon, title, className }: { onClick: () => void, icon: any, title: string, className?: string }) => (
+    const ActionButton = ({ onClick, icon: Icon, title, className, active }: { onClick: () => void, icon: any, title: string, className?: string, active?: boolean }) => (
         <button
             onClick={onClick}
             className={cn(
-                "p-2.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors",
+                "p-2.5 rounded-lg transition-colors",
+                active ? "bg-amber-100 text-amber-600" : "text-slate-600 hover:bg-slate-100",
                 className
             )}
             title={title}
@@ -181,7 +187,7 @@ export const Toolbar: React.FC = () => {
 
     // 预设颜色
     const presetColors = [
-        'transparent', '#1e1e1e', '#e03131', '#2f9e44', '#1971c2', 
+        'transparent', '#1e1e1e', '#e03131', '#2f9e44', '#1971c2',
         '#f08c00', '#9c36b5', '#0c8599', '#f8f9fa'
     ];
 
@@ -190,13 +196,13 @@ export const Toolbar: React.FC = () => {
             <div className="bg-white border border-slate-200 shadow-lg rounded-xl p-1.5 flex items-center gap-1">
                 {/* 工具按钮 */}
                 {tools.map(({ tool, icon, title, shortcut }) => (
-                    <ToolButton 
-                        key={tool} 
-                        tool={tool} 
-                        icon={icon} 
-                        title={title} 
+                    <ToolButton
+                        key={tool}
+                        tool={tool}
+                        icon={icon}
+                        title={title}
                         shortcut={shortcut}
-                        active={currentTool === tool} 
+                        active={currentTool === tool}
                     />
                 ))}
 
@@ -204,10 +210,10 @@ export const Toolbar: React.FC = () => {
                 <div className="w-px h-8 bg-slate-200 mx-1" />
 
                 {/* 图片上传 */}
-                <ActionButton 
-                    onClick={() => fileInputRef.current?.click()} 
-                    icon={ImageIcon} 
-                    title="插入图片" 
+                <ActionButton
+                    onClick={() => fileInputRef.current?.click()}
+                    icon={ImageIcon}
+                    title="插入图片"
                 />
                 <input
                     type="file"
@@ -219,6 +225,14 @@ export const Toolbar: React.FC = () => {
 
                 {/* 自动布局 */}
                 <ActionButton onClick={handleAutoLayout} icon={Layout} title="自动布局" />
+
+                {/* 快捷键锁定 */}
+                <ActionButton
+                    onClick={toggleShortcutLock}
+                    icon={isShortcutLocked ? Lock : Unlock}
+                    title={isShortcutLocked ? "快捷键已锁定" : "快捷键已启用"}
+                    active={isShortcutLocked}
+                />
 
                 {/* 分隔线 */}
                 <div className="w-px h-8 bg-slate-200 mx-1" />
@@ -266,7 +280,7 @@ export const Toolbar: React.FC = () => {
                     ))}
                 </div>
             </div>
-            
+
             {/* Modal 渲染器 */}
             <ModalRenderer />
         </div>

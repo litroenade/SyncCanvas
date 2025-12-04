@@ -31,7 +31,7 @@ class YjsRoomManager {
 
         this._roomId = roomId;
         this._ydoc = new Y.Doc();
-        
+
         const token = localStorage.getItem('token');
         this._provider = new WebsocketProvider(
             config.wsBaseUrl,
@@ -46,6 +46,52 @@ class YjsRoomManager {
 
     disconnect(): void {
         this._cleanup();
+    }
+
+    private _listeners: (() => void)[] = [];
+
+    onDocChange(listener: () => void) {
+        this._listeners.push(listener);
+    }
+
+    offDocChange(listener: () => void) {
+        this._listeners = this._listeners.filter(l => l !== listener);
+    }
+
+    private _notify() {
+        this._listeners.forEach(l => l());
+    }
+
+    previewData(data: ArrayBuffer) {
+        if (!this._roomId) return;
+        const roomId = this._roomId;
+
+        // 清理当前连接和文档
+        this._cleanup();
+
+        // 恢复 roomId
+        this._roomId = roomId;
+
+        // 创建新文档并应用数据
+        this._ydoc = new Y.Doc();
+        Y.applyUpdate(this._ydoc, new Uint8Array(data));
+
+        this._shapesMap = this._ydoc.getMap('shapes');
+        this._undoManager = new Y.UndoManager(this._shapesMap);
+
+        // 通知监听者文档已更改
+        this._notify();
+    }
+
+    exitPreview() {
+        if (!this._roomId) return;
+        const roomId = this._roomId;
+
+        // 重新连接 (会自动清理并创建新文档)
+        this.connect(roomId);
+
+        // 通知监听者
+        this._notify();
     }
 
     private _cleanup(): void {

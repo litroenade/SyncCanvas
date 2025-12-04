@@ -4,12 +4,12 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react'
-import { 
-  GitBranch, 
-  Save, 
-  RefreshCw, 
-  Clock, 
-  ChevronRight, 
+import {
+  GitBranch,
+  Save,
+  RefreshCw,
+  Clock,
+  ChevronRight,
   RotateCcw,
   User,
   MessageSquare,
@@ -85,7 +85,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) => {
   const [diffCommitId, setDiffCommitId] = useState<number | null>(null)
   const [hasLocalChanges, setHasLocalChanges] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; commit: CommitInfo } | null>(null)
-  
+
   // 自定义弹窗
   const { showAlert, showConfirm, showToast, ModalRenderer } = useModal()
 
@@ -95,7 +95,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) => {
 
     const shapesMap = yjsManager.shapesMap
     if (!shapesMap) return
-    
+
     const handleChange = () => setHasLocalChanges(true)
     shapesMap.observeDeep(handleChange)
 
@@ -129,8 +129,27 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) => {
 
     setCommitting(true)
     try {
+      // 获取用户信息
+      let authorName = 'Anonymous';
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        try {
+          const user = JSON.parse(userStr);
+          authorName = user.username || user.name || 'Anonymous';
+        } catch (e) {
+          console.error('解析用户信息失败', e);
+        }
+      } else {
+        // 如果没有登录，尝试从 localStorage 获取临时用户名
+        const tempName = localStorage.getItem('temp_username');
+        if (tempName) {
+          authorName = tempName;
+        }
+      }
+
       const request: CreateCommitRequest = {
         message: commitMessage.trim() || '手动保存',
+        author_name: authorName
       }
       await roomsApi.createCommit(roomId, request)
       setCommitMessage('')
@@ -193,6 +212,23 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) => {
       },
       { title: '确认检出', type: 'warning' }
     )
+  }
+
+  /**
+   * 预览提交 (按住时)
+   */
+  const handlePreviewStart = async (commitId: number) => {
+    if (!roomId) return
+    try {
+      const data = await roomsApi.getCommitData(roomId, commitId)
+      yjsManager.previewData(data)
+    } catch (err) {
+      console.error('预览失败:', err)
+    }
+  }
+
+  const handlePreviewEnd = () => {
+    yjsManager.exitPreview()
   }
 
   useEffect(() => {
@@ -408,6 +444,8 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) => {
               onCheckout={() => handleCheckout(commit.id, commit.hash)}
               onShowDiff={() => setDiffCommitId(showingDiff ? null : commit.id)}
               onContextMenu={(e) => handleContextMenu(e, commit)}
+              onPreviewStart={() => handlePreviewStart(commit.id)}
+              onPreviewEnd={handlePreviewEnd}
             />
           )
         })}
@@ -441,7 +479,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) => {
             {
               separator: true,
               label: '',
-              onClick: () => {}
+              onClick: () => { }
             },
             {
               label: '检出此版本',
@@ -490,6 +528,8 @@ interface CommitNodeProps {
   onCheckout: () => void
   onShowDiff: () => void
   onContextMenu: (e: React.MouseEvent) => void
+  onPreviewStart: () => void
+  onPreviewEnd: () => void
 }
 
 /**
@@ -507,9 +547,10 @@ const CommitNode: React.FC<CommitNodeProps> = ({
   theme,
   onToggle,
   onRevert,
-  onCheckout,
   onShowDiff,
   onContextMenu,
+  onPreviewStart,
+  onPreviewEnd,
 }) => {
   return (
     <div
@@ -581,33 +622,47 @@ const CommitNode: React.FC<CommitNodeProps> = ({
         {/* 操作按钮 */}
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           {/* 查看 diff */}
-          {commit.parent_id && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onShowDiff()
-              }}
-              className={cn(
-                'p-1 rounded transition-colors',
-                showingDiff
-                  ? theme === 'dark'
-                    ? 'bg-blue-900/50 text-blue-400'
-                    : 'bg-blue-100 text-blue-600'
-                  : theme === 'dark'
-                    ? 'hover:bg-slate-700 text-slate-400'
-                    : 'hover:bg-slate-200 text-slate-500'
-              )}
-              title={showingDiff ? '关闭差异视图' : '查看与上一版本的差异'}
-            >
-              <GitCompare size={12} />
-            </button>
-          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onShowDiff()
+            }}
+            className={cn(
+              'p-1 rounded transition-colors',
+              showingDiff
+                ? theme === 'dark'
+                  ? 'bg-blue-900/50 text-blue-400'
+                  : 'bg-blue-100 text-blue-600'
+                : theme === 'dark'
+                  ? 'hover:bg-slate-700 text-slate-400'
+                  : 'hover:bg-slate-200 text-slate-500'
+            )}
+            title={showingDiff ? '关闭差异视图' : '查看与上一版本的差异'}
+          >
+            <GitCompare size={12} />
+          </button>
           {!isHead && (
             <>
               <button
-                onClick={(e) => {
+                onMouseDown={(e) => {
                   e.stopPropagation()
-                  onCheckout()
+                  onPreviewStart()
+                }}
+                onMouseUp={(e) => {
+                  e.stopPropagation()
+                  onPreviewEnd()
+                }}
+                onMouseLeave={(e) => {
+                  e.stopPropagation()
+                  onPreviewEnd()
+                }}
+                onTouchStart={(e) => {
+                  e.stopPropagation()
+                  onPreviewStart()
+                }}
+                onTouchEnd={(e) => {
+                  e.stopPropagation()
+                  onPreviewEnd()
                 }}
                 className={cn(
                   'p-1 rounded transition-colors',
@@ -615,7 +670,7 @@ const CommitNode: React.FC<CommitNodeProps> = ({
                     ? 'hover:bg-slate-700 text-cyan-400'
                     : 'hover:bg-slate-200 text-cyan-600'
                 )}
-                title="检出此版本 (预览)"
+                title="按住预览"
               >
                 <Eye size={12} />
               </button>
@@ -661,22 +716,22 @@ const CommitNode: React.FC<CommitNodeProps> = ({
             <code className={cn('font-mono', theme === 'dark' ? 'text-slate-300' : 'text-slate-600')}>
               {commit.hash}
             </code>
-            
+
             <span className={theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}>作者:</span>
             <span className={theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}>
               {commit.author_name}
             </span>
-            
+
             <span className={theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}>时间:</span>
             <span className={theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}>
               {formatFullTime(commit.timestamp)}
             </span>
-            
+
             <span className={theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}>大小:</span>
             <span className={theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}>
               {formatSize(commit.size)}
             </span>
-            
+
             {commit.parent_id && (
               <>
                 <span className={theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}>父提交:</span>
@@ -686,7 +741,7 @@ const CommitNode: React.FC<CommitNodeProps> = ({
               </>
             )}
           </div>
-          
+
           <div className={cn(
             'mt-2 pt-2 border-t',
             theme === 'dark' ? 'border-slate-700' : 'border-slate-200'
@@ -698,34 +753,32 @@ const CommitNode: React.FC<CommitNodeProps> = ({
           </div>
 
           {/* 在详情中显示 diff 按钮 */}
-          {commit.parent_id && (
-            <div className={cn(
-              'mt-2 pt-2 border-t',
-              theme === 'dark' ? 'border-slate-700' : 'border-slate-200'
-            )}>
-              <button
-                onClick={onShowDiff}
-                className={cn(
-                  'flex items-center gap-1.5 px-2 py-1 text-[10px] rounded transition-colors',
-                  showingDiff
-                    ? theme === 'dark'
-                      ? 'bg-blue-900/50 text-blue-400'
-                      : 'bg-blue-100 text-blue-600'
-                    : theme === 'dark'
-                      ? 'bg-slate-700 hover:bg-slate-600 text-slate-300'
-                      : 'bg-slate-200 hover:bg-slate-300 text-slate-600'
-                )}
-              >
-                <GitCompare size={10} />
-                {showingDiff ? '隐藏差异' : '查看与上一版本的差异'}
-              </button>
-            </div>
-          )}
+          <div className={cn(
+            'mt-2 pt-2 border-t',
+            theme === 'dark' ? 'border-slate-700' : 'border-slate-200'
+          )}>
+            <button
+              onClick={onShowDiff}
+              className={cn(
+                'flex items-center gap-1.5 px-2 py-1 text-[10px] rounded transition-colors',
+                showingDiff
+                  ? theme === 'dark'
+                    ? 'bg-blue-900/50 text-blue-400'
+                    : 'bg-blue-100 text-blue-600'
+                  : theme === 'dark'
+                    ? 'bg-slate-700 hover:bg-slate-600 text-slate-300'
+                    : 'bg-slate-200 hover:bg-slate-300 text-slate-600'
+              )}
+            >
+              <GitCompare size={10} />
+              {showingDiff ? '隐藏差异' : '查看与上一版本的差异'}
+            </button>
+          </div>
         </div>
       )}
 
       {/* Diff 面板 */}
-      {showingDiff && commit.parent_id && (
+      {showingDiff && (
         <div className="ml-10 mr-2 mb-2">
           <CommitDiffPanel
             roomId={roomId}
