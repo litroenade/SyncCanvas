@@ -14,7 +14,7 @@ Thumbs.db
 
 # Node
 node_modules
-dist
+# dist
 .npm-cache
 
 # IDE

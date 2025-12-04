@@ -1,17 +1,8 @@
-"""模块名称：main
-主要功能：SyncCanvas 后端应用入口
-
-配置 FastAPI 应用、中间件、路由和生命周期管理。
-"""
-
 import os
-
 from contextlib import asynccontextmanager
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-
 from src.db.database import init_db
 from src.ws.sync import websocket_server, asgi_server
 from src.core.async_task import async_task_manager
@@ -56,7 +47,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(
     title="SyncCanvas",
     description="基于 CRDT 的实时协作白板系统",
-    version="2.0.0",
+    version="0.1.0",
     lifespan=lifespan,
 )
 
