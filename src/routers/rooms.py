@@ -7,7 +7,7 @@ import hashlib
 import secrets
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, status, Header
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlmodel import Session
 

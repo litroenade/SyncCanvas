@@ -63,6 +63,8 @@ export const PropertiesPanel: React.FC = () => {
                         <button
                             key={color}
                             onClick={() => handleColorChange('strokeColor', color)}
+                            title={`描边颜色: ${color}`}
+                            aria-label={`选择描边颜色 ${color}`}
                             className={cn(
                                 "w-6 h-6 rounded-full border transition-transform hover:scale-110",
                                 shape.strokeColor === color ? "ring-2 ring-blue-500 ring-offset-2" : "border-slate-200 dark:border-slate-600"
@@ -79,6 +81,8 @@ export const PropertiesPanel: React.FC = () => {
                 <div className="flex flex-wrap gap-1.5">
                     <button
                         onClick={() => handleColorChange('fill', 'transparent')}
+                        title="无填充"
+                        aria-label="选择无填充"
                         className={cn(
                             "w-6 h-6 rounded-full border flex items-center justify-center text-[10px] transition-transform hover:scale-110",
                             shape.fill === 'transparent' ? "ring-2 ring-blue-500 ring-offset-2" : "border-slate-200 dark:border-slate-600"
@@ -90,6 +94,8 @@ export const PropertiesPanel: React.FC = () => {
                         <button
                             key={color}
                             onClick={() => handleColorChange('fill', color)}
+                            title={`填充颜色: ${color}`}
+                            aria-label={`选择填充颜色 ${color}`}
                             className={cn(
                                 "w-6 h-6 rounded-full border transition-transform hover:scale-110",
                                 shape.fill === color ? "ring-2 ring-blue-500 ring-offset-2" : "border-slate-200 dark:border-slate-600"
@@ -109,6 +115,8 @@ export const PropertiesPanel: React.FC = () => {
                     max="20"
                     value={shape.strokeWidth || 1}
                     onChange={(e) => handleStrokeWidthChange(parseInt(e.target.value))}
+                    aria-label={`线条粗细: ${shape.strokeWidth || 1}px`}
+                    title={`线条粗细: ${shape.strokeWidth || 1}px`}
                     className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer dark:bg-slate-700"
                 />
             </div>

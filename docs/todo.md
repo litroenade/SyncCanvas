@@ -1,6 +1,5 @@
 # SyncCanvas TODO
 
-## 已完成
 
 - [x] 基础绘图工具 (矩形、圆形、菱形、箭头、线条、画笔、文本)
 - [x] 实时协作同步 (Yjs + pycrdt-websocket)
@@ -9,14 +8,13 @@
 - [x] 图层管理
 - [x] 导出 PNG
 - [x] 暗色/亮色主题
-- [x] 数据持久化
+- [x] sqlite数据库存储
 - [x] Git 式存储 (Snapshot + Update)
 - [x] 房间 CRUD API
 - [x] 房间列表页面
-- [x] 创建房间 (支持密码保护)
+- [x] 创建以及删除房间
 - [x] 数据库模型 (User, Room, RoomMember, Stroke, Snapshot, Update)
-- [x] features.md - 功能说明
-- [x] todo.md - 待办事项
+
 
 - [ ] 在线用户显示 (Awareness)
 - [ ] 房间成员管理 UI
@@ -27,7 +25,6 @@
 - [ ] 对齐工具 (左对齐、居中、分布)
 - [ ] 锁定图层
 
-## 待实现
 - [ ] 评论/批注功能
 - [ ] @提及用户
 - [ ] 评论通知

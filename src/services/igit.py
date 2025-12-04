@@ -151,10 +151,6 @@ class IGitService:
         if not room:
             raise ValueError("房间不存在")
 
-        # 从内存中移除房间，丢弃未保存的更改
-        if websocket_server:
-            await websocket_server.evict_room(room_id, discard_changes=True)
-
         # 获取指定提交
         commit = self.session.get(Commit, commit_id)
         if not commit or commit.room_id != room_id:
@@ -175,10 +171,17 @@ class IGitService:
         room.head_commit_id = commit_id
         self.session.add(room)
 
+        # 先提交数据库事务，确保数据已持久化
         self.session.commit()
         self.session.refresh(commit)
 
         logger.info(f"检出提交: 房间 {room_id}, 提交 {commit_id} ({commit.hash})")
+
+        # 重要：在数据库事务提交之后再清理内存中的房间
+        # 这样当客户端重连时，YStore 能读取到最新的数据
+        if websocket_server:
+            await websocket_server.evict_room(room_id, discard_changes=True)
+
         return commit
 
     async def revert_commit(
@@ -204,10 +207,6 @@ class IGitService:
         room = crud.get_room(self.session, room_id)
         if not room:
             raise ValueError("房间不存在")
-
-        # 从内存中移除房间，丢弃未保存的更改
-        if websocket_server:
-            await websocket_server.evict_room(room_id, discard_changes=True)
 
         # 获取指定提交
         target_commit = self.session.get(Commit, commit_id)
@@ -235,8 +234,10 @@ class IGitService:
         self.session.exec(delete_update_stmt)
 
         # 写入新的 Update 确保 YStore 读取正确状态
+        # 注意：timestamp 需要严格大于 new_commit.timestamp，否则 YStore.read() 不会读取
+        # 因为查询条件是 Update.timestamp > commit.timestamp
         new_update = Update(
-            room_id=room_id, data=target_commit.data, timestamp=current_time
+            room_id=room_id, data=target_commit.data, timestamp=current_time + 1
         )
         self.session.add(new_update)
 
@@ -244,11 +245,18 @@ class IGitService:
         room.head_commit_id = new_commit.id
         self.session.add(room)
 
+        # 先提交数据库事务，确保数据已持久化
         self.session.commit()
         self.session.refresh(new_commit)
 
         logger.info(f"回滚提交: 房间 {room_id}, 回滚到 {target_commit.hash}")
         logger.info(f"回滚数据大小: {len(target_commit.data)} bytes")
+
+        # 重要：在数据库事务提交之后再清理内存中的房间
+        # 这样当客户端重连时，YStore 能读取到最新的回滚数据
+        if websocket_server:
+            await websocket_server.evict_room(room_id, discard_changes=True)
+
         return new_commit, target_commit
 
     def get_history(

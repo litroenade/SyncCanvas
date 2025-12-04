@@ -141,15 +141,93 @@ class PersistentWebsocketServer(WebsocketServer):
                 else None
             )
 
-            self.rooms[name] = YRoom(
-                ready=self.rooms_ready,
+            room = YRoom(
+                ready=True,  # 保持 True，我们手动加载数据
                 ystore=ystore,
                 log=self.log,
                 provider_factory=provider_factory,
             )
+            self.rooms[name] = room
             logger.info(f"创建房间 '{name}'，房间 ID: {room_id}")
 
+            # 手动从数据库加载数据到 ydoc
+            await self._load_room_data(room, room_id)
+
         return self.rooms[name]
+
+    async def _load_room_data(self, room: YRoom, room_id: str) -> None:
+        """从数据库加载房间数据到 YRoom 的 ydoc
+
+        Args:
+            room: YRoom 实例
+            room_id: 房间 ID
+        """
+        try:
+            with Session(engine) as session:
+                # 获取房间信息
+                db_room = session.exec(select(Room).where(Room.id == room_id)).first()
+                if not db_room:
+                    logger.debug(f"房间 {room_id} 不存在于数据库中，跳过数据加载")
+                    return
+
+                # 获取 HEAD Commit
+                commit = None
+                if db_room.head_commit_id:
+                    commit = session.get(Commit, db_room.head_commit_id)
+
+                if not commit:
+                    # 降级：获取最新的 Commit
+                    commit = session.exec(
+                        select(Commit)
+                        .where(Commit.room_id == room_id)
+                        .order_by(Commit.timestamp.desc())
+                        .limit(1)
+                    ).first()
+
+                data_count = 0
+
+                if commit:
+                    # 应用 Commit 数据
+                    room.ydoc.apply_update(commit.data)
+                    data_count += 1
+                    logger.info(
+                        f"[加载数据] 房间 {room_id}: 应用 Commit {commit.id}, 大小 {len(commit.data)} bytes"
+                    )
+
+                    # 获取 Commit 之后的 Updates
+                    updates = session.exec(
+                        select(Update)
+                        .where(Update.room_id == room_id)
+                        .where(Update.timestamp > commit.timestamp)
+                        .order_by(Update.timestamp)
+                    ).all()
+                else:
+                    # 没有 Commit，获取所有 Updates
+                    updates = session.exec(
+                        select(Update)
+                        .where(Update.room_id == room_id)
+                        .order_by(Update.timestamp)
+                    ).all()
+
+                # 应用 Updates
+                for update in updates:
+                    room.ydoc.apply_update(update.data)
+                    data_count += 1
+
+                if updates:
+                    logger.info(
+                        f"[加载数据] 房间 {room_id}: 应用 {len(updates)} 个 Updates"
+                    )
+
+                if data_count > 0:
+                    logger.info(
+                        f"[加载数据] 房间 {room_id}: 数据加载完成，共 {data_count} 条记录"
+                    )
+                else:
+                    logger.debug(f"[加载数据] 房间 {room_id}: 无历史数据")
+
+        except Exception as e:
+            logger.error(f"[加载数据] 房间 {room_id} 加载失败: {e}")
 
     async def _on_client_disconnect(self, name: str) -> None:
         """处理客户端断开连接

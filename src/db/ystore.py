@@ -164,6 +164,7 @@ class SQLModelYStore(BaseYStore):
         按顺序返回：最新 Commit → 后续 Update → 内存缓冲
         """
         found = False
+        self.log.info(f"[YStore.read] 开始读取房间 {self.room_id} 的数据")
 
         async with self.lock:
             with Session(engine) as session:
@@ -171,6 +172,9 @@ class SQLModelYStore(BaseYStore):
                 from src.db.models import Room
 
                 room = session.get(Room, self.room_id)
+                self.log.info(
+                    f"[YStore.read] 房间信息: {room}, HEAD: {room.head_commit_id if room else 'N/A'}"
+                )
 
                 commit = None
                 if room and room.head_commit_id:
@@ -189,6 +193,9 @@ class SQLModelYStore(BaseYStore):
 
                 if commit:
                     found = True
+                    self.log.info(
+                        f"[YStore.read] 找到 Commit: id={commit.id}, 数据大小={len(commit.data)} bytes, timestamp={commit.timestamp}"
+                    )
                     yield commit.data, b"", commit.timestamp / 1000.0
 
                     # 2. 获取 Commit 之后的所有 Update
@@ -199,6 +206,7 @@ class SQLModelYStore(BaseYStore):
                         .order_by(Update.timestamp)
                     )
                 else:
+                    self.log.warning(f"[YStore.read] 未找到 Commit，将读取所有 Update")
                     # 没有 Commit，获取所有 Update
                     updates_stmt = (
                         select(Update)
@@ -207,17 +215,26 @@ class SQLModelYStore(BaseYStore):
                     )
 
                 updates = session.exec(updates_stmt).all()
+                self.log.info(f"[YStore.read] 找到 {len(updates)} 个 Update")
                 for update in updates:
                     found = True
+                    self.log.info(
+                        f"[YStore.read] 返回 Update: 数据大小={len(update.data)} bytes, timestamp={update.timestamp}"
+                    )
                     yield update.data, b"", update.timestamp / 1000.0
 
         # 3. 返回内存缓冲区中的更新
-        for data, timestamp in self._buffer.get_copy():
+        buffer_data = self._buffer.get_copy()
+        self.log.info(f"[YStore.read] 内存缓冲区: {len(buffer_data)} 个更新")
+        for data, timestamp in buffer_data:
             found = True
             yield data, b"", timestamp / 1000.0
 
         if not found:
+            self.log.warning(f"[YStore.read] 房间 {self.room_id} 未找到任何数据")
             raise YDocNotFound
+
+        self.log.info(f"[YStore.read] 房间 {self.room_id} 数据读取完成")
 
     async def write(self, data: bytes) -> None:
         """写入一个新的更新到缓冲区"""

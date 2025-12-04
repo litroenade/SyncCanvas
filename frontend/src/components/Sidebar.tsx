@@ -102,6 +102,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onExport, roomId }) => {
                 {/* Toggle Button */}
                 <button
                     onClick={() => setIsOpen(!isOpen)}
+                    title={isOpen ? '收起侧边栏' : '展开侧边栏'}
+                    aria-label={isOpen ? '收起侧边栏' : '展开侧边栏'}
                     className={cn(
                         "absolute -right-3 top-6 border rounded-full p-1 shadow-sm transition-colors",
                         theme === 'dark'
@@ -117,12 +119,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ onExport, roomId }) => {
                     {/* Menu Items */}
                     <div className="flex flex-col gap-1 px-2">
                         {/* 返回房间列表按钮 */}
-                        <SidebarItem 
-                            icon={Home} 
-                            label="房间列表" 
-                            isOpen={isOpen} 
-                            onClick={handleBackToRooms} 
-                            theme={theme} 
+                        <SidebarItem
+                            icon={Home}
+                            label="房间列表"
+                            isOpen={isOpen}
+                            onClick={handleBackToRooms}
+                            theme={theme}
                         />
                         <div className={cn("h-px my-2 mx-2", theme === 'dark' ? "bg-slate-700" : "bg-slate-100")} />
 
@@ -212,6 +214,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onExport, roomId }) => {
 const SidebarItem = ({ icon: Icon, label, isOpen, onClick, active, theme }: { icon: any, label: string, isOpen: boolean, onClick?: () => void, active?: boolean, theme?: 'light' | 'dark' }) => (
     <button
         onClick={onClick}
+        title={label}
+        aria-label={label}
         className={cn(
             "flex items-center gap-3 p-2 rounded-lg transition-colors w-full",
             active

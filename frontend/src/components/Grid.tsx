@@ -25,8 +25,8 @@ export const Grid: React.FC = () => {
     const lines = [];
 
     // 绘制垂直线
-    const firstX = Math.floor(startX / gridSize) * gridSize;
-    for (let x = firstX; x < endX; x += gridSize) {
+    const firstX = Math.floor(startX / gridSize) * gridSize ;
+    for (let x = firstX; x < endX; x += gridSize ) {
         lines.push(
             <Line
                 key={`v${x}`}
@@ -38,8 +38,8 @@ export const Grid: React.FC = () => {
     }
 
     // 绘制水平线
-    const firstY = Math.floor(startY / gridSize) * gridSize;
-    for (let y = firstY; y < endY; y += gridSize) {
+    const firstY = Math.floor(startY / gridSize) * gridSize ;
+    for (let y = firstY; y < endY; y += gridSize ) {
         lines.push(
             <Line
                 key={`h${y}`}
