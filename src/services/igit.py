@@ -120,7 +120,7 @@ class IGitService:
         self.session.commit()
         self.session.refresh(commit)
 
-        logger.info("创建提交: 房间 %s, 哈希 %s, 消息: %s", room_id, commit.hash, message)
+        logger.info(f"创建提交: 房间 {room_id}, 哈希 {commit.hash}, 消息: {message}")
         return commit
 
     async def checkout_commit(
@@ -172,7 +172,7 @@ class IGitService:
         self.session.commit()
         self.session.refresh(commit)
 
-        logger.info("检出提交: 房间 %s, 提交 %s (%s)", room_id, commit_id, commit.hash)
+        logger.info(f"检出提交: 房间 {room_id}, 提交 {commit_id} ({commit.hash})")
         return commit
 
     async def revert_commit(
@@ -243,7 +243,7 @@ class IGitService:
         self.session.commit()
         self.session.refresh(new_commit)
 
-        logger.info("回滚提交: 房间 %s, 回滚到 %s", room_id, target_commit.hash)
+        logger.info(f"回滚提交: 房间 {room_id}, 回滚到 {target_commit.hash}")
         return new_commit, target_commit
 
     def get_history(self, room_id: str, limit: int = 50) -> HistoryResponse:

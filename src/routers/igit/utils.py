@@ -68,7 +68,7 @@ def parse_yjs_strokes(data: bytes) -> dict:
 
         return result
     except Exception as e:
-        logger.warning("解析 Yjs 数据失败: %s", e)
+        logger.warning(f"解析 Yjs 数据失败: {e}")
         return {}
 
 

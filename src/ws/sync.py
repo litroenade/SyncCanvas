@@ -55,15 +55,15 @@ class PersistentWebsocketServer(WebsocketServer):
         # 增加连接计数（在连接建立时）
         self._room_connections[name] = self._room_connections.get(name, 0) + 1
         self._room_last_activity[name] = time.time()
-        logger.debug("房间 '%s' 新连接，当前连接数: %d", name, self._room_connections[name])
+        logger.debug(f"房间 '{name}' 新连接，当前连接数: {self._room_connections[name]}")
 
         try:
             # 调用父类的 serve 方法
             await super().serve(websocket)
         except get_cancelled_exc_class():
             # 客户端正常断开，不需要处理
-            logger.debug("客户端主动取消: %s", name)
-        except BaseExceptionGroup as eg:
+            logger.debug(f"客户端主动取消: {name}")
+        except Exception as eg:
             # 展开异常组，判断是否存在真实错误
             unhandled = [
                 exc for exc in self._iter_exceptions(eg)
@@ -71,14 +71,14 @@ class PersistentWebsocketServer(WebsocketServer):
             ]
             if unhandled:
                 for exc in unhandled:
-                    logger.exception("WebSocket 服务异常 [%s]: %s", name, exc)
+                    logger.exception(f"WebSocket 服务异常 [{name}]: {exc}")
             else:
-                logger.debug("客户端断开连接: %s", name)
+                logger.debug(f"客户端断开连接: {name}")
         except Exception as exception:  # pylint: disable=broad-except
             if not self._is_disconnect_error(exception):
-                logger.exception("WebSocket 异常 [%s]", name, exc_info=exception)
+                logger.exception(f"WebSocket 异常 [{name}]")
             else:
-                logger.debug("客户端断开连接: %s", name)
+                logger.debug(f"客户端断开连接: {name}")
         finally:
             # 连接断开后处理
             try:
@@ -87,7 +87,7 @@ class PersistentWebsocketServer(WebsocketServer):
                 # 服务器关闭时忽略
                 pass
             except Exception as e:
-                logger.debug("断开处理异常: %s", e)
+                logger.debug(f"断开处理异常: {e}")
 
     def _is_disconnect_error(self, exception: Exception) -> bool:
         """检查是否是断开连接相关的错误"""
@@ -105,10 +105,10 @@ class PersistentWebsocketServer(WebsocketServer):
 
     def _iter_exceptions(
             self,
-            exception: BaseException | BaseExceptionGroup
+            exception: BaseException | Exception
             ) -> list[BaseException]:
         """展开 BaseExceptionGroup，返回所有底层异常"""
-        if isinstance(exception, BaseExceptionGroup):
+        if isinstance(exception, Exception):
             exceptions: list[BaseException] = []
             for inner in exception.exceptions:
                 exceptions.extend(self._iter_exceptions(inner))
@@ -145,7 +145,7 @@ class PersistentWebsocketServer(WebsocketServer):
                 log=self.log,
                 provider_factory=provider_factory,
             )
-            logger.info("创建房间 '%s'，房间 ID: %s", name, room_id)
+            logger.info(f"创建房间 '{name}'，房间 ID: {room_id}")
 
         return self.rooms[name]
 
@@ -157,7 +157,7 @@ class PersistentWebsocketServer(WebsocketServer):
         """
         if name in self._room_connections:
             self._room_connections[name] = max(0, self._room_connections[name] - 1)
-            logger.debug("房间 '%s' 断开连接，剩余连接数: %d", name, self._room_connections[name])
+            logger.debug(f"房间 '{name}' 断开连接，剩余连接数: {self._room_connections[name]}")
 
             # 如果是最后一个用户离开，延迟检查后再触发自动提交
             # 这样可以避免因为短暂的重连导致误判
@@ -177,8 +177,7 @@ class PersistentWebsocketServer(WebsocketServer):
         """
         try:
             room_id = name.strip("/").split("/")[-1]
-            logger.info("房间 '%s' 最后用户离开，触发自动提交", room_id)
-
+            logger.info(f"房间 '{room_id}' 最后用户离开，触发自动提交")
             # 先刷新缓冲区
             if name in self._ystores:
                 ystore = self._ystores[name]
@@ -191,7 +190,7 @@ class PersistentWebsocketServer(WebsocketServer):
             await self._create_auto_commit(room_id, "Auto save on disconnect")
 
         except Exception as e:  # pylint: disable=broad-except
-            logger.error("房间 '%s' 自动提交失败: %s", name, e)
+            logger.error(f"房间 '{name}' 自动提交失败: {e}")
 
     async def _create_auto_commit(self, room_id: str, message: str) -> bool:
         """创建自动提交（内联实现，避免循环依赖）"""
@@ -260,11 +259,11 @@ class PersistentWebsocketServer(WebsocketServer):
                 session.exec(delete(Update).where(Update.room_id == room_id))
                 session.commit()
 
-                logger.info("自动提交: 房间 %s, 哈希 %s", room_id, commit_hash)
+                logger.info(f"自动提交: 房间 {room_id}, 哈希 {commit_hash}")
                 return True
 
         except Exception as e:
-            logger.debug("自动提交跳过: 房间 %s, 原因: %s", room_id, e)
+            logger.debug(f"自动提交跳过: 房间 {room_id}, 原因: {e}")
             return False
 
     def update_room_activity(self, name: str) -> None:
@@ -297,7 +296,7 @@ class PersistentWebsocketServer(WebsocketServer):
             idle_time = current_time - last_activity
             if idle_time >= idle_threshold:
                 room_id = name.strip("/").split("/")[-1]
-                logger.info("房间 '%s' 空闲 %.0f 秒，触发自动提交", room_id, idle_time)
+                logger.info(f"房间 '{room_id}' 空闲 {idle_time:.0f} 秒，触发自动提交")
                 await self._create_auto_commit(room_id, "Auto save on idle")
                 # 更新活动时间避免重复提交
                 self._room_last_activity[name] = current_time
@@ -319,9 +318,9 @@ class PersistentWebsocketServer(WebsocketServer):
                 # 创建自动提交
                 await self._create_auto_commit(room_id, "Auto save on room close")
 
-                logger.info("房间 '%s' 已关闭并保存", name)
+                logger.info(f"房间 '{name}' 已关闭并保存")
             except Exception as e:  # pylint: disable=broad-except
-                logger.error("房间 '%s' 保存失败: %s", name, e)
+                logger.error(f"房间 '{name}' 保存失败: {e}")
             del self._ystores[name]
 
         # 清理连接追踪
@@ -348,7 +347,7 @@ class PersistentWebsocketServer(WebsocketServer):
 
         if target_name and target_name in self._ystores:
             self._ystores[target_name].flush()
-            logger.debug("房间 %s 已强制刷新", room_id)
+            logger.debug(f"房间 {room_id} 已强制刷新")
 
     async def evict_room(self, room_id: str, discard_changes: bool = False) -> None:
         """从内存中移除房间（用于强制重载）
@@ -382,7 +381,7 @@ class PersistentWebsocketServer(WebsocketServer):
         self._room_connections.pop(target_name, None)
         self._room_last_activity.pop(target_name, None)
 
-        logger.info("房间 %s 已从内存移除 (discard=%s)", room_id, discard_changes)
+        logger.info(f"房间 {room_id} 已从内存移除 (discard={discard_changes})")
 
 
 # 创建带持久化的 WebsocketServer 实例
@@ -413,4 +412,4 @@ async def background_compaction_task():
                 await websocket_server.check_idle_rooms(idle_threshold)
 
         except Exception as e:  # pylint: disable=broad-except
-            logger.error("后台任务执行失败: %s", e)
+            logger.error(f"后台任务执行失败: {e}")

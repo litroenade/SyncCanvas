@@ -3,29 +3,20 @@
 支持通过服务端 secret_key 认证，用户名可任意填写
 """
 
-import json
 import secrets
 from datetime import timedelta
-from pathlib import Path
-from typing import Annotated, Optional
-
+from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from jose import JWTError, jwt
+from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from sqlmodel import Session, select
-
 from src.config import config
 from src.db.database import get_session
 from src.models.user import User
 from .utils import (
     create_access_token,
     ACCESS_TOKEN_EXPIRE_MINUTES,
-    ALGORITHM,
     get_current_user,
-    get_current_user_optional,
-    oauth2_scheme,
-    oauth2_scheme_optional,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -84,7 +75,7 @@ async def login_for_access_token(
 
 @router.get("/secret-key-hint")
 async def get_secret_key_hint():
-    """获取 secret_key 的提示（仅显示前后几位）"""
+    """获取 secret_key 的提示"""
     key = config.secret_key
     if len(key) > 12:
         hint = f"{key[:4]}...{key[-4:]}"

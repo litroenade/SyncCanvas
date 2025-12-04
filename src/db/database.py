@@ -35,8 +35,6 @@ def init_db():
     创建所有定义的数据模型对应的表。
     必须先导入所有模型才能让 SQLModel.metadata 知道要创建哪些表。
     """
-    # 导入所有模型以注册到 SQLModel.metadata
-    # pylint: disable=import-outside-toplevel,unused-import
 
     SQLModel.metadata.create_all(engine)
 

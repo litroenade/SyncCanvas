@@ -152,9 +152,9 @@ class SQLModelYStore(BaseYStore):
                     session.add(update)
                 session.commit()
                 # 使用 DEBUG 级别，避免刷屏
-                self.log.debug("房间 %s: 写入 %d 个更新到缓冲", self.room_id, len(buffer_data))
+                self.log.debug(f"房间 {self.room_id}: 写入 {len(buffer_data)} 个更新到缓冲")
         except Exception as e:
-            self.log.error("房间 %s 刷新缓冲区失败: %s", self.room_id, e)
+            self.log.error(f"房间 {self.room_id} 刷新缓冲区失败: {e}")
 
     async def read(self) -> AsyncIterator[tuple[bytes, bytes, float]]:
         """读取房间的所有数据

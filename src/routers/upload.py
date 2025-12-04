@@ -131,8 +131,8 @@ async def delete_image(filename: str, authorization: Optional[str] = Header(None
 
     try:
         os.remove(filepath)
-        logger.info("图片删除成功: %s by %s", filename, username)
+        logger.info(f"图片删除成功: {filename} by {username}")
         return JSONResponse({"success": True})
     except OSError as e:
-        logger.error("删除图片失败: %s", e)
+        logger.error(f"删除图片失败: {e}")
         raise HTTPException(status_code=500, detail="删除图片失败") from e

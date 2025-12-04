@@ -6,7 +6,7 @@
 - RoomMember: 房间成员关系
 - Commit: 版本提交记录，存储完整的文档状态 (类似 Git Commit)
 - Update: 实时增量更新缓冲，定期合并到 Commit
-- Stroke: 图形统计记录 (可选)
+- Stroke: 图形统计记录
 """
 
 from datetime import datetime
