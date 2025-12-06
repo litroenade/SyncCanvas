@@ -6,8 +6,7 @@
  */
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { Stage, Layer, Rect, Circle, Text, Arrow, Line, Image as KonvaImage, Transformer } from 'react-konva';
-import useImage from 'use-image';
+import { Stage, Layer, Transformer, Rect } from 'react-konva';
 import { useCanvasStore, Shape, ToolType } from '../stores/useCanvasStore';
 import { useYjs } from '../hooks/useYjs';
 import { Grid } from './Grid';
@@ -19,19 +18,9 @@ import { PropertiesPanel } from './PropertiesPanel';
 import { Cursors } from './Cursors';
 import { ZoomControls } from './ZoomControls';
 import { CollaboratorList } from './CollaboratorList';
-
-/**
- * 获取鼠标在画布世界坐标系中的位置
- * @param stage - Konva Stage 实例
- * @returns 世界坐标点 {x, y} 或 null
- */
-const getWorldPos = (stage: any): { x: number; y: number } | null => {
-    const pointer = stage.getPointerPosition();
-    if (!pointer) return null;
-    const transform = stage.getAbsoluteTransform().copy();
-    transform.invert();
-    return transform.point(pointer);
-};
+import { BrushCursor } from './BrushCursor';
+import { isShapeIntersecting, getWorldPos } from '../lib/geometry';
+import { ShapeView } from './ShapeView';
 
 interface CanvasProps {
     /** 房间 ID */
@@ -49,9 +38,9 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
         currentTool, isDrawing,
         currentFillColor, currentStrokeColor, currentStrokeWidth,
         setScale, setOffset, setSelectedId, setSelectedIds, toggleSelection, clearSelection,
-        setIsDrawing, setCurrentTool
+        setIsDrawing, setCurrentTool, setCurrentStrokeColor, setCurrentFillColor
     } = useCanvasStore();
-    const { addShape, updateShape, deleteShape, updateAwareness, isConnected, isSynced } = useYjs(roomId);
+    const { addShape, updateShape, deleteShape, isConnected, isSynced } = useYjs(roomId);
     const { theme } = useThemeStore();
     const shapeRefs = useRef<Record<string, any>>({});
     const trRef = useRef<any>(null);
@@ -59,6 +48,8 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
 
     // 绘制状态 - 使用 ref 存储实时数据，state 用于触发渲染
     const drawStartRef = useRef<{ x: number; y: number } | null>(null);
+    const lastPointerPositionRef = useRef<{ x: number; y: number } | null>(null);
+    const dragStartPosRef = useRef<Record<string, { x: number; y: number }>>({});
     const drawingShapeRef = useRef<Shape | null>(null);
     const [drawingShape, setDrawingShape] = useState<Shape | null>(null);
     const rafIdRef = useRef<number | null>(null);
@@ -112,6 +103,18 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
         }
     }, [editingTextId]);
 
+    // 选中图形时，同步颜色到全局状态，保持 UI 一致
+    useEffect(() => {
+        if (selectedIds.length === 1) {
+            const shape = shapes[selectedIds[0]];
+            if (shape) {
+                if (shape.strokeColor) setCurrentStrokeColor(shape.strokeColor);
+                if (shape.fill) setCurrentFillColor(shape.fill);
+                if (shape.strokeWidth) useCanvasStore.getState().setCurrentStrokeWidth(shape.strokeWidth);
+            }
+        }
+    }, [selectedIds, shapes, setCurrentStrokeColor, setCurrentFillColor]);
+
     // 更新 Transformer 选中节点
     useEffect(() => {
         if (trRef.current && currentTool === 'select') {
@@ -125,13 +128,69 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
         }
     }, [selectedIds, currentTool]);
 
+    const handleShapeDragStart = useCallback((id: string) => {
+        if (isGuest || currentTool !== 'select') return;
+        if (selectedIds.includes(id)) {
+            const initialPos: Record<string, { x: number; y: number }> = {};
+            selectedIds.forEach(sid => {
+                const node = shapeRefs.current[sid];
+                if (node) {
+                    initialPos[sid] = { x: node.x(), y: node.y() };
+                }
+            });
+            dragStartPosRef.current = initialPos;
+        }
+    }, [isGuest, currentTool, selectedIds]);
+
+    const handleShapeDragMove = useCallback((id: string, e: any) => {
+        if (isGuest || currentTool !== 'select') return;
+        if (selectedIds.includes(id) && selectedIds.length > 1) {
+            const startPos = dragStartPosRef.current[id];
+            if (!startPos) return;
+
+            const dx = e.target.x() - startPos.x;
+            const dy = e.target.y() - startPos.y;
+
+            selectedIds.forEach(sid => {
+                if (sid !== id) {
+                    const node = shapeRefs.current[sid];
+                    const init = dragStartPosRef.current[sid];
+                    if (node && init) {
+                        node.x(init.x + dx);
+                        node.y(init.y + dy);
+                    }
+                }
+            });
+        }
+    }, [isGuest, currentTool, selectedIds]);
+
     const handleDragEnd = useCallback((id: string, e: any) => {
         if (isGuest) return;
-        updateShape(id, {
-            x: e.target.x(),
-            y: e.target.y(),
-        });
-    }, [isGuest, updateShape]);
+
+        if (selectedIds.includes(id) && selectedIds.length > 1) {
+            const startPos = dragStartPosRef.current[id];
+            if (startPos) {
+                const dx = e.target.x() - startPos.x;
+                const dy = e.target.y() - startPos.y;
+
+                selectedIds.forEach(sid => {
+                    const init = dragStartPosRef.current[sid];
+                    if (init) {
+                        updateShape(sid, {
+                            x: init.x + dx,
+                            y: init.y + dy,
+                        });
+                    }
+                });
+            }
+        } else {
+            updateShape(id, {
+                x: e.target.x(),
+                y: e.target.y(),
+            });
+        }
+        dragStartPosRef.current = {};
+    }, [isGuest, updateShape, selectedIds]);
 
     const handleSelect = useCallback((id: string | null, e?: any) => {
         if (isGuest || currentTool !== 'select') return;
@@ -203,6 +262,9 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
     /**
      * 开始绘制 - 只创建本地临时图形
      */
+    /**
+     * 开始绘制 - 只创建本地临时图形
+     */
     const handleDrawStart = useCallback((e: any) => {
         if (isGuest) return;
 
@@ -224,11 +286,16 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
             return;
         }
 
-        // hand 工具：不处理（Stage 的 draggable 会处理）
-        if (currentTool === 'hand') return;
+        // eraser 工具：drag start
+        if (currentTool === 'eraser') {
+            if (e.evt.buttons === 1) {
+                lastPointerPositionRef.current = pos;
+            }
+            return;
+        }
 
-        // eraser 工具：在 shape 的 onClick 里处理
-        if (currentTool === 'eraser') return;
+        // hand 工具：不处理
+        if (currentTool === 'hand') return;
 
         // 绘制工具
         const drawTools: ToolType[] = ['rect', 'circle', 'diamond', 'arrow', 'line', 'freedraw', 'text'];
@@ -299,104 +366,96 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
             };
         }
 
-        // 同时设置 ref 和 state
         drawingShapeRef.current = newShape;
         setDrawingShape(newShape);
-        console.log('Draw start:', newShape);
-    }, [isGuest, currentTool, currentFillColor, currentStrokeColor, currentStrokeWidth, addShape, clearSelection, setSelectedId, setCurrentTool, setIsDrawing]);
+    }, [isGuest, currentTool, shapes, addShape, setSelectedId, setCurrentTool, currentStrokeColor, currentStrokeWidth, currentFillColor, clearSelection, setIsDrawing]);
 
     /**
-     * 绘制中 - 使用 RAF 优化渲染
+     * 绘制移动 / 橡皮擦移动 / 框选移动
      */
     const handleDrawMove = useCallback((e: any) => {
+        if (isGuest) return;
         const stage = e.target.getStage();
         const pos = getWorldPos(stage);
+        if (!pos) return;
 
-        // 更新光标位置
-        if (pos) {
-            updateAwareness(pos.x, pos.y);
+        // Eraser
+        if (currentTool === 'eraser') {
+            if (e.evt.buttons === 1) {
+                const lastPos = lastPointerPositionRef.current || pos;
+                // 查找相交的图形并删除
+                Object.values(shapes).forEach(shape => {
+                    if (isShapeIntersecting(shape, lastPos, pos)) {
+                        deleteShape(shape.id);
+                    }
+                });
+                lastPointerPositionRef.current = pos;
+            } else {
+                lastPointerPositionRef.current = null;
+            }
+            return;
         }
 
-        // 框选处理
-        if (isSelecting && selectionStartRef.current && pos) {
+        // Selecting
+        if (isSelecting && selectionBox && selectionStartRef.current) {
             const start = selectionStartRef.current;
             const width = pos.x - start.x;
             const height = pos.y - start.y;
+
             setSelectionBox({
-                x: width < 0 ? pos.x : start.x,
-                y: height < 0 ? pos.y : start.y,
+                x: width < 0 ? start.x + width : start.x,
+                y: height < 0 ? start.y + height : start.y,
                 width: Math.abs(width),
                 height: Math.abs(height),
             });
             return;
         }
 
-        // 非绘制状态，跳过
-        const shape = drawingShapeRef.current;
-        if (!isDrawing || !shape || !drawStartRef.current || !pos) return;
+        // Drawing
+        if (!isDrawing || !drawingShapeRef.current || !drawStartRef.current) return;
 
         const start = drawStartRef.current;
+        const currentShape = drawingShapeRef.current;
 
-        // 更新 ref（不触发渲染）
-        if (shape.type === 'freedraw') {
-            const points = shape.points || [];
-            const lastX = points[points.length - 2];
-            const lastY = points[points.length - 1];
-            const dist = Math.hypot(pos.x - lastX, pos.y - lastY);
-
-            // 距离阈值优化
-            if (dist > 2) {
-                drawingShapeRef.current = {
-                    ...shape,
-                    points: [...points, pos.x, pos.y]
-                };
-            }
-        } else if (shape.type === 'arrow' || shape.type === 'line') {
+        if (currentShape.type === 'freedraw') {
+            const points = currentShape.points || [];
             drawingShapeRef.current = {
-                ...shape,
+                ...currentShape,
+                points: [...points, pos.x, pos.y]
+            };
+        } else if (currentShape.type === 'line' || currentShape.type === 'arrow') {
+            drawingShapeRef.current = {
+                ...currentShape,
                 points: [start.x, start.y, pos.x, pos.y]
             };
-        } else if (shape.type === 'rect' || shape.type === 'diamond') {
+        } else {
+            // Shapes with shift key constraint
             let width = pos.x - start.x;
             let height = pos.y - start.y;
 
-            // Shift 约束：绘制正方形/正菱形
-            const isShiftPressed = e.evt?.shiftKey || false;
-            if (isShiftPressed) {
-                const size = Math.max(Math.abs(width), Math.abs(height));
-                width = width >= 0 ? size : -size;
-                height = height >= 0 ? size : -size;
+            if (e.evt.shiftKey) {
+                const s = Math.max(Math.abs(width), Math.abs(height));
+                width = width >= 0 ? s : -s;
+                height = height >= 0 ? s : -s;
             }
 
             drawingShapeRef.current = {
-                ...shape,
+                ...currentShape,
                 x: width < 0 ? start.x + width : start.x,
                 y: height < 0 ? start.y + height : start.y,
                 width: Math.abs(width),
                 height: Math.abs(height),
             };
-        } else if (shape.type === 'circle') {
-            const width = pos.x - start.x;
-            const height = pos.y - start.y;
-            // 圆形总是保持正圆（宽高相等）
-            const size = Math.max(Math.abs(width), Math.abs(height));
-            drawingShapeRef.current = {
-                ...shape,
-                x: start.x,
-                y: start.y,
-                width: size,
-                height: size,
-            };
         }
 
-        // 使用 RAF 批量更新 state（触发渲染）
+        // 渲染循环
         if (rafIdRef.current === null) {
             rafIdRef.current = requestAnimationFrame(() => {
                 setDrawingShape(drawingShapeRef.current);
                 rafIdRef.current = null;
             });
         }
-    }, [isDrawing, isSelecting, updateAwareness]);
+    }, [isGuest, currentTool, isSelecting, selectionBox, isDrawing, shapes, deleteShape]);
 
     /**
      * 结束绘制/框选 - 最终同步到 Yjs
@@ -476,22 +535,27 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
     }, [currentTool, deleteShape, handleSelect]);
 
     // 获取 Stage 的 cursor 样式
+    // 获取 Stage 的 cursor 样式
     const getStageCursor = () => {
         switch (currentTool) {
             case 'hand': return 'grab';
-            case 'eraser': return 'crosshair';
             case 'text': return 'text';
-            case 'freedraw': return 'crosshair';
             case 'select': return 'default';
+            // 画笔和橡皮擦使用自定义光标，隐藏系统光标
+            case 'eraser': return 'none';
+            case 'freedraw': return 'none';
             default: return 'crosshair';
         }
     };
+
+
 
     return (
         <div
             className={cn("w-full h-screen overflow-hidden relative", theme === 'dark' ? "bg-[#121212]" : "bg-gray-100")}
             style={{ cursor: getStageCursor() }}
         >
+            <BrushCursor />
             {!isGuest && <Toolbar />}
             <Sidebar onExport={handleExport} roomId={roomId} />
             {!isGuest && <PropertiesPanel />}
@@ -568,7 +632,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
                 ref={stageRef}
                 width={window.innerWidth}
                 height={window.innerHeight}
-                draggable={currentTool === 'hand' || currentTool === 'select'}
+                draggable={currentTool === 'hand'}
                 scaleX={scale}
                 scaleY={scale}
                 x={offset.x}
@@ -614,195 +678,31 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
                     {Object.values(shapes)
                         .sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0))
                         .map((shape) => {
-                            const isEditing = editingTextId === shape.id;
-
-                            if (isEditing) return null;
-
-                            const commonProps = {
-                                key: shape.id,
-                                id: shape.id,
-                                ref: (node: any) => {
-                                    if (node) shapeRefs.current[shape.id] = node;
-                                },
-                                x: shape.x,
-                                y: shape.y,
-                                rotation: shape.rotation || 0,
-                                opacity: shape.opacity ?? 1,
-                                draggable: !isGuest && currentTool === 'select',
-                                onClick: (e: any) => handleShapeClick(shape.id, e),
-                                onTap: (e: any) => handleShapeClick(shape.id, e),
-                                onDragEnd: (e: any) => handleDragEnd(shape.id, e),
-                                stroke: shape.strokeColor || '#1e1e1e',
-                                strokeWidth: shape.strokeWidth || 2,
-                            };
-
-                            if (shape.type === 'rect') {
-                                return (
-                                    <Rect
-                                        {...commonProps}
-                                        width={shape.width}
-                                        height={shape.height}
-                                        fill={shape.fill}
-                                        cornerRadius={shape.cornerRadius || 0}
-                                    />
-                                );
-                            } else if (shape.type === 'circle') {
-                                return (
-                                    <Circle
-                                        {...commonProps}
-                                        // 圆心在 (x, y)，半径为 width/2
-                                        radius={(shape.width || 100) / 2}
-                                        fill={shape.fill}
-                                    />
-                                );
-                            } else if (shape.type === 'diamond') {
-                                // 菱形用 Line 绘制
-                                const w = shape.width || 100;
-                                const h = shape.height || 100;
-                                return (
-                                    <Line
-                                        {...commonProps}
-                                        points={[w / 2, 0, w, h / 2, w / 2, h, 0, h / 2]}
-                                        closed
-                                        fill={shape.fill}
-                                    />
-                                );
-                            } else if (shape.type === 'text') {
-                                return (
-                                    <Text
-                                        {...commonProps}
-                                        text={shape.text}
-                                        fontSize={24}
-                                        fill={shape.fill || shape.strokeColor}
-                                        onDblClick={() => handleTextDblClick(shape.id, shape.text || '')}
-                                        onDblTap={() => handleTextDblClick(shape.id, shape.text || '')}
-                                    />
-                                );
-                            } else if (shape.type === 'arrow') {
-                                return (
-                                    <Arrow
-                                        {...commonProps}
-                                        x={0}
-                                        y={0}
-                                        points={shape.points || [0, 0, 100, 0]}
-                                        pointerLength={12}
-                                        pointerWidth={12}
-                                        fill={shape.strokeColor || '#1e1e1e'}
-                                    />
-                                );
-                            } else if (shape.type === 'line') {
-                                return (
-                                    <Line
-                                        {...commonProps}
-                                        x={0}
-                                        y={0}
-                                        points={shape.points || [0, 0, 100, 0]}
-                                    />
-                                );
-                            } else if (shape.type === 'freedraw') {
-                                return (
-                                    <Line
-                                        {...commonProps}
-                                        x={0}
-                                        y={0}
-                                        points={shape.points || []}
-                                        tension={0.5}
-                                        lineCap="round"
-                                        lineJoin="round"
-                                        globalCompositeOperation="source-over"
-                                    />
-                                );
-                            } else if (shape.type === 'image' && shape.imageUrl) {
-                                return (
-                                    <URLImage
-                                        {...commonProps}
-                                        src={shape.imageUrl}
-                                        width={shape.width}
-                                        height={shape.height}
-                                    />
-                                );
-                            }
-                            return null;
+                            if (editingTextId === shape.id) return null;
+                            return (
+                                <ShapeView
+                                    key={shape.id}
+                                    shape={shape}
+                                    isGuest={isGuest}
+                                    currentTool={currentTool}
+                                    onShapeClick={handleShapeClick}
+                                    onDragStart={handleShapeDragStart}
+                                    onDragMove={handleShapeDragMove}
+                                    onDragEnd={handleDragEnd}
+                                    onTextDblClick={handleTextDblClick}
+                                    shapeRef={(node) => {
+                                        if (node) shapeRefs.current[shape.id] = node;
+                                    }}
+                                />
+                            );
                         })}
 
                     {/* 渲染正在绘制的临时图形 */}
                     {drawingShape && (
-                        (() => {
-                            const shape = drawingShape;
-                            const tempProps = {
-                                key: 'drawing-temp',
-                                x: shape.x,
-                                y: shape.y,
-                                stroke: shape.strokeColor || '#1e1e1e',
-                                strokeWidth: shape.strokeWidth || 2,
-                                opacity: 0.8,
-                                listening: false, // 不响应事件
-                            };
-
-                            if (shape.type === 'rect') {
-                                return (
-                                    <Rect
-                                        {...tempProps}
-                                        width={shape.width}
-                                        height={shape.height}
-                                        fill={shape.fill}
-                                    />
-                                );
-                            } else if (shape.type === 'circle') {
-                                return (
-                                    <Circle
-                                        {...tempProps}
-                                        radius={(shape.width || 1) / 2}
-                                        fill={shape.fill}
-                                    />
-                                );
-                            } else if (shape.type === 'diamond') {
-                                const w = shape.width || 1;
-                                const h = shape.height || 1;
-                                return (
-                                    <Line
-                                        {...tempProps}
-                                        points={[w / 2, 0, w, h / 2, w / 2, h, 0, h / 2]}
-                                        closed
-                                        fill={shape.fill}
-                                    />
-                                );
-                            } else if (shape.type === 'arrow') {
-                                return (
-                                    <Arrow
-                                        {...tempProps}
-                                        x={0}
-                                        y={0}
-                                        points={shape.points || [0, 0, 0, 0]}
-                                        pointerLength={12}
-                                        pointerWidth={12}
-                                        fill={shape.strokeColor || '#1e1e1e'}
-                                    />
-                                );
-                            } else if (shape.type === 'line') {
-                                return (
-                                    <Line
-                                        {...tempProps}
-                                        x={0}
-                                        y={0}
-                                        points={shape.points || [0, 0, 0, 0]}
-                                    />
-                                );
-                            } else if (shape.type === 'freedraw') {
-                                return (
-                                    <Line
-                                        {...tempProps}
-                                        x={0}
-                                        y={0}
-                                        points={shape.points || []}
-                                        tension={0.5}
-                                        lineCap="round"
-                                        lineJoin="round"
-                                    />
-                                );
-                            }
-                            return null;
-                        })()
+                        <ShapeView
+                            shape={drawingShape}
+                            isPreview={true}
+                        />
                     )}
 
                     {/* 渲染框选矩形 */}
@@ -838,8 +738,4 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
     );
 };
 
-// 辅助组件：用于加载和渲染图片
-const URLImage = ({ src, ...props }: any) => {
-    const [image] = useImage(src);
-    return <KonvaImage image={image} {...props} />;
-};
+

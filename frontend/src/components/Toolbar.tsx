@@ -124,31 +124,33 @@ export const Toolbar: React.FC = () => {
     const tools: { tool: ToolType; icon: any; title: string }[] = [
         { tool: 'select', icon: MousePointer2, title: '选择' },
         { tool: 'hand', icon: Hand, title: '移动画布' },
-        { tool: 'rect', icon: Square, title: '矩形 (双击设置颜色)' },
-        { tool: 'circle', icon: Circle, title: '椭圆 (双击设置颜色)' },
-        { tool: 'diamond', icon: Diamond, title: '菱形 (双击设置颜色)' },
-        { tool: 'arrow', icon: ArrowRight, title: '箭头 (双击设置颜色)' },
-        { tool: 'line', icon: Minus, title: '线条 (双击设置颜色)' },
-        { tool: 'freedraw', icon: Pencil, title: '画笔 (双击设置颜色)' },
-        { tool: 'text', icon: Type, title: '文本 (双击设置颜色)' },
+        { tool: 'rect', icon: Square, title: '矩形 (再次点击设置颜色)' },
+        { tool: 'circle', icon: Circle, title: '椭圆 (再次点击设置颜色, Shift正圆)' },
+        { tool: 'diamond', icon: Diamond, title: '菱形 (再次点击设置颜色)' },
+        { tool: 'arrow', icon: ArrowRight, title: '箭头 (再次点击设置颜色)' },
+        { tool: 'line', icon: Minus, title: '线条 (再次点击设置颜色)' },
+        { tool: 'freedraw', icon: Pencil, title: '画笔 (再次点击设置颜色)' },
+        { tool: 'text', icon: Type, title: '文本 (再次点击设置颜色)' },
         { tool: 'eraser', icon: Eraser, title: '橡皮擦' },
     ];
 
+    // 颜色弹窗状态
+
     // 处理工具点击
     const handleToolClick = (tool: ToolType) => {
-        setCurrentTool(tool);
-        setShowColorPopover(false);
-    };
-
-    // 处理工具双击
-    const handleToolDoubleClick = (tool: ToolType) => {
-        if (drawableTools.includes(tool)) {
+        if (currentTool === tool) {
+            // 点击当前工具：如果支持绘制，则切换颜色面板
+            if (drawableTools.includes(tool)) {
+                setShowColorPopover(!showColorPopover);
+            }
+        } else {
+            // 切换工具：立即生效
             setCurrentTool(tool);
-            setShowColorPopover(true);
+            setShowColorPopover(false);
         }
     };
 
-    // 工具按钮组件 - 支持双击
+    // 工具按钮组件
     const ToolButton = ({
         tool,
         icon: Icon,
@@ -162,7 +164,6 @@ export const Toolbar: React.FC = () => {
     }) => (
         <button
             onClick={() => handleToolClick(tool)}
-            onDoubleClick={() => handleToolDoubleClick(tool)}
             className={cn(
                 "p-2.5 rounded-lg transition-all",
                 active

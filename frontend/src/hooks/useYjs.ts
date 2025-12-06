@@ -37,12 +37,12 @@ export const useYjs = (roomId?: string) => {
 
     // 使用 ref 存储用户信息，避免触发重新渲染
     const userInfoRef = useRef(getUserInfo());
-    const [docVersion, setDocVersion] = useState(0);
+    const [, forceUpdate] = useState(0);
 
     // 监听文档变更 (用于预览)
     useEffect(() => {
         const handleDocChange = () => {
-            setDocVersion(v => v + 1);
+            forceUpdate(v => v + 1);
         };
         yjsManager.onDocChange(handleDocChange);
         return () => {
@@ -148,7 +148,7 @@ export const useYjs = (roomId?: string) => {
             // 注意：不在这里断开连接，因为可能是组件重新渲染
             // 断开连接应该在用户主动离开房间时进行
         };
-    }, [roomId, setShapes, setCursors, docVersion]);
+    }, [roomId, setShapes, setCursors]);
 
     // 更新 Yjs 的操作
     const addShapeToYjs = useCallback((shape: Shape) => {

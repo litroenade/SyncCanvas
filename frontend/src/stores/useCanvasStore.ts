@@ -67,6 +67,8 @@ interface CanvasState {
   selectedIds: string[]
   /** 是否显示网格 */
   showGrid: boolean
+  /** 是否显示协作者光标名称 */
+  showCursorNames: boolean
   /** 当前填充颜色 */
   currentFillColor: string
   /** 当前描边颜色 */
@@ -83,6 +85,8 @@ interface CanvasState {
   setShowGrid: (show: boolean) => void
   /** 切换网格显示状态 */
   toggleGrid: () => void
+  /** 切换光标名称显示状态 */
+  toggleCursorNames: () => void
   /** 设置缩放比例 */
   setScale: (scale: number) => void
   /** 设置偏移量 */
@@ -148,6 +152,7 @@ export const useCanvasStore = create<CanvasState>((set) => ({
   shapes: {},
   selectedIds: [],
   showGrid: true,
+  showCursorNames: true,
   // 从 localStorage 读取初始颜色配置
   currentFillColor: getStoredColor('canvas_fillColor', 'transparent'),
   currentStrokeColor: getStoredColor('canvas_strokeColor', '#1e1e1e'),
@@ -167,6 +172,7 @@ export const useCanvasStore = create<CanvasState>((set) => ({
   },
   setShowGrid: (show) => set({ showGrid: show }),
   toggleGrid: () => set((state) => ({ showGrid: !state.showGrid })),
+  toggleCursorNames: () => set((state) => ({ showCursorNames: !state.showCursorNames })),
   setScale: (scale) => set({ scale: Math.max(0.1, Math.min(5, scale)) }),
   setOffset: (offset) => set({ offset }),
   setShapes: (shapes) => set({ shapes }),

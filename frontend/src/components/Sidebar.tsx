@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, ChevronLeft, ChevronRight, Box, Grid as GridIcon, Download, Undo, Redo, ArrowUpToLine, ArrowDownToLine, Sun, Moon, Home, History } from 'lucide-react';
+import { Settings, ChevronLeft, ChevronRight, Box, Grid as GridIcon, Download, Undo, Redo, ArrowUpToLine, ArrowDownToLine, Sun, Moon, Home, History, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { yjsManager } from '../lib/yjs';
@@ -55,7 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onExport, roomId }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [activePanel, setActivePanel] = useState<'elements' | 'history' | 'none'>('none');
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-    const { selectedIds, shapes, showGrid, toggleGrid: toggleGridStore, isGuest, setShapes, setCursors } = useCanvasStore();
+    const { selectedIds, shapes, showGrid, toggleGrid: toggleGridStore, showCursorNames, toggleCursorNames, isGuest, setShapes, setCursors } = useCanvasStore();
     const { theme, toggleTheme } = useThemeStore();
 
     const handleBackToRooms = () => {
@@ -190,6 +190,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ onExport, roomId }) => {
                             isOpen={isOpen}
                             onClick={toggleGridStore}
                             active={showGrid}
+                            theme={theme}
+                        />
+
+                        <SidebarItem
+                            icon={User}
+                            label={showCursorNames ? "隐藏光标名称" : "显示光标名称"}
+                            isOpen={isOpen}
+                            onClick={toggleCursorNames}
+                            active={showCursorNames}
                             theme={theme}
                         />
 
