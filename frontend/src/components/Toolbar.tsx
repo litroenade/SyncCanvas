@@ -42,14 +42,10 @@ const updateShapes = (updates: Record<string, Partial<Shape>>) => {
 /**
  * 工具栏组件 - Excalidraw 风格
  * 
- * 提供工具选择和快捷操作。
+ * 简洁的工具选择栏，颜色选择通过双击工具图标触发。
  */
 export const Toolbar: React.FC = () => {
-    const {
-        shapes, currentTool, setCurrentTool,
-        currentStrokeColor, currentFillColor,
-        setCurrentStrokeColor, setCurrentFillColor
-    } = useCanvasStore();
+    const { shapes, currentTool, setCurrentTool } = useCanvasStore();
     const fileInputRef = React.useRef<HTMLInputElement>(null);
 
     // 自定义弹窗
@@ -108,81 +104,67 @@ export const Toolbar: React.FC = () => {
         updateShapes(newShapes);
     };
 
-    const tools: { tool: ToolType; icon: any; title: string; shortcut: string }[] = [
-        { tool: 'select', icon: MousePointer2, title: '选择', shortcut: 'V' },
-        { tool: 'hand', icon: Hand, title: '移动画布', shortcut: 'H' },
-        { tool: 'rect', icon: Square, title: '矩形', shortcut: 'R' },
-        { tool: 'circle', icon: Circle, title: '圆形', shortcut: 'O' },
-        { tool: 'diamond', icon: Diamond, title: '菱形', shortcut: 'D' },
-        { tool: 'arrow', icon: ArrowRight, title: '箭头', shortcut: 'A' },
-        { tool: 'line', icon: Minus, title: '线条', shortcut: 'L' },
-        { tool: 'freedraw', icon: Pencil, title: '画笔', shortcut: 'P' },
-        { tool: 'text', icon: Type, title: '文本', shortcut: 'T' },
-        { tool: 'eraser', icon: Eraser, title: '橡皮擦', shortcut: 'E' },
+    // 工具配置（无快捷键）
+    const tools: { tool: ToolType; icon: any; title: string }[] = [
+        { tool: 'select', icon: MousePointer2, title: '选择' },
+        { tool: 'hand', icon: Hand, title: '移动画布' },
+        { tool: 'rect', icon: Square, title: '矩形' },
+        { tool: 'circle', icon: Circle, title: '椭圆' },
+        { tool: 'diamond', icon: Diamond, title: '菱形' },
+        { tool: 'arrow', icon: ArrowRight, title: '箭头' },
+        { tool: 'line', icon: Minus, title: '线条' },
+        { tool: 'freedraw', icon: Pencil, title: '画笔' },
+        { tool: 'text', icon: Type, title: '文本' },
+        { tool: 'eraser', icon: Eraser, title: '橡皮擦' },
     ];
 
+    // 工具按钮组件 - Excalidraw 风格
     const ToolButton = ({
         tool,
         icon: Icon,
         title,
-        shortcut,
         active
     }: {
         tool: ToolType;
         icon: any;
         title: string;
-        shortcut: string;
         active: boolean;
     }) => (
         <button
             onClick={() => setCurrentTool(tool)}
             className={cn(
-                "p-2.5 rounded-lg transition-all relative group",
+                "p-2.5 rounded-lg transition-all",
                 active
-                    ? "bg-blue-500 text-white shadow-md"
+                    ? "bg-violet-100 text-violet-700"
                     : "text-slate-600 hover:bg-slate-100"
             )}
-            title={`${title} (${shortcut})`}
+            title={title}
         >
             <Icon size={18} strokeWidth={active ? 2.5 : 2} />
-            {/* 快捷键提示 */}
-            <span className="absolute -bottom-1 -right-1 text-[10px] font-mono bg-slate-200 text-slate-500 px-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                {shortcut}
-            </span>
         </button>
     );
 
-    const ActionButton = ({ onClick, icon: Icon, title, className, active }: { onClick: () => void, icon: any, title: string, className?: string, active?: boolean }) => (
+    // 操作按钮组件
+    const ActionButton = ({ onClick, icon: Icon, title }: { onClick: () => void, icon: any, title: string }) => (
         <button
             onClick={onClick}
-            className={cn(
-                "p-2.5 rounded-lg transition-colors",
-                active ? "bg-amber-100 text-amber-600" : "text-slate-600 hover:bg-slate-100",
-                className
-            )}
+            className="p-2.5 rounded-lg transition-colors text-slate-600 hover:bg-slate-100"
             title={title}
         >
             <Icon size={18} />
         </button>
     );
 
-    // 预设颜色
-    const presetColors = [
-        'transparent', '#1e1e1e', '#e03131', '#2f9e44', '#1971c2',
-        '#f08c00', '#9c36b5', '#0c8599', '#f8f9fa'
-    ];
-
     return (
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50">
-            <div className="bg-white border border-slate-200 shadow-lg rounded-xl p-1.5 flex items-center gap-1">
+            <div className="bg-white border border-slate-200 shadow-lg rounded-xl p-1.5 flex items-center gap-0.5">
                 {/* 工具按钮 */}
-                {tools.map(({ tool, icon, title, shortcut }) => (
+                {tools.map(({ tool, icon, title }) => (
                     <ToolButton
                         key={tool}
                         tool={tool}
                         icon={icon}
                         title={title}
-                        shortcut={shortcut}
                         active={currentTool === tool}
                     />
                 ))}
@@ -206,45 +188,6 @@ export const Toolbar: React.FC = () => {
 
                 {/* 自动布局 */}
                 <ActionButton onClick={handleAutoLayout} icon={Layout} title="自动布局" />
-
-                {/* 分隔线 */}
-                <div className="w-px h-8 bg-slate-200 mx-1" />
-
-                {/* 描边颜色选择 */}
-                <div className="flex items-center gap-1 px-1">
-                    <span className="text-xs text-slate-400 mr-1">线</span>
-                    {presetColors.slice(0, 5).map((color) => (
-                        <button
-                            key={`stroke-${color}`}
-                            onClick={() => setCurrentStrokeColor(color)}
-                            className={cn(
-                                "w-5 h-5 rounded-full border-2 transition-transform hover:scale-110",
-                                currentStrokeColor === color ? "border-blue-500 scale-110" : "border-slate-300",
-                                color === 'transparent' && "bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iOCIgaGVpZ2h0PSI4IiB2aWV3Qm94PSIwIDAgOCA4IiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiNjY2MiLz48cmVjdCB4PSI0IiB5PSI0IiB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjY2NjIi8+PC9zdmc+')]"
-                            )}
-                            style={{ backgroundColor: color === 'transparent' ? undefined : color }}
-                            title={color === 'transparent' ? '透明' : color}
-                        />
-                    ))}
-                </div>
-
-                {/* 填充颜色选择 */}
-                <div className="flex items-center gap-1 px-1">
-                    <span className="text-xs text-slate-400 mr-1">填</span>
-                    {presetColors.slice(0, 5).map((color) => (
-                        <button
-                            key={`fill-${color}`}
-                            onClick={() => setCurrentFillColor(color)}
-                            className={cn(
-                                "w-5 h-5 rounded border-2 transition-transform hover:scale-110",
-                                currentFillColor === color ? "border-blue-500 scale-110" : "border-slate-300",
-                                color === 'transparent' && "bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iOCIgaGVpZ2h0PSI4IiB2aWV3Qm94PSIwIDAgOCA4IiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiNjY2MiLz48cmVjdCB4PSI0IiB5PSI0IiB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjY2NjIi8+PC9zdmc+')]"
-                            )}
-                            style={{ backgroundColor: color === 'transparent' ? undefined : color }}
-                            title={color === 'transparent' ? '透明' : color}
-                        />
-                    ))}
-                </div>
             </div>
 
             {/* Modal 渲染器 */}
