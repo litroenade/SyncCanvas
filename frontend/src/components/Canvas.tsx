@@ -18,6 +18,7 @@ import { cn } from '../lib/utils';
 import { PropertiesPanel } from './PropertiesPanel';
 import { Cursors } from './Cursors';
 import { ZoomControls } from './ZoomControls';
+import { CollaboratorList } from './CollaboratorList';
 
 /**
  * 获取鼠标在画布世界坐标系中的位置
@@ -499,6 +500,9 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
             <div className="fixed bottom-4 left-4 z-50">
                 <ZoomControls />
             </div>
+
+            {/* 协作者列表 - 右上角 */}
+            <CollaboratorList />
 
             {/* 连接状态指示器 */}
             <div className={cn(
