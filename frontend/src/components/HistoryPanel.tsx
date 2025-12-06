@@ -102,6 +102,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) => {
     return () => shapesMap.unobserveDeep(handleChange)
   }, [roomId])
 
+
   /**
    * 加载历史数据
    */
@@ -120,6 +121,28 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) => {
       setLoading(false)
     }
   }, [roomId])
+
+  // 监听 Awareness 变更：当其他用户提交时刷新历史
+  useEffect(() => {
+    if (!roomId || !yjsManager.isConnected) return
+
+    const awareness = yjsManager.getAwareness()
+    if (!awareness) return
+
+    const handleAwarenessChange = () => {
+      // 检查是否有其他用户发送了 history_changed 信号
+      const states = awareness.getStates()
+      states.forEach((state: any) => {
+        if (state?.historyChanged && state.historyChanged > Date.now() - 5000) {
+          // 5秒内的历史变更通知，刷新历史
+          loadHistory()
+        }
+      })
+    }
+
+    awareness.on('change', handleAwarenessChange)
+    return () => awareness.off('change', handleAwarenessChange)
+  }, [roomId, loadHistory])
 
   /**
    * 创建提交
@@ -150,6 +173,13 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) => {
       setCommitMessage('')
       setShowCommitDialog(false)
       setHasLocalChanges(false) // 重置本地更改状态
+
+      // 通过 Awareness 广播历史变更通知，让其他协作者刷新历史
+      const awareness = yjsManager.getAwareness()
+      if (awareness) {
+        awareness.setLocalStateField('historyChanged', Date.now())
+      }
+
       await loadHistory()
     } catch (err: any) {
       console.error('创建提交失败:', err)
@@ -228,7 +258,8 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) => {
 
   useEffect(() => {
     loadHistory()
-    const interval = setInterval(loadHistory, 30000)
+    // 每10秒轮询刷新历史（之前是30秒，缩短以提高实时性）
+    const interval = setInterval(loadHistory, 10000)
     return () => clearInterval(interval)
   }, [loadHistory])
 
