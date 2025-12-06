@@ -355,18 +355,28 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
                 points: [start.x, start.y, pos.x, pos.y]
             };
         } else if (shape.type === 'rect' || shape.type === 'diamond') {
-            const width = pos.x - start.x;
-            const height = pos.y - start.y;
+            let width = pos.x - start.x;
+            let height = pos.y - start.y;
+
+            // Shift 约束：绘制正方形/正菱形
+            const isShiftPressed = e.evt?.shiftKey || false;
+            if (isShiftPressed) {
+                const size = Math.max(Math.abs(width), Math.abs(height));
+                width = width >= 0 ? size : -size;
+                height = height >= 0 ? size : -size;
+            }
+
             drawingShapeRef.current = {
                 ...shape,
-                x: width < 0 ? pos.x : start.x,
-                y: height < 0 ? pos.y : start.y,
+                x: width < 0 ? start.x + width : start.x,
+                y: height < 0 ? start.y + height : start.y,
                 width: Math.abs(width),
                 height: Math.abs(height),
             };
         } else if (shape.type === 'circle') {
             const width = pos.x - start.x;
             const height = pos.y - start.y;
+            // 圆形总是保持正圆（宽高相等）
             const size = Math.max(Math.abs(width), Math.abs(height));
             drawingShapeRef.current = {
                 ...shape,
