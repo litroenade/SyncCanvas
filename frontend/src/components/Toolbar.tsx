@@ -4,7 +4,7 @@ import { useCanvasStore, ToolType, Shape } from '../stores/useCanvasStore';
 import {
     MousePointer2, Hand, Square, Circle, Diamond,
     ArrowRight, Minus, Pencil, Type, Image as ImageIcon,
-    Eraser, Layout, Undo2, Redo2, Lock, Unlock
+    Eraser, Layout
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { applyForceLayout } from '../lib/d3-layout';
@@ -39,24 +39,6 @@ const updateShapes = (updates: Record<string, Partial<Shape>>) => {
     });
 };
 
-const undo = () => {
-    const undoManager = yjsManager.undoManager;
-    if (!undoManager) {
-        console.warn('Yjs 未连接，无法撤销');
-        return;
-    }
-    undoManager.undo();
-};
-
-const redo = () => {
-    const undoManager = yjsManager.undoManager;
-    if (!undoManager) {
-        console.warn('Yjs 未连接，无法重做');
-        return;
-    }
-    undoManager.redo();
-};
-
 /**
  * 工具栏组件 - Excalidraw 风格
  * 
@@ -66,8 +48,7 @@ export const Toolbar: React.FC = () => {
     const {
         shapes, currentTool, setCurrentTool,
         currentStrokeColor, currentFillColor,
-        setCurrentStrokeColor, setCurrentFillColor,
-        isShortcutLocked, toggleShortcutLock
+        setCurrentStrokeColor, setCurrentFillColor
     } = useCanvasStore();
     const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -225,21 +206,6 @@ export const Toolbar: React.FC = () => {
 
                 {/* 自动布局 */}
                 <ActionButton onClick={handleAutoLayout} icon={Layout} title="自动布局" />
-
-                {/* 快捷键锁定 */}
-                <ActionButton
-                    onClick={toggleShortcutLock}
-                    icon={isShortcutLocked ? Lock : Unlock}
-                    title={isShortcutLocked ? "快捷键已锁定" : "快捷键已启用"}
-                    active={isShortcutLocked}
-                />
-
-                {/* 分隔线 */}
-                <div className="w-px h-8 bg-slate-200 mx-1" />
-
-                {/* 撤销/重做 */}
-                <ActionButton onClick={undo} icon={Undo2} title="撤销 (Ctrl+Z)" />
-                <ActionButton onClick={redo} icon={Redo2} title="重做 (Ctrl+Y)" />
 
                 {/* 分隔线 */}
                 <div className="w-px h-8 bg-slate-200 mx-1" />

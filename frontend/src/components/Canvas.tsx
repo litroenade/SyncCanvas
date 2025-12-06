@@ -47,9 +47,9 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
         currentTool, isDrawing,
         currentFillColor, currentStrokeColor, currentStrokeWidth,
         setScale, setOffset, setSelectedId, toggleSelection, clearSelection,
-        setIsDrawing, setCurrentTool, isShortcutLocked
+        setIsDrawing, setCurrentTool
     } = useCanvasStore();
-    const { addShape, updateShape, deleteShape, undo, redo, updateAwareness, isConnected, isSynced } = useYjs(roomId);
+    const { addShape, updateShape, deleteShape, updateAwareness, isConnected, isSynced } = useYjs(roomId);
     const { theme } = useThemeStore();
     const shapeRefs = useRef<Record<string, any>>({});
     const trRef = useRef<any>(null);
@@ -66,68 +66,24 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
     const [editText, setEditText] = useState('');
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-    // 监听键盘事件 (快捷键)
+    // 监听键盘事件 (只保留 Escape 和 Delete)
     useEffect(() => {
         if (isGuest) return;
 
         const handleKeyDown = (e: KeyboardEvent) => {
             if (editingTextId) return;
 
-            // 如果快捷键被锁定，且不是撤销/重做/删除，则忽略工具切换
-            // 允许撤销/重做/删除即使在锁定时也能使用吗？用户说 "无法输入数字"，说明是工具快捷键冲突。
-            // 通常锁定快捷键是为了防止打字时误触工具。
-            // 如果是输入数字，那是文本编辑状态，`editingTextId` 会拦截。
-            // 但用户可能是在 Commit 信息输入框（HistoryPanel）里输入数字？
-            // 如果焦点在 HistoryPanel 的 input 里，Canvas 的监听器会触发吗？
-            // `window.addEventListener` 会捕获所有。
-            // 所以我们需要检查 activeElement。
-
             const activeElement = document.activeElement;
             const isInputActive = activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA';
             if (isInputActive) return;
 
-            if (isShortcutLocked) return;
-
-            // 工具快捷键
-            const toolKeys: Record<string, ToolType> = {
-                'v': 'select', '1': 'select',
-                'h': 'hand', '2': 'hand',
-                'r': 'rect', '3': 'rect',
-                'o': 'circle', '4': 'circle',
-                'd': 'diamond', '5': 'diamond',
-                'a': 'arrow', '6': 'arrow',
-                'l': 'line', '7': 'line',
-                'p': 'freedraw', '8': 'freedraw',
-                't': 'text', '9': 'text',
-                'e': 'eraser',
-            };
-
-            if (toolKeys[e.key.toLowerCase()] && !e.ctrlKey && !e.metaKey) {
-                setCurrentTool(toolKeys[e.key.toLowerCase()]);
-                e.preventDefault();
-                return;
-            }
-
+            // Delete/Backspace 删除选中的图形
             if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.length > 0) {
                 selectedIds.forEach(id => deleteShape(id));
                 clearSelection();
             }
 
-            if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-                if (e.shiftKey) {
-                    redo();
-                } else {
-                    undo();
-                }
-                e.preventDefault();
-            }
-
-            if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
-                redo();
-                e.preventDefault();
-            }
-
-            // Escape 取消当前绘制
+            // Escape 取消当前绘制或选择
             if (e.key === 'Escape') {
                 if (isDrawing && drawingShape) {
                     setDrawingShape(null);
@@ -139,7 +95,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selectedIds, deleteShape, clearSelection, undo, redo, editingTextId, isGuest, isDrawing, drawingShape, setCurrentTool, setIsDrawing]);
+    }, [selectedIds, deleteShape, clearSelection, editingTextId, isGuest, isDrawing, drawingShape, setCurrentTool, setIsDrawing]);
 
     // 自动聚焦文本框
     useEffect(() => {
