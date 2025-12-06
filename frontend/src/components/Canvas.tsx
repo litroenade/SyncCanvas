@@ -17,6 +17,7 @@ import { useThemeStore } from '../stores/useThemeStore';
 import { cn } from '../lib/utils';
 import { PropertiesPanel } from './PropertiesPanel';
 import { Cursors } from './Cursors';
+import { ZoomControls } from './ZoomControls';
 
 /**
  * 获取鼠标在画布世界坐标系中的位置
@@ -493,6 +494,11 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
             {!isGuest && <Toolbar />}
             <Sidebar onExport={handleExport} roomId={roomId} />
             {!isGuest && <PropertiesPanel />}
+
+            {/* 缩放控制栏 - 左下角 */}
+            <div className="fixed bottom-4 left-4 z-50">
+                <ZoomControls />
+            </div>
 
             {/* 连接状态指示器 */}
             <div className={cn(

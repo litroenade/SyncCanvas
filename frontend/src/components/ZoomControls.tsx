@@ -1,19 +1,13 @@
-import { Minus, Plus, RotateCcw, Undo2, Redo2, Maximize } from 'lucide-react'
+import { Minus, Plus, RotateCcw, Maximize } from 'lucide-react'
 import { useCanvasStore } from '../stores/useCanvasStore'
-
-interface ZoomControlsProps {
-  onUndo?: () => void
-  onRedo?: () => void
-  canUndo?: boolean
-  canRedo?: boolean
-}
 
 /**
  * 缩放控制组件
  * 
  * 提供放大、缩小、重置视图和适应屏幕功能。
+ * 点击百分比数字可重置为 100%。
  */
-export function ZoomControls({ onUndo, onRedo, canUndo, canRedo }: ZoomControlsProps) {
+export function ZoomControls() {
   const { scale, setScale, setOffset, shapes } = useCanvasStore()
 
   const handleZoomIn = () => {
@@ -22,6 +16,10 @@ export function ZoomControls({ onUndo, onRedo, canUndo, canRedo }: ZoomControlsP
 
   const handleZoomOut = () => {
     setScale(Math.max(scale / 1.2, 0.1))
+  }
+
+  const handleResetScale = () => {
+    setScale(1)
   }
 
   const handleReset = () => {
@@ -45,19 +43,10 @@ export function ZoomControls({ onUndo, onRedo, canUndo, canRedo }: ZoomControlsP
       const width = el.width || 100
       const height = el.height || 100
 
-      if (el.type === 'rect' || el.type === 'text') { // Text treated as rect for simplicity
-        minX = Math.min(minX, el.x)
-        maxX = Math.max(maxX, el.x + width)
-        minY = Math.min(minY, el.y)
-        maxY = Math.max(maxY, el.y + height)
-      } else if (el.type === 'circle') {
-        // Circle x,y is usually top-left in Konva unless centered. 
-        // Assuming top-left based on Canvas.tsx implementation
-        minX = Math.min(minX, el.x)
-        maxX = Math.max(maxX, el.x + width)
-        minY = Math.min(minY, el.y)
-        maxY = Math.max(maxY, el.y + height)
-      }
+      minX = Math.min(minX, el.x)
+      maxX = Math.max(maxX, el.x + width)
+      minY = Math.min(minY, el.y)
+      maxY = Math.max(maxY, el.y + height)
     })
 
     if (minX === Infinity) {
@@ -92,34 +81,19 @@ export function ZoomControls({ onUndo, onRedo, canUndo, canRedo }: ZoomControlsP
   return (
     <div className="flex items-center gap-1 p-1 bg-white/90 backdrop-blur-md rounded-lg shadow-sm border border-slate-200/60 pointer-events-auto">
       <button
-        onClick={onUndo}
-        disabled={!canUndo}
-        className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-500 rounded-md transition-colors"
-        title="撤销 (Ctrl+Z)"
-      >
-        <Undo2 size={16} />
-      </button>
-      <button
-        onClick={onRedo}
-        disabled={!canRedo}
-        className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-500 rounded-md transition-colors"
-        title="重做 (Ctrl+Y)"
-      >
-        <Redo2 size={16} />
-      </button>
-
-      <div className="w-px h-4 bg-slate-200 mx-1" />
-
-      <button
         onClick={handleZoomOut}
         className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
         title="缩小"
       >
         <Minus size={16} />
       </button>
-      <span className="w-12 text-center text-xs font-medium text-slate-600 select-none">
+      <button
+        onClick={handleResetScale}
+        className="w-12 text-center text-xs font-medium text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 py-1 rounded-md transition-colors"
+        title="点击重置为 100%"
+      >
         {Math.round(scale * 100)}%
-      </span>
+      </button>
       <button
         onClick={handleZoomIn}
         className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
