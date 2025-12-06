@@ -128,6 +128,18 @@ interface CanvasState {
 /**
  * 画布状态管理 Hook (Zustand)
  */
+
+// 从 localStorage 读取持久化的颜色配置
+const getStoredColor = (key: string, defaultValue: string): string => {
+  if (typeof window === 'undefined') return defaultValue
+  return localStorage.getItem(key) || defaultValue
+}
+const getStoredNumber = (key: string, defaultValue: number): number => {
+  if (typeof window === 'undefined') return defaultValue
+  const stored = localStorage.getItem(key)
+  return stored ? Number(stored) : defaultValue
+}
+
 export const useCanvasStore = create<CanvasState>((set) => ({
   currentTool: 'select',
   setCurrentTool: (tool) => set({ currentTool: tool }),
@@ -136,12 +148,23 @@ export const useCanvasStore = create<CanvasState>((set) => ({
   shapes: {},
   selectedIds: [],
   showGrid: true,
-  currentFillColor: 'transparent',
-  currentStrokeColor: '#1e1e1e',
-  currentStrokeWidth: 2,
-  setCurrentFillColor: (color) => set({ currentFillColor: color }),
-  setCurrentStrokeColor: (color) => set({ currentStrokeColor: color }),
-  setCurrentStrokeWidth: (width) => set({ currentStrokeWidth: width }),
+  // 从 localStorage 读取初始颜色配置
+  currentFillColor: getStoredColor('canvas_fillColor', 'transparent'),
+  currentStrokeColor: getStoredColor('canvas_strokeColor', '#1e1e1e'),
+  currentStrokeWidth: getStoredNumber('canvas_strokeWidth', 2),
+  // 设置颜色时保存到 localStorage
+  setCurrentFillColor: (color) => {
+    localStorage.setItem('canvas_fillColor', color)
+    set({ currentFillColor: color })
+  },
+  setCurrentStrokeColor: (color) => {
+    localStorage.setItem('canvas_strokeColor', color)
+    set({ currentStrokeColor: color })
+  },
+  setCurrentStrokeWidth: (width) => {
+    localStorage.setItem('canvas_strokeWidth', width.toString())
+    set({ currentStrokeWidth: width })
+  },
   setShowGrid: (show) => set({ showGrid: show }),
   toggleGrid: () => set((state) => ({ showGrid: !state.showGrid })),
   setScale: (scale) => set({ scale: Math.max(0.1, Math.min(5, scale)) }),
