@@ -97,6 +97,8 @@ interface CanvasState {
   deleteShape: (id: string) => void
   /** 设置选中图形 ID (单选) */
   setSelectedId: (id: string | null) => void
+  /** 设置多个选中图形 ID (多选/框选) */
+  setSelectedIds: (ids: string[]) => void
   /** 切换选中状态 (多选) */
   toggleSelection: (id: string) => void
   /** 远程光标数据 (ClientID -> Cursor Data) */
@@ -146,6 +148,7 @@ export const useCanvasStore = create<CanvasState>((set) => ({
   setOffset: (offset) => set({ offset }),
   setShapes: (shapes) => set({ shapes }),
   setSelectedId: (id) => set({ selectedIds: id ? [id] : [] }),
+  setSelectedIds: (ids) => set({ selectedIds: ids }),
   toggleSelection: (id) => set((state) => {
     const ids = new Set(state.selectedIds);
     if (ids.has(id)) {

@@ -46,7 +46,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
         scale, offset, shapes, selectedIds, cursors, isGuest,
         currentTool, isDrawing,
         currentFillColor, currentStrokeColor, currentStrokeWidth,
-        setScale, setOffset, setSelectedId, toggleSelection, clearSelection,
+        setScale, setOffset, setSelectedId, setSelectedIds, toggleSelection, clearSelection,
         setIsDrawing, setCurrentTool
     } = useCanvasStore();
     const { addShape, updateShape, deleteShape, updateAwareness, isConnected, isSynced } = useYjs(roomId);
@@ -65,6 +65,11 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
     const [editingTextId, setEditingTextId] = useState<string | null>(null);
     const [editText, setEditText] = useState('');
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // 框选状态
+    const [isSelecting, setIsSelecting] = useState(false);
+    const [selectionBox, setSelectionBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+    const selectionStartRef = useRef<{ x: number; y: number } | null>(null);
 
     // 监听键盘事件 (只保留 Escape 和 Delete)
     useEffect(() => {
@@ -203,12 +208,16 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
         const pos = getWorldPos(stage);
         if (!pos) return;
 
-        // select 工具：点击空白取消选择
+        // select 工具：点击空白启动框选
         if (currentTool === 'select') {
             const clickedOnEmpty = e.target === stage;
             if (clickedOnEmpty) {
                 clearSelection();
                 setEditingTextId(null);
+                // 启动框选
+                selectionStartRef.current = pos;
+                setIsSelecting(true);
+                setSelectionBox({ x: pos.x, y: pos.y, width: 0, height: 0 });
             }
             return;
         }
@@ -306,6 +315,20 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
             updateAwareness(pos.x, pos.y);
         }
 
+        // 框选处理
+        if (isSelecting && selectionStartRef.current && pos) {
+            const start = selectionStartRef.current;
+            const width = pos.x - start.x;
+            const height = pos.y - start.y;
+            setSelectionBox({
+                x: width < 0 ? pos.x : start.x,
+                y: height < 0 ? pos.y : start.y,
+                width: Math.abs(width),
+                height: Math.abs(height),
+            });
+            return;
+        }
+
         // 非绘制状态，跳过
         const shape = drawingShapeRef.current;
         if (!isDrawing || !shape || !drawStartRef.current || !pos) return;
@@ -361,12 +384,43 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
                 rafIdRef.current = null;
             });
         }
-    }, [isDrawing, updateAwareness]);
+    }, [isDrawing, isSelecting, updateAwareness]);
 
     /**
-     * 结束绘制 - 最终同步到 Yjs
+     * 结束绘制/框选 - 最终同步到 Yjs
      */
     const handleDrawEnd = useCallback(() => {
+        // 框选结束处理
+        if (isSelecting && selectionBox) {
+            // 计算框选范围内的所有图形
+            const selectedShapeIds = Object.values(shapes)
+                .filter(shape => {
+                    const shapeLeft = shape.x;
+                    const shapeTop = shape.y;
+                    const shapeRight = shape.x + (shape.width || 0);
+                    const shapeBottom = shape.y + (shape.height || 0);
+
+                    const boxLeft = selectionBox.x;
+                    const boxTop = selectionBox.y;
+                    const boxRight = selectionBox.x + selectionBox.width;
+                    const boxBottom = selectionBox.y + selectionBox.height;
+
+                    // 检查图形是否与框选矩形相交
+                    return !(shapeRight < boxLeft || shapeLeft > boxRight || shapeBottom < boxTop || shapeTop > boxBottom);
+                })
+                .map(shape => shape.id);
+
+            if (selectedShapeIds.length > 0) {
+                setSelectedIds(selectedShapeIds);
+            }
+
+            // 清理框选状态
+            setIsSelecting(false);
+            setSelectionBox(null);
+            selectionStartRef.current = null;
+            return;
+        }
+
         // 取消挂起的 RAF
         if (rafIdRef.current !== null) {
             cancelAnimationFrame(rafIdRef.current);
@@ -395,7 +449,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
         setDrawingShape(null);
         setIsDrawing(false);
         drawStartRef.current = null;
-    }, [isDrawing, addShape, setSelectedId, setIsDrawing]);
+    }, [isDrawing, isSelecting, selectionBox, shapes, addShape, setSelectedId, setSelectedIds, setIsDrawing]);
 
     /**
      * 处理图形点击（用于 eraser 和 select）
@@ -729,6 +783,21 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
                             }
                             return null;
                         })()
+                    )}
+
+                    {/* 渲染框选矩形 */}
+                    {isSelecting && selectionBox && (
+                        <Rect
+                            x={selectionBox.x}
+                            y={selectionBox.y}
+                            width={selectionBox.width}
+                            height={selectionBox.height}
+                            fill="rgba(59, 130, 246, 0.1)"
+                            stroke="#3b82f6"
+                            strokeWidth={1}
+                            dash={[5, 5]}
+                            listening={false}
+                        />
                     )}
 
                     {!isGuest && currentTool === 'select' && (
