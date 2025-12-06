@@ -82,6 +82,61 @@ app.mount("/api/images", StaticFiles(directory=IMAGES_DIR), name="images")
 
 # 前端构建产物路径
 FRONTEND_DIST_DIR = os.path.join(os.path.dirname(__file__), "frontend", "dist")
+FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "frontend")
+
+
+def build_frontend():
+    """自动构建前端"""
+    import subprocess
+
+    logger.info("检测到前端构建目录不存在，开始自动构建...")
+
+    try:
+        # 检查是否有 pnpm
+        result = subprocess.run(
+            ["pnpm", "--version"],
+            capture_output=True,
+            text=True,
+            cwd=FRONTEND_DIR,
+            shell=True,
+        )
+        if result.returncode != 0:
+            logger.warning("未找到 pnpm，尝试使用 npm")
+            pkg_manager = "npm"
+        else:
+            pkg_manager = "pnpm"
+
+        # 安装依赖
+        logger.info(f"使用 {pkg_manager} 安装依赖...")
+        subprocess.run(
+            [pkg_manager, "install"],
+            cwd=FRONTEND_DIR,
+            check=True,
+            shell=True,
+        )
+
+        # 构建
+        logger.info(f"使用 {pkg_manager} 构建前端...")
+        subprocess.run(
+            [pkg_manager, "run", "build"],
+            cwd=FRONTEND_DIR,
+            check=True,
+            shell=True,
+        )
+
+        logger.info("前端构建完成！")
+        return True
+    except subprocess.CalledProcessError as e:
+        logger.error(f"前端构建失败: {e}")
+        return False
+    except FileNotFoundError as e:
+        logger.error(f"包管理器未找到: {e}")
+        return False
+
+
+# 检查前端构建目录，如果不存在则自动构建
+if not os.path.exists(FRONTEND_DIST_DIR):
+    build_frontend()
 
 if os.path.exists(FRONTEND_DIST_DIR):
     # 挂载静态资源 (assets 目录)

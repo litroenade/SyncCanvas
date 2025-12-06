@@ -8,14 +8,20 @@ __pycache__
 # Environment
 .env
 
+# Config (contains secrets)
+config.toml
+
 # OS
 .DS_Store
 Thumbs.db
 
 # Node
 node_modules
-# dist
 .npm-cache
+
+# Frontend build output
+frontend/dist
+frontend/build_log.txt
 
 # IDE
 .vscode
