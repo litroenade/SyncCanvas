@@ -129,18 +129,13 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) => {
 
     setCommitting(true)
     try {
-      // 获取用户信息
+      // 获取用户信息：从 localStorage 中读取 username 或 temp_username
       let authorName = 'Anonymous';
-      const userStr = localStorage.getItem('user');
-      if (userStr) {
-        try {
-          const user = JSON.parse(userStr);
-          authorName = user.username || user.name || 'Anonymous';
-        } catch (e) {
-          console.error('解析用户信息失败', e);
-        }
+      const storedUsername = localStorage.getItem('username');
+      if (storedUsername) {
+        authorName = storedUsername;
       } else {
-        // 如果没有登录，尝试从 localStorage 获取临时用户名
+        // 如果没有登录用户名，尝试从 localStorage 获取临时用户名
         const tempName = localStorage.getItem('temp_username');
         if (tempName) {
           authorName = tempName;
