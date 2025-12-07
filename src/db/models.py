@@ -12,6 +12,7 @@
 from datetime import datetime
 from typing import Optional
 
+from sqlalchemy import Column, JSON
 from sqlmodel import Field, SQLModel
 
 
@@ -82,5 +83,33 @@ class Update(SQLModel, table=True):
     room_id: str = Field(index=True, max_length=36)
     data: bytes = Field()
     timestamp: int = Field(
+        default_factory=lambda: int(datetime.utcnow().timestamp() * 1000)
+    )
+
+
+class AgentRun(SQLModel, table=True):
+    """Agent 运行记录"""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    room_id: str = Field(index=True, max_length=36)
+    prompt: str = Field(max_length=2000)
+    model: str = Field(default="", max_length=100)
+    status: str = Field(default="running", max_length=20)
+    message: str = Field(default="", max_length=1000)
+    created_at: int = Field(
+        default_factory=lambda: int(datetime.utcnow().timestamp() * 1000)
+    )
+    finished_at: Optional[int] = Field(default=None)
+
+
+class AgentAction(SQLModel, table=True):
+    """Agent 工具调用记录"""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    run_id: int = Field(foreign_key="agentrun.id", index=True)
+    tool: str = Field(max_length=64)
+    arguments: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    result: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: int = Field(
         default_factory=lambda: int(datetime.utcnow().timestamp() * 1000)
     )

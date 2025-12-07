@@ -143,72 +143,75 @@ SyncCanvas/
     └── app.log             # 应用日志
 ```
 
-## 快速开始
+## Quick Start
 
-### 1. 启动服务器
+### 1. Start Backend
 
 ```bash
-# 后端 + 前端静态文件 (生产模式)
+# Backend + Frontend Static Files (Production Mode)
 uv run python main.py
 ```
 
-服务将在 `http://127.0.0.1:8021` 启动。
+Server will start at `http://127.0.0.1:8021`.
 
-### 2. 开发模式
+### 2. Development Mode
 
 ```bash
-# 后端
+# Backend
 uv run python main.py
 
-# 前端 (另一个终端)
+# Frontend (in another terminal)
 cd frontend
 pnpm dev
 ```
 
-### 3. 构建前端
+### 3. Build Frontend
 
 ```bash
 cd frontend
 pnpm run build
 ```
 
-构建输出到 `frontend/dist/`，后端自动提供静态服务。
+Build output goes to `frontend/dist/`, served automatically by backend.
 
 ### 4. 登录
 
 使用 `data/settings.json` 中的 `secret_key` 登录：
+
 - 用户名：任意
 - 密钥：settings.json 中的 secret_key
 
 ## 快捷键
 
-| 快捷键 | 功能 |
-|--------|------|
-| `V` / `1` | 选择工具 |
+| 快捷键    | 功能                |
+| --------- | ------------------- |
+| `V` / `1` | 选择工具            |
 | `H` / `2` | 手形工具 (移动画布) |
-| `R` / `3` | 矩形 |
-| `O` / `4` | 圆形 |
-| `D` / `5` | 菱形 |
-| `A` / `6` | 箭头 |
-| `L` / `7` | 线条 |
-| `P` / `8` | 画笔 (自由绘制) |
-| `T` / `9` | 文本 |
-| `E` | 橡皮擦 |
-| `Ctrl+Z` | 撤销 |
-| `Ctrl+Y` | 重做 |
-| `Delete` | 删除选中 |
-| `Esc` | 取消 / 返回选择 |
-| 鼠标滚轮 | 缩放 |
+| `R` / `3` | 矩形                |
+| `O` / `4` | 圆形                |
+| `D` / `5` | 菱形                |
+| `A` / `6` | 箭头                |
+| `L` / `7` | 线条                |
+| `P` / `8` | 画笔 (自由绘制)     |
+| `T` / `9` | 文本                |
+| `E`       | 橡皮擦              |
+| `Ctrl+Z`  | 撤销                |
+| `Ctrl+Y`  | 重做                |
+| `Delete`  | 删除选中            |
+| `Esc`     | 取消 / 返回选择     |
+| 鼠标滚轮  | 缩放                |
 
 ## 技术栈
 
 **后端:**
+
 - FastAPI
 - pycrdt + pycrdt-websocket (CRDT 同步)
 - SQLModel + SQLite
 - JWT 认证
 
 **前端:**
+
 - React 18 + TypeScript
 - Konva (Canvas 渲染)
 - Yjs + y-websocket (CRDT 客户端)

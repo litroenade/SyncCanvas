@@ -110,7 +110,8 @@ class PersistentWebsocketServer(WebsocketServer):
         self, exception: BaseException | Exception
     ) -> list[BaseException]:
         """展开 BaseExceptionGroup，返回所有底层异常"""
-        if isinstance(exception, Exception):
+        # 检查是否是 ExceptionGroup（有 exceptions 属性）
+        if hasattr(exception, 'exceptions') and exception.exceptions:
             exceptions: list[BaseException] = []
             for inner in exception.exceptions:
                 exceptions.extend(self._iter_exceptions(inner))

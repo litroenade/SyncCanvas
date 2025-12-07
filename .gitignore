@@ -22,6 +22,7 @@ node_modules
 # Frontend build output
 frontend/dist
 frontend/build_log.txt
+frontend/public
 
 # IDE
 .vscode

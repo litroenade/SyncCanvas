@@ -2,15 +2,14 @@
 主要功能: AI 生成形状并注入白板的 API 路由
 """
 
-import uuid
-
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from pycrdt import Map
+from sqlmodel import Session
 
-from src.ai.agent import ai_agent
+from src.db.database import get_session
 from src.logger import get_logger
-from src.ws.sync import websocket_server
+from src.services.ai_service import ai_service
+from src.services.agent_runs import AgentRunService
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 logger = get_logger(__name__)
@@ -29,41 +28,45 @@ class GenerateRequest(BaseModel):
 
 
 @router.post("/generate")
-async def generate_shapes(request: GenerateRequest):
+async def generate_shapes(request: GenerateRequest, session: Session = Depends(get_session)):
     """使用 AI 根据文本提示生成形状并注入到白板中。
 
     Args:
         request: AI 生成请求对象
 
     Returns:
-        dict: 包含状态和生成形状数量的响应
+        dict: 包含状态、工具调用结果的响应
 
     Raises:
         HTTPException: 生成或注入失败时抛出 500 错误
     """
-    logger.info(
-        "收到 AI 生成请求: %s 房间: %s", request.prompt, request.room_id
-    )
+    logger.info("收到 AI 生成请求", extra={"room": request.room_id})
 
-    shapes = await ai_agent.generate_shapes(request.prompt)
-
-    if not shapes:
-        raise HTTPException(status_code=500, detail="生成形状失败")
-
-    # 将形状注入到 CRDT 文档
     try:
-        # 从 websocket_server 获取房间 (注意: get_room 是异步方法)
-        room = await websocket_server.get_room(request.room_id)
-        doc = room.ydoc
-        shapes_map = doc.get("shapes", type=Map)
-
-        with doc.transaction(origin="ai"):
-            for shape in shapes:
-                shape_id = str(uuid.uuid4())
-                shapes_map[shape_id] = shape
+        # Use the new AI Service
+        response = await ai_service.process_request(
+            user_input=request.prompt,
+            session_id=request.room_id,
+            db=session
+        )
+        
+        return {
+            "status": "success",
+            "message": "AI processing completed",
+            "response": response
+        }
 
     except Exception as e:
-        logger.error("注入形状失败: %s", e)
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        logger.error(f"AI 生成失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
-    return {"status": "success", "count": len(shapes)}
+
+@router.get("/runs/{run_id}")
+async def get_run_detail(run_id: int, session: Session = Depends(get_session)):
+    """查询指定 agent 运行的详情与工具调用记录。"""
+
+    service = AgentRunService(session)
+    detail = service.get_run_detail(run_id)
+    if not detail:
+        raise HTTPException(status_code=404, detail="run_not_found")
+    return {"status": "ok", "data": detail}

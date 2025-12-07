@@ -1,0 +1,30 @@
+# SyncCanvas 配置文件示例
+# 版本号用于自动升级，勿随意删除
+version = 1
+
+[security]
+secret_key = "请替换为随机字符串"
+admin_key = "admin"
+
+[server]
+host = "0.0.0.0"
+port = 8000
+allowed_origins = ["*"]
+
+[database]
+url = "sqlite:///./data/sync_canvas.db"
+echo = false
+
+[ai]
+provider = "siliconflow"
+model = "Qwen/Qwen2.5-14B-Instruct"
+base_url = "https://api.siliconflow.cn/v1"
+api_key = ""
+# 兜底服务商，保持 OpenAI 兼容
+fallback_provider = "openai"
+fallback_model = "gpt-4o-mini"
+fallback_base_url = "https://api.openai.com/v1"
+fallback_api_key = ""
+# 工具调用策略: auto/none/required
+tool_choice = "auto"
+max_tool_calls = 6

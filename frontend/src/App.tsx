@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import React, { Component, ErrorInfo, ReactNode, useEffect } from 'react';
-import { Canvas } from './components/Canvas';
+import { ExcalidrawCanvas } from './components/ExcalidrawCanvas';
 import { Login } from './pages/Login';
 import { Rooms } from './pages/Rooms';
 
@@ -145,10 +145,9 @@ function App() {
 
 const Board = () => {
   const { roomId } = useParams<{ roomId: string }>();
-  // 注意：useYjs 在 Canvas 组件内部调用，不需要在这里重复调用
   return (
     <div className="App">
-      <Canvas roomId={roomId} />
+      <ExcalidrawCanvas roomId={roomId} />
     </div>
   );
 };

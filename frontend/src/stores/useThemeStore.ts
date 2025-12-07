@@ -5,6 +5,10 @@ interface ThemeState {
     theme: 'light' | 'dark';
     toggleTheme: () => void;
     setTheme: (theme: 'light' | 'dark') => void;
+    excalidrawConfig: {
+        viewBackgroundColor: string;
+    };
+    setExcalidrawConfig: (config: Partial<ThemeState['excalidrawConfig']>) => void;
 }
 
 export const useThemeStore = create<ThemeState>()(
@@ -13,6 +17,12 @@ export const useThemeStore = create<ThemeState>()(
             theme: 'light',
             toggleTheme: () => set((state) => ({ theme: state.theme === 'light' ? 'dark' : 'light' })),
             setTheme: (theme) => set({ theme }),
+            excalidrawConfig: {
+                viewBackgroundColor: '#ffffff',
+            },
+            setExcalidrawConfig: (config) => set((state) => ({
+                excalidrawConfig: { ...state.excalidrawConfig, ...config }
+            })),
         }),
         {
             name: 'theme-storage',

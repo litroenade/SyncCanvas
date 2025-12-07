@@ -2,12 +2,13 @@
 主要功能: 数据库 CRUD 操作，提供房间、提交、更新、成员、笔画等数据的增删改查
 """
 
+import time
 from typing import List, Optional
 
 from sqlalchemy import desc
 from sqlmodel import Session, select
 
-from .models import Room, Update, RoomMember, Commit
+from .models import Room, Update, RoomMember, Commit, AgentRun, AgentAction
 
 
 def create_room(session: Session, room: Room) -> Room:
@@ -344,3 +345,47 @@ def delete_updates_before(session: Session, room_id: str, timestamp: int):
     for update in results:
         session.delete(update)
     session.commit()
+
+
+# ============ Agent 运行记录 ============
+
+
+def create_agent_run(session: Session, run: AgentRun) -> AgentRun:
+    """创建新的 Agent 运行记录"""
+
+    session.add(run)
+    session.commit()
+    session.refresh(run)
+    return run
+
+
+def finish_agent_run(session: Session, run_id: int, status: str, message: str = "") -> AgentRun:
+    """更新 Agent 运行状态"""
+
+    run = session.get(AgentRun, run_id)
+    if not run:
+        raise ValueError(f"Agent run not found: {run_id}")
+
+    run.status = status
+    run.message = message
+    run.finished_at = int(time.time() * 1000)
+    session.add(run)
+    session.commit()
+    session.refresh(run)
+    return run
+
+
+def create_agent_action(session: Session, action: AgentAction) -> AgentAction:
+    """记录 Agent 的工具调用"""
+
+    session.add(action)
+    session.commit()
+    session.refresh(action)
+    return action
+
+
+def list_agent_actions(session: Session, run_id: int) -> List[AgentAction]:
+    """列出指定运行的所有工具调用"""
+
+    statement = select(AgentAction).where(AgentAction.run_id == run_id).order_by(AgentAction.created_at)
+    return list(session.exec(statement))

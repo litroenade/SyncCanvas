@@ -12,6 +12,8 @@ from src.db.models import (  # noqa: F401  # pylint: disable=unused-import
     RoomMember,
     Update,
     Commit,
+    AgentRun,
+    AgentAction,
 )
 from src.config import DATABASE_URL, DB_ECHO
 
