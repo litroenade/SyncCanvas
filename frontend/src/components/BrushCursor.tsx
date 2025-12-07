@@ -27,33 +27,41 @@ export const BrushCursor: React.FC = () => {
             return;
         }
 
+        // Show cursor immediately when tool is active
+        setIsVisible(true);
+
         const handleMouseMove = (e: MouseEvent) => {
-            // 检查鼠标是否在 Canvas 区域内 (假设 Canvas 是主要交互区域)
-            // 简单起见，只要在页面上就显示，或者可以通过 e.target 判断
-            const target = e.target as HTMLElement;
-            // 检查是否在 canvas 容器或 stage 内
-            const isOnCanvas = target.tagName === 'CANVAS' || target.closest('.konvajs-content');
-
-            setIsVisible(!!isOnCanvas);
-
-            if (isOnCanvas) {
-                // 使用 requestAnimationFrame 更新位置以获得更平滑的效果
-                if (cursorRef.current) {
-                    cursorRef.current.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
-                }
+            // Update position
+            if (cursorRef.current) {
+                cursorRef.current.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
             }
+
+            // Optional: Hide if hovering over UI elements like sidebar/toolbar which have high z-index and pointer-events
+            // But simple logic is often better: just show it if tool is active.
+            // The system cursor is hidden by Canvas.tsx style.
+            
+            // If we are over the UI (Toolbar/Sidebar), we might want to see the system cursor.
+            // Canvas.tsx sets cursor: 'none' on the wrapper div.
+            // Areas outside wrapper (if any) or fixed elements on top (Toolbar) might show system cursor.
+            // Let's rely on CSS mostly.
         };
 
         const handleMouseLeave = () => {
             setIsVisible(false);
         };
+        
+        const handleMouseEnter = () => {
+            setIsVisible(true);
+        };
 
         window.addEventListener('mousemove', handleMouseMove);
         document.body.addEventListener('mouseleave', handleMouseLeave);
+        document.body.addEventListener('mouseenter', handleMouseEnter);
 
         return () => {
             window.removeEventListener('mousemove', handleMouseMove);
             document.body.removeEventListener('mouseleave', handleMouseLeave);
+            document.body.removeEventListener('mouseenter', handleMouseEnter);
         };
     }, [isBrushTool]);
 

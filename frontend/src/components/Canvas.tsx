@@ -117,14 +117,22 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
 
     // 更新 Transformer 选中节点
     useEffect(() => {
-        if (trRef.current && currentTool === 'select') {
+        if (!trRef.current) return;
+
+        if (currentTool === 'select' && selectedIds.length > 0) {
             const nodes = selectedIds
                 .map(id => shapeRefs.current[id])
                 .filter(node => node !== undefined);
-            trRef.current.nodes(nodes);
-            trRef.current.getLayer()?.batchDraw();
-        } else if (trRef.current) {
+            
+            if (nodes.length > 0) {
+                trRef.current.nodes(nodes);
+                trRef.current.getLayer()?.batchDraw();
+            } else {
+                trRef.current.nodes([]);
+            }
+        } else {
             trRef.current.nodes([]);
+            trRef.current.getLayer()?.batchDraw();
         }
     }, [selectedIds, currentTool]);
 
@@ -149,7 +157,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
             if (!startPos) return;
 
             const dx = e.target.x() - startPos.x;
-            const dy = e.target.y() - startPos.y;
+            const dy = e.target.y() - startPos.y; 
 
             selectedIds.forEach(sid => {
                 if (sid !== id) {
@@ -161,6 +169,9 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
                     }
                 }
             });
+            
+            // 使用 batchDraw 提高拖拽平滑度
+            e.target.getLayer()?.batchDraw();
         }
     }, [isGuest, currentTool, selectedIds]);
 
@@ -276,7 +287,9 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
         if (currentTool === 'select') {
             const clickedOnEmpty = e.target === stage;
             if (clickedOnEmpty) {
-                clearSelection();
+                if (!e.evt.shiftKey) {
+                    clearSelection();
+                }
                 setEditingTextId(null);
                 // 启动框选
                 selectionStartRef.current = pos;
@@ -460,7 +473,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
     /**
      * 结束绘制/框选 - 最终同步到 Yjs
      */
-    const handleDrawEnd = useCallback(() => {
+    const handleDrawEnd = useCallback((e?: any) => {
         // 框选结束处理
         if (isSelecting && selectionBox) {
             // 计算框选范围内的所有图形
@@ -482,7 +495,12 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
                 .map(shape => shape.id);
 
             if (selectedShapeIds.length > 0) {
-                setSelectedIds(selectedShapeIds);
+                if (e?.evt?.shiftKey) {
+                    const newSet = new Set([...selectedIds, ...selectedShapeIds]);
+                    setSelectedIds(Array.from(newSet));
+                } else {
+                    setSelectedIds(selectedShapeIds);
+                }
             }
 
             // 清理框选状态
@@ -520,7 +538,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
         setDrawingShape(null);
         setIsDrawing(false);
         drawStartRef.current = null;
-    }, [isDrawing, isSelecting, selectionBox, shapes, addShape, setSelectedId, setSelectedIds, setIsDrawing]);
+    }, [isDrawing, isSelecting, selectionBox, shapes, addShape, setSelectedId, setSelectedIds, setIsDrawing, selectedIds]);
 
     /**
      * 处理图形点击（用于 eraser 和 select）

@@ -33,7 +33,7 @@ export const Rooms: React.FC = () => {
   const { theme, toggleTheme } = useThemeStore()
   const [rooms, setRooms] = useState<Room[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null) 
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showJoinModal, setShowJoinModal] = useState<Room | null>(null)
 

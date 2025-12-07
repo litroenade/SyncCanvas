@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import { yjsManager } from '../lib/yjs';
 import { useCanvasStore, ToolType, Shape } from '../stores/useCanvasStore';
 import {
@@ -92,7 +93,7 @@ export const Toolbar: React.FC = () => {
 
             // 使用服务器返回的 URL
             addShape({
-                id: crypto.randomUUID(),
+                id: uuidv4(),
                 type: 'image',
                 x: window.innerWidth / 2 - 100,
                 y: window.innerHeight / 2 - 100,
