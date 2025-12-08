@@ -19,8 +19,8 @@ from src.routers.igit.models import (
 )
 from src.routers.igit.utils import (
     generate_commit_hash,
-    parse_yjs_strokes,
-    compute_strokes_diff,
+    parse_yjs_elements,
+    compute_elements_diff,
 )
 
 logger = get_logger(__name__)
@@ -31,6 +31,11 @@ class IGitService:
 
     def __init__(self, session: Session):
         self.session = session
+    
+    def _get_contributor_ids(self, room_id: str) -> set:
+        """获取房间的所有贡献者 ID"""
+        commits = crud.get_commits_by_room(self.session, room_id, limit=1000)
+        return {c.author_id for c in commits if c.author_id is not None}
 
     async def create_commit(
         self,
@@ -119,8 +124,20 @@ class IGitService:
         # 生成哈希
         commit.hash = generate_commit_hash(commit.id, current_time)
 
-        # 更新房间的 HEAD
+        # 更新房间的 HEAD 和统计信息
         room.head_commit_id = commit.id
+        room.last_active_at = int(time.time())
+        
+        # 解析元素并更新统计
+        elements = parse_yjs_elements(doc_data)
+        valid_elements = [el for el in elements.values() 
+                        if isinstance(el, dict) and not el.get("isDeleted")]
+        room.elements_count = len(valid_elements)
+        
+        # 更新贡献者数量（简化逻辑：每次提交检查是否是新贡献者）
+        if author_id and author_id not in self._get_contributor_ids(room_id):
+            room.total_contributors = (room.total_contributors or 0) + 1
+        
         self.session.add(room)
 
         # 清理 Update 表 (已经合并到 Commit 中了)
@@ -314,13 +331,22 @@ class IGitService:
         if not commit or commit.room_id != room_id:
             raise ValueError("提交不存在")
 
-        strokes = parse_yjs_strokes(commit.data)
+        elements = parse_yjs_elements(commit.data)
 
-        stroke_types = {}
-        for stroke in strokes.values():
-            if isinstance(stroke, dict):
-                stroke_type = stroke.get("type", "unknown")
-                stroke_types[stroke_type] = stroke_types.get(stroke_type, 0) + 1
+        element_types = {}
+        for element in elements.values():
+            if isinstance(element, dict):
+                # 跳过已删除的元素
+                if element.get("isDeleted"):
+                    continue
+                element_type = element.get("type", "unknown")
+                element_types[element_type] = element_types.get(element_type, 0) + 1
+
+        # 计算有效元素数量（排除已删除的）
+        valid_elements_count = sum(
+            1 for el in elements.values() 
+            if isinstance(el, dict) and not el.get("isDeleted")
+        )
 
         commit_info = CommitInfo(
             id=commit.id,
@@ -334,7 +360,9 @@ class IGitService:
         )
 
         return CommitDetailResponse(
-            commit=commit_info, strokes_count=len(strokes), stroke_types=stroke_types
+            commit=commit_info, 
+            elements_count=valid_elements_count, 
+            element_types=element_types
         )
 
     def get_commit_diff(
@@ -353,11 +381,11 @@ class IGitService:
         elif to_commit.parent_id:
             from_commit = crud.get_commit_by_id(self.session, to_commit.parent_id)
 
-        old_strokes = parse_yjs_strokes(from_commit.data) if from_commit else {}
-        new_strokes = parse_yjs_strokes(to_commit.data)
+        old_elements = parse_yjs_elements(from_commit.data) if from_commit else {}
+        new_elements = parse_yjs_elements(to_commit.data)
 
-        added, removed, modified, changes = compute_strokes_diff(
-            old_strokes, new_strokes
+        added, removed, modified, changes = compute_elements_diff(
+            old_elements, new_elements
         )
 
         from_commit_info = None
@@ -393,9 +421,9 @@ class IGitService:
             room_id=room_id,
             from_commit=from_commit_info,
             to_commit=to_commit_info,
-            strokes_added=added,
-            strokes_removed=removed,
-            strokes_modified=modified,
+            elements_added=added,
+            elements_removed=removed,
+            elements_modified=modified,
             changes=changes,
             size_diff=to_size - from_size,
         )

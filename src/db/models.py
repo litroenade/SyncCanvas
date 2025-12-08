@@ -30,6 +30,9 @@ class Room(SQLModel, table=True):
         max_users (int): 最大用户数
         created_at (int): 创建时间戳 (秒)
         head_commit_id (int): 当前 HEAD 指向的提交 ID (类似 Git HEAD)
+        elements_count (int): 当前画布元素数量
+        total_contributors (int): 历史贡献者总数
+        last_active_at (int): 最后活跃时间戳 (秒)
     """
 
     id: str = Field(primary_key=True, max_length=36)
@@ -40,6 +43,10 @@ class Room(SQLModel, table=True):
     max_users: int = Field(default=10)
     created_at: int = Field(default_factory=lambda: int(datetime.utcnow().timestamp()))
     head_commit_id: Optional[int] = Field(default=None)
+    # 房间统计信息
+    elements_count: int = Field(default=0)
+    total_contributors: int = Field(default=0)
+    last_active_at: Optional[int] = Field(default=None)
 
 
 class RoomMember(SQLModel, table=True):

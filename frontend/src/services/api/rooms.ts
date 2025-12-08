@@ -28,6 +28,14 @@ export interface Room {
   has_password: boolean
   /** 当前成员数 */
   member_count: number
+  /** 画布元素数量 */
+  elements_count: number
+  /** 历史贡献者数量 */
+  total_contributors: number
+  /** 最后活跃时间 */
+  last_active_at: number | null
+  /** 当前在线人数 */
+  online_count: number
 }
 
 /**
@@ -332,17 +340,17 @@ export interface CreateCommitResponse {
 }
 
 /**
- * 笔画变更信息接口
+ * 元素变更信息接口
  */
-export interface StrokeChange {
-  /** 图形 ID */
-  shape_id: string
+export interface ElementChange {
+  /** 元素 ID */
+  element_id: string
   /** 变更类型 */
   action: 'added' | 'removed' | 'modified'
-  /** 笔画类型 */
-  stroke_type: string | null
-  /** 点数量 */
-  points_count: number | null
+  /** 元素类型 */
+  element_type: string | null
+  /** 文本内容 */
+  text: string | null
 }
 
 /**
@@ -355,14 +363,14 @@ export interface CommitDiffResponse {
   from_commit: CommitInfo | null
   /** 目标提交 */
   to_commit: CommitInfo
-  /** 新增笔画数 */
-  strokes_added: number
-  /** 删除笔画数 */
-  strokes_removed: number
-  /** 修改笔画数 */
-  strokes_modified: number
+  /** 新增元素数 */
+  elements_added: number
+  /** 删除元素数 */
+  elements_removed: number
+  /** 修改元素数 */
+  elements_modified: number
   /** 变更详情列表 */
-  changes: StrokeChange[]
+  changes: ElementChange[]
   /** 大小差异 (字节) */
   size_diff: number
 }
@@ -373,8 +381,8 @@ export interface CommitDiffResponse {
 export interface CommitDetailResponse {
   /** 提交信息 */
   commit: CommitInfo
-  /** 笔画总数 */
-  strokes_count: number
-  /** 笔画类型统计 */
-  stroke_types: Record<string, number>
+  /** 元素总数 */
+  elements_count: number
+  /** 元素类型统计 */
+  element_types: Record<string, number>
 }

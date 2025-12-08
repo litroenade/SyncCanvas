@@ -18,6 +18,7 @@ from src.db import crud
 from src.auth.utils import get_current_user_optional, get_current_user
 from src.models.user import User
 from src.logger import get_logger
+from src.ws.sync import websocket_server
 
 
 router = APIRouter(prefix="/rooms", tags=["Rooms"])
@@ -97,6 +98,10 @@ class RoomResponse(BaseModel):
         created_at (int): 创建时间戳
         has_password (bool): 是否有密码
         member_count (int): 当前成员数
+        elements_count (int): 画布元素数量
+        total_contributors (int): 历史贡献者数量
+        last_active_at (int): 最后活跃时间
+        online_count (int): 当前在线人数
     """
 
     id: str
@@ -107,6 +112,10 @@ class RoomResponse(BaseModel):
     created_at: int
     has_password: bool
     member_count: int = 0
+    elements_count: int = 0
+    total_contributors: int = 0
+    last_active_at: Optional[int] = None
+    online_count: int = 0
 
 
 class RoomListResponse(BaseModel):
@@ -165,6 +174,11 @@ async def list_rooms(
     room_responses = []
     for room in rooms:
         members = crud.get_room_members(session, room.id)
+        
+        # 获取在线人数
+        ws_path = f"/ws/{room.id}"
+        online_count = websocket_server.get_room_connections(ws_path)
+        
         room_responses.append(
             RoomResponse(
                 id=room.id,
@@ -175,6 +189,10 @@ async def list_rooms(
                 created_at=room.created_at,
                 has_password=room.password_hash is not None,
                 member_count=len(members),
+                elements_count=room.elements_count,
+                total_contributors=room.total_contributors,
+                last_active_at=room.last_active_at,
+                online_count=online_count,
             )
         )
 

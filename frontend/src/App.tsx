@@ -1,8 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import React, { Component, ErrorInfo, ReactNode, useEffect } from 'react';
-import { Canvas } from './components/canvas/Canvas';
+const Canvas = React.lazy(() => import('./components/canvas/Canvas').then(module => ({ default: module.Canvas })));
 import { Login } from './pages/Login';
 import { Rooms } from './pages/Rooms';
+import { Welcome } from './pages/Welcome';
+import { Loader2 } from 'lucide-react';
 
 // ==================== 错误边界组件 ====================
 interface ErrorBoundaryProps {
@@ -112,7 +114,13 @@ function App() {
       <GlobalErrorHandler />
       <BrowserRouter>
         <Routes>
+          {/* 欢迎页 - 应用入口 */}
+          <Route path="/" element={<Welcome />} />
+          
+          {/* 登录页 */}
           <Route path="/login" element={<Login />} />
+          
+          {/* 房间列表 */}
           <Route
             path="/rooms"
             element={
@@ -121,19 +129,13 @@ function App() {
               </ProtectedRoute>
             }
           />
+          
+          {/* 画布房间 */}
           <Route
             path="/room/:roomId"
             element={
               <ProtectedRoute>
                 <Board />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Navigate to="/rooms" replace />
               </ProtectedRoute>
             }
           />
@@ -147,7 +149,16 @@ const Board = () => {
   const { roomId } = useParams<{ roomId: string }>();
   return (
     <div className="App">
-      <Canvas roomId={roomId} />
+      <React.Suspense fallback={
+        <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
+          <div className="text-center">
+            <Loader2 className="h-10 w-10 animate-spin text-blue-500 mx-auto mb-4" />
+            <p className="text-gray-500 dark:text-gray-400">正在加载画布...</p>
+          </div>
+        </div>
+      }>
+        <Canvas roomId={roomId} />
+      </React.Suspense>
     </div>
   );
 };

@@ -19,6 +19,9 @@ import {
   LogOut,
   Sun,
   Moon,
+  Shapes,
+  UserCheck,
+  Radio,
 } from 'lucide-react'
 import { roomsApi, Room, CreateRoomRequest } from '../services/api/rooms'
 import { useThemeStore } from '../stores/useThemeStore'
@@ -373,22 +376,49 @@ const RoomCard: React.FC<RoomCardProps> = ({ room, theme, onEnter, onDelete, onC
       {/* 房间名称 */}
       <h3 className="font-semibold text-lg mb-2 truncate">{room.name}</h3>
 
-      {/* 房间信息 */}
-      <div className={cn('flex items-center gap-4 text-sm', theme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
+      {/* 房间统计信息 */}
+      <div className={cn('flex flex-wrap items-center gap-3 text-sm', theme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
+        {/* 在线人数 */}
+        {room.online_count > 0 && (
+          <span className={cn(
+            'flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium',
+            'bg-green-500/10 text-green-500'
+          )}>
+            <Radio size={12} className="animate-pulse" />
+            {room.online_count} 在线
+          </span>
+        )}
+        {/* 成员数 */}
         <span className="flex items-center gap-1">
           <Users size={14} />
           {room.member_count}/{room.max_users}
         </span>
+        {/* 密码标识 */}
         {room.has_password && (
           <span className="flex items-center gap-1">
             <Lock size={14} />
-            需要密码
+          </span>
+        )}
+      </div>
+
+      {/* 画布统计 */}
+      <div className={cn('flex items-center gap-3 mt-2 text-xs', theme === 'dark' ? 'text-slate-500' : 'text-slate-400')}>
+        {room.elements_count > 0 && (
+          <span className="flex items-center gap-1" title="画布元素数">
+            <Shapes size={12} />
+            {room.elements_count}
+          </span>
+        )}
+        {room.total_contributors > 0 && (
+          <span className="flex items-center gap-1" title="历史贡献者">
+            <UserCheck size={12} />
+            {room.total_contributors}
           </span>
         )}
       </div>
 
       {/* 创建时间 */}
-      <div className={cn('mt-3 text-xs', theme === 'dark' ? 'text-slate-500' : 'text-slate-400')}>
+      <div className={cn('mt-2 text-xs', theme === 'dark' ? 'text-slate-500' : 'text-slate-400')}>
         创建于 {formatDate(room.created_at)}
       </div>
 

@@ -3,7 +3,7 @@
  * 主要功能: Git 风格的版本历史面板
  */
 
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import {
   GitBranch,
   Save,
@@ -13,11 +13,13 @@ import {
   RotateCcw,
   User,
   MessageSquare,
-  Check
+  Check,
+  Shapes,
+  Info,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useThemeStore } from '../../stores/useThemeStore'
-import { roomsApi, HistoryResponse, CommitInfo, CreateCommitRequest } from '../../services/api/rooms'
+import { roomsApi, HistoryResponse, CommitInfo, CreateCommitRequest, CommitDetailResponse } from '../../services/api/rooms'
 import { useModal } from '../common/Modal'
 import { ContextMenu } from '../common/ContextMenu'
 import { yjsManager } from '../../lib/yjs'
@@ -508,6 +510,7 @@ interface CommitNodeProps {
 
 const CommitNode: React.FC<CommitNodeProps> = ({
   commit,
+  roomId,
   isHead,
   isFirst,
   isLast,
@@ -518,6 +521,20 @@ const CommitNode: React.FC<CommitNodeProps> = ({
   onRevert,
   onContextMenu,
 }) => {
+  const [detail, setDetail] = useState<CommitDetailResponse | null>(null)
+  const [loadingDetail, setLoadingDetail] = useState(false)
+
+  // 展开时加载详情
+  useEffect(() => {
+    if (isExpanded && !detail && !loadingDetail) {
+      setLoadingDetail(true)
+      roomsApi.getCommitDetail(roomId, commit.id)
+        .then(setDetail)
+        .catch(console.error)
+        .finally(() => setLoadingDetail(false))
+    }
+  }, [isExpanded, detail, loadingDetail, roomId, commit.id])
+
   return (
     <div
       className={cn(
@@ -630,6 +647,55 @@ const CommitNode: React.FC<CommitNodeProps> = ({
               {formatSize(commit.size)}
             </span>
           </div>
+
+          {/* 元素统计信息 */}
+          {loadingDetail ? (
+            <div className={cn(
+              'mt-2 pt-2 border-t flex items-center gap-2',
+              theme === 'dark' ? 'border-slate-700 text-slate-500' : 'border-slate-200 text-slate-400'
+            )}>
+              <RefreshCw size={10} className="animate-spin" />
+              <span>加载元素信息...</span>
+            </div>
+          ) : detail && (
+            <div className={cn(
+              'mt-2 pt-2 border-t',
+              theme === 'dark' ? 'border-slate-700' : 'border-slate-200'
+            )}>
+              <div className="flex items-center gap-2 mb-2">
+                <Shapes size={10} className={theme === 'dark' ? 'text-violet-400' : 'text-violet-500'} />
+                <span className={theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}>
+                  元素数量: 
+                </span>
+                <span className={cn(
+                  'font-medium',
+                  theme === 'dark' ? 'text-slate-200' : 'text-slate-700'
+                )}>
+                  {detail.elements_count}
+                </span>
+              </div>
+
+              {/* 元素类型统计 */}
+              {detail.element_types && Object.keys(detail.element_types).length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {Object.entries(detail.element_types).map(([type, count]) => (
+                    <span
+                      key={type}
+                      className={cn(
+                        'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px]',
+                        theme === 'dark'
+                          ? 'bg-slate-700/50 text-slate-400'
+                          : 'bg-slate-200/50 text-slate-500'
+                      )}
+                    >
+                      {type}: {count}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className={cn(
             'mt-2 pt-2 border-t',
             theme === 'dark' ? 'border-slate-700' : 'border-slate-200'

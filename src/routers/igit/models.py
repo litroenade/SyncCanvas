@@ -58,19 +58,23 @@ class CreateCommitRequest(BaseModel):
     author_name: Optional[str] = Field(default=None, max_length=100)
 
 
-class StrokeChange(BaseModel):
-    """笔画变更信息
+class ElementChange(BaseModel):
+    """元素变更信息
 
     Attributes:
-        shape_id (str): 图形 ID
+        element_id (str): 元素 ID
         action (str): 变更类型 (added, removed, modified)
-        stroke_type (str): 笔画类型
-        points_count (int): 点数量
+        element_type (str): 元素类型 (rectangle, ellipse, arrow, text 等)
+        text (str): 文本内容（如果是文本元素）
     """
-    shape_id: str
+    element_id: str
     action: str  # "added", "removed", "modified"
-    stroke_type: Optional[str] = None
-    points_count: Optional[int] = None
+    element_type: Optional[str] = None
+    text: Optional[str] = None
+
+
+# 别名，保持兼容
+StrokeChange = ElementChange
 
 
 class CommitDiffResponse(BaseModel):
@@ -80,20 +84,33 @@ class CommitDiffResponse(BaseModel):
         room_id (str): 房间 ID
         from_commit (CommitInfo): 基准提交
         to_commit (CommitInfo): 目标提交
-        strokes_added (int): 新增笔画数
-        strokes_removed (int): 删除笔画数
-        strokes_modified (int): 修改笔画数
-        changes (List[StrokeChange]): 变更详情列表
+        elements_added (int): 新增元素数
+        elements_removed (int): 删除元素数
+        elements_modified (int): 修改元素数
+        changes (List[ElementChange]): 变更详情列表
         size_diff (int): 大小差异 (字节)
     """
     room_id: str
     from_commit: Optional[CommitInfo]
     to_commit: CommitInfo
-    strokes_added: int
-    strokes_removed: int
-    strokes_modified: int
-    changes: List[StrokeChange]
+    elements_added: int
+    elements_removed: int
+    elements_modified: int
+    changes: List[ElementChange]
     size_diff: int
+    
+    # 别名字段，保持向后兼容
+    @property
+    def strokes_added(self) -> int:
+        return self.elements_added
+    
+    @property
+    def strokes_removed(self) -> int:
+        return self.elements_removed
+    
+    @property
+    def strokes_modified(self) -> int:
+        return self.elements_modified
 
 
 class CommitDetailResponse(BaseModel):
@@ -101,9 +118,18 @@ class CommitDetailResponse(BaseModel):
 
     Attributes:
         commit (CommitInfo): 提交信息
-        strokes_count (int): 笔画总数
-        stroke_types (dict): 笔画类型统计
+        elements_count (int): 元素总数
+        element_types (dict): 元素类型统计
     """
     commit: CommitInfo
-    strokes_count: int
-    stroke_types: dict  # stroke_type -> count
+    elements_count: int
+    element_types: dict  # element_type -> count
+    
+    # 别名字段，保持向后兼容
+    @property
+    def strokes_count(self) -> int:
+        return self.elements_count
+    
+    @property
+    def stroke_types(self) -> dict:
+        return self.element_types

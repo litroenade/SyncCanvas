@@ -1,159 +1,324 @@
 @import "tailwindcss";
 @config "../tailwind.config.js";
- 
+
+/* ==================== CSS 变量定义 ==================== */
 @layer base {
   :root {
+    /* 安全区域 */
+    --safe-area-top: env(safe-area-inset-top, 0px);
+    --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-left: env(safe-area-inset-left, 0px);
+    --safe-area-right: env(safe-area-inset-right, 0px);
+    
+    /* 画布 UI 区域 */
+    --canvas-header-height: 48px;
+    --canvas-status-height: 32px;
+    
+    /* 颜色系统 */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
- 
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
- 
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
- 
     --primary: 222.2 47.4% 11.2%;
     --primary-foreground: 210 40% 98%;
- 
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
- 
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
- 
     --accent: 210 40% 96.1%;
     --accent-foreground: 222.2 47.4% 11.2%;
- 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
- 
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 222.2 84% 4.9%;
- 
     --radius: 0.5rem;
+    
+    /* 玻璃态效果 */
+    --glass-bg: rgba(255, 255, 255, 0.8);
+    --glass-border: rgba(255, 255, 255, 0.3);
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
   }
- 
+
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
- 
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
- 
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
- 
     --primary: 210 40% 98%;
     --primary-foreground: 222.2 47.4% 11.2%;
- 
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
- 
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
- 
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
- 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
- 
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
+    
+    /* 深色玻璃态 */
+    --glass-bg: rgba(24, 24, 27, 0.85);
+    --glass-border: rgba(63, 63, 70, 0.4);
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   }
 }
- 
+
+/* ==================== 基础样式 ==================== */
 @layer base {
   * {
     @apply border-border;
+    box-sizing: border-box;
   }
+  
+  html {
+    /* 使用动态视口高度，解决移动端地址栏问题 */
+    height: 100%;
+    height: 100dvh;
+  }
+  
   body {
     @apply bg-background text-foreground;
     margin: 0;
     padding: 0;
     overflow: hidden;
+    height: 100%;
+    height: 100dvh;
+    /* 禁止 iOS 橡皮筋效果 */
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
   }
-  html, body, #root {
+  
+  #root {
     width: 100%;
     height: 100%;
+    height: 100dvh;
     margin: 0;
     padding: 0;
   }
 }
 
+/* ==================== 画布容器 ==================== */
+.canvas-container {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  /* iOS 安全区域 */
+  padding-top: var(--safe-area-top);
+  padding-bottom: var(--safe-area-bottom);
+  padding-left: var(--safe-area-left);
+  padding-right: var(--safe-area-right);
+}
+
+/* ==================== 玻璃态 UI 组件 ==================== */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-pill {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+/* ==================== 状态指示器动画 ==================== */
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-4px); }
+}
+
+.status-pulse::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  animation: pulse-ring 1.5s ease-out infinite;
+}
+
 /* ==================== Excalidraw 样式覆盖 ==================== */
 
-/* 主容器 - 全屏固定 */
+/* 主容器 - 使用动态视口 */
 .excalidraw-wrapper {
-  width: 100vw !important;
-  height: 100vh !important;
+  width: 100% !important;
+  height: 100% !important;
+  height: 100dvh !important;
   position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
+  inset: 0 !important;
   overflow: hidden !important;
 }
 
-/* Excalidraw 编辑器容器 */
-.excalidraw-editor-container {
+.excalidraw-editor-container,
+.excalidraw,
+.excalidraw .excalidraw-container {
   width: 100% !important;
   height: 100% !important;
   position: relative !important;
 }
 
-/* Excalidraw 根元素 */
-.excalidraw {
-  width: 100% !important;
-  height: 100% !important;
-}
-
-/* Excalidraw 内部容器 */
-.excalidraw .excalidraw-container {
-  width: 100% !important;
-  height: 100% !important;
-}
-
-/* 画布元素 */
 .excalidraw canvas {
   width: 100% !important;
   height: 100% !important;
 }
 
-/* 隐藏欢迎屏幕的图标（如果有的话） */
+/* 隐藏欢迎屏幕 */
 .excalidraw .welcome-screen-center {
   display: none !important;
 }
 
-/* 确保工具栏正确显示 */
+/* 工具栏基础 */
 .excalidraw .App-toolbar-container {
   position: absolute !important;
   z-index: 10 !important;
 }
 
-/* 移动端适配 */
-@media (max-width: 768px) {
-  /* 移动端工具栏在底部 */
-  .excalidraw .App-toolbar-container {
-    bottom: 8px !important;
-    top: auto !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-  }
-  
-  /* 缩小移动端的侧边栏 */
+/* ==================== 移动端适配 ==================== */
+@media (max-width: 768px), (hover: none) and (pointer: coarse) {
+  /* 移动端工具栏缩放和间距 */
   .excalidraw .layer-ui__wrapper {
     --ui-scale: 0.85;
+    /* 为 FAB 按钮留出空间 */
+    padding-bottom: calc(var(--safe-area-bottom) + 16px) !important;
   }
   
-  /* 调整按钮大小 */
+  /* 增大触摸目标 */
+  .excalidraw .ToolIcon {
+    min-width: 44px !important;
+    min-height: 44px !important;
+  }
+  
+  /* 左侧工具栏位置调整，避免被 FAB 遮挡 */
+  .excalidraw .App-toolbar {
+    padding-left: var(--safe-area-left) !important;
+  }
+  
+  /* 顶部菜单位置调整 */
+  .excalidraw .App-menu {
+    padding-top: max(8px, var(--safe-area-top)) !important;
+  }
+  
+  /* 隐藏 PC 端才需要的帮助按钮 */
+  .excalidraw .HelpButton {
+    display: none !important;
+  }
+  
+  /* 底部缩放控件位置调整 */
+  .excalidraw .zoom-actions {
+    bottom: calc(var(--safe-area-bottom) + 60px) !important;
+  }
+  
+  /* ==================== 窄屏工具栏自适应多行 ==================== */
+  /* 工具栏容器允许换行 */
+  .excalidraw .App-toolbar-content {
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    gap: 2px !important;
+    max-width: calc(100vw - 16px) !important;
+    padding: 4px 6px !important;
+  }
+  
+  /* 工具栏整体允许换行和滚动 */
+  .excalidraw .App-toolbar {
+    max-width: calc(100vw - 8px) !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* 工具栏岛容器自适应 */
+  .excalidraw .Island {
+    max-width: 100% !important;
+    overflow: visible !important;
+    flex-wrap: wrap !important;
+  }
+  
+  /* Stack 容器允许换行 */
+  .excalidraw .Stack {
+    flex-wrap: wrap !important;
+    gap: 2px !important;
+  }
+  
+  /* 工具按钮组换行 - 在窄屏上分隔符变成换行点 */
+  .excalidraw .App-toolbar__divider {
+    display: none !important;
+  }
+}
+
+/* 极窄屏幕 (< 400px) 特殊处理 */
+@media (max-width: 400px) {
+  .excalidraw .layer-ui__wrapper {
+    --ui-scale: 0.72;
+  }
+  
   .excalidraw .ToolIcon {
     min-width: 36px !important;
     min-height: 36px !important;
   }
+  
+  .excalidraw .App-toolbar-content {
+    gap: 1px !important;
+    padding: 3px 4px !important;
+  }
+  
+  /* 工具栏使用网格布局确保换行 */
+  .excalidraw .App-toolbar .Island {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+  }
+  
+  /* 隐藏一些不常用的工具，减少拥挤 */
+  .excalidraw .ToolIcon[data-testid="toolbar-lock"],
+  .excalidraw .ToolIcon[data-testid="toolbar-link"],
+  .excalidraw .ToolIcon[data-testid="toolbar-eraser"] {
+    display: none !important;
+  }
 }
 
-/* 确保触摸设备正确响应 */
+/* 超窄屏幕 (< 320px) */
+@media (max-width: 320px) {
+  .excalidraw .layer-ui__wrapper {
+    --ui-scale: 0.65;
+  }
+  
+  .excalidraw .ToolIcon {
+    min-width: 32px !important;
+    min-height: 32px !important;
+  }
+  
+  /* 隐藏更多不常用的工具 */
+  .excalidraw .ToolIcon[data-testid="toolbar-freedraw"],
+  .excalidraw .ToolIcon[data-testid="toolbar-image"] {
+    display: none !important;
+  }
+}
+
+/* ==================== 平板适配 (768px - 1024px) ==================== */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .excalidraw .layer-ui__wrapper {
+    --ui-scale: 0.92;
+  }
+}
+
+/* ==================== 触摸设备通用 ==================== */
 .excalidraw {
   touch-action: none;
   -webkit-touch-callout: none;
@@ -161,9 +326,66 @@
   user-select: none;
 }
 
-/* 修复 iOS Safari 的视口问题 */
+/* ==================== iOS Safari 特殊处理 ==================== */
 @supports (-webkit-touch-callout: none) {
-  .excalidraw-wrapper {
+  .excalidraw-wrapper,
+  .canvas-container,
+  html, body, #root {
     height: -webkit-fill-available !important;
+  }
+  
+  /* iOS 底部安全区域额外处理 */
+  .mobile-bottom-sheet {
+    padding-bottom: max(24px, var(--safe-area-bottom)) !important;
+  }
+}
+
+/* ==================== 横屏模式 ==================== */
+@media (orientation: landscape) and (max-height: 500px) {
+  .excalidraw .layer-ui__wrapper {
+    --ui-scale: 0.8;
+  }
+  
+  /* 横屏时隐藏一些不必要的 UI */
+  .canvas-room-info {
+    display: none !important;
+  }
+}
+
+/* ==================== 工具提示和弹窗层级修正 ==================== */
+.excalidraw .excalidraw-tooltip {
+  z-index: 1000 !important;
+}
+
+.excalidraw .dropdown-menu {
+  z-index: 100 !important;
+}
+
+/* 侧边栏历史面板样式 */
+.excalidraw .sidebar-content {
+  padding-top: var(--safe-area-top);
+  padding-bottom: var(--safe-area-bottom);
+}
+
+/* ==================== 高对比度模式支持 ==================== */
+@media (prefers-contrast: high) {
+  .glass-panel,
+  .glass-pill {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: hsl(var(--background));
+    border-width: 2px;
+  }
+}
+
+/* ==================== 减少动画模式 ==================== */
+@media (prefers-reduced-motion: reduce) {
+  .status-pulse::before {
+    animation: none;
+  }
+  
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }

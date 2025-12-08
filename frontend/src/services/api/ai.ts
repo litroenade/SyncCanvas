@@ -2,6 +2,46 @@ import axios from 'axios';
 import { config } from '../../config/env';
 
 /**
+ * AI 生成响应接口
+ */
+export interface AIGenerateResponse {
+    status: string;
+    message: string;
+    response?: string;
+}
+
+/**
+ * Agent 运行详情接口
+ */
+export interface AgentRunDetail {
+    run_id: number;
+    room_id: string;
+    prompt: string;
+    model: string;
+    status: string;
+    message: string;
+    created_at: number;
+    finished_at: number | null;
+    actions: AgentAction[];
+}
+
+export interface AgentAction {
+    id: number;
+    tool: string;
+    arguments: Record<string, unknown>;
+    result: Record<string, unknown>;
+    created_at: number;
+}
+
+/**
+ * 获取 Authorization 请求头
+ */
+const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+/**
  * AI 服务接口
  */
 export const aiApi = {
@@ -11,12 +51,26 @@ export const aiApi = {
      * @param roomId - 房间 ID
      * @returns 生成结果
      */
-    generateShapes: async (prompt: string, roomId: string) => {
-        const response = await axios.post(`${config.apiBaseUrl}/ai/generate`, {
-            prompt,
-            room_id: roomId,
-        });
+    generateShapes: async (prompt: string, roomId: string): Promise<AIGenerateResponse> => {
+        const response = await axios.post(
+            `${config.apiBaseUrl}/ai/generate`,
+            { prompt, room_id: roomId },
+            { headers: getAuthHeaders() }
+        );
         return response.data;
+    },
+
+    /**
+     * 获取 Agent 运行详情
+     * @param runId - 运行 ID
+     * @returns Agent 运行详情
+     */
+    getRunDetail: async (runId: number): Promise<AgentRunDetail> => {
+        const response = await axios.get(
+            `${config.apiBaseUrl}/ai/runs/${runId}`,
+            { headers: getAuthHeaders() }
+        );
+        return response.data.data;
     },
 };
 
