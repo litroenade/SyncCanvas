@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import React, { Component, ErrorInfo, ReactNode, useEffect } from 'react';
-import { ExcalidrawCanvas } from './components/ExcalidrawCanvas';
+import { Canvas } from './components/canvas/Canvas';
 import { Login } from './pages/Login';
 import { Rooms } from './pages/Rooms';
 
@@ -97,7 +97,7 @@ const GlobalErrorHandler = () => {
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const token = localStorage.getItem('token');
   const isGuest = localStorage.getItem('isGuest') === 'true';
-  
+
   // 允许有 token 或游客模式访问
   if (!token && !isGuest) {
     return <Navigate to="/login" replace />;
@@ -147,7 +147,7 @@ const Board = () => {
   const { roomId } = useParams<{ roomId: string }>();
   return (
     <div className="App">
-      <ExcalidrawCanvas roomId={roomId} />
+      <Canvas roomId={roomId} />
     </div>
   );
 };

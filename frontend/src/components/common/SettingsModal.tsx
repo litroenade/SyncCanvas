@@ -1,8 +1,7 @@
 import React from 'react';
 import { X, Sun, Moon } from 'lucide-react';
-import { useCanvasStore } from '../stores/useCanvasStore';
-import { useThemeStore } from '../stores/useThemeStore';
-import { cn } from '../lib/utils';
+import { useThemeStore } from '../../stores/useThemeStore';
+import { cn } from '../../lib/utils';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -10,7 +9,6 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
-    const { showGrid, setShowGrid } = useCanvasStore();
     const { theme, setTheme } = useThemeStore();
 
     if (!isOpen) return null;
@@ -70,28 +68,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 <span className="text-sm font-medium">暗色</span>
                             </button>
                         </div>
-                    </div>
-
-                    {/* Grid Toggle */}
-                    <div className="flex items-center justify-between">
-                        <div className="flex flex-col">
-                            <span className="font-medium">显示网格</span>
-                            <span className={cn("text-xs", theme === 'dark' ? "text-slate-500" : "text-slate-400")}>
-                                在画布上显示辅助网格线
-                            </span>
-                        </div>
-                        <button
-                            onClick={() => setShowGrid(!showGrid)}
-                            className={cn(
-                                "w-12 h-6 rounded-full transition-colors relative",
-                                showGrid ? "bg-blue-500" : (theme === 'dark' ? "bg-slate-700" : "bg-slate-200")
-                            )}
-                        >
-                            <div className={cn(
-                                "w-4 h-4 bg-white rounded-full absolute top-1 transition-transform shadow-sm",
-                                showGrid ? "left-7" : "left-1"
-                            )} />
-                        </button>
                     </div>
 
                     <div className={cn("pt-6 border-t", theme === 'dark' ? "border-slate-800" : "border-slate-100")}>

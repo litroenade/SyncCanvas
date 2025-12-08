@@ -23,7 +23,7 @@ import {
 import { roomsApi, Room, CreateRoomRequest } from '../services/api/rooms'
 import { useThemeStore } from '../stores/useThemeStore'
 import { cn } from '../lib/utils'
-import { useModal } from '../components/Modal'
+import { useModal } from '../components/common/Modal'
 
 /**
  * 房间列表页面组件
@@ -33,7 +33,7 @@ export const Rooms: React.FC = () => {
   const { theme, toggleTheme } = useThemeStore()
   const [rooms, setRooms] = useState<Room[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null) 
+  const [error, setError] = useState<string | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showJoinModal, setShowJoinModal] = useState<Room | null>(null)
 

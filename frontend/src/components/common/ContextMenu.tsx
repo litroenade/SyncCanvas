@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { cn } from '../lib/utils';
-import { useThemeStore } from '../stores/useThemeStore';
+import { cn } from '../../lib/utils';
+import { useThemeStore } from '../../stores/useThemeStore';
 
 export interface ContextMenuItem {
   label: string;
@@ -66,8 +66,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, items, onClose }
       ref={menuRef}
       className={cn(
         'fixed z-50 min-w-[160px] py-1.5 rounded-lg shadow-xl border animate-in fade-in zoom-in-95 duration-100',
-        theme === 'dark' 
-          ? 'bg-slate-800 border-slate-700 text-slate-200' 
+        theme === 'dark'
+          ? 'bg-slate-800 border-slate-700 text-slate-200'
           : 'bg-white border-slate-200 text-slate-700'
       )}
       style={style}
@@ -76,12 +76,12 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, items, onClose }
       {items.map((item, index) => {
         if (item.separator) {
           return (
-            <div 
-              key={index} 
+            <div
+              key={index}
               className={cn(
                 'my-1 h-px',
                 theme === 'dark' ? 'bg-slate-700' : 'bg-slate-100'
-              )} 
+              )}
             />
           );
         }
@@ -99,8 +99,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, items, onClose }
             disabled={item.disabled}
             className={cn(
               'w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-colors text-left',
-              item.disabled 
-                ? 'opacity-50 cursor-not-allowed' 
+              item.disabled
+                ? 'opacity-50 cursor-not-allowed'
                 : theme === 'dark'
                   ? 'hover:bg-slate-700'
                   : 'hover:bg-slate-100',

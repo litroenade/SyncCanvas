@@ -1,6 +1,6 @@
 /**
- * 模块名称: ExcalidrawHistoryPanel
- * 主要功能: Git 风格的版本历史面板 (适配 Excalidraw)
+ * 模块名称: HistoryPanel
+ * 主要功能: Git 风格的版本历史面板
  */
 
 import React, { useEffect, useState, useCallback } from 'react'
@@ -15,12 +15,12 @@ import {
   MessageSquare,
   Check
 } from 'lucide-react'
-import { cn } from '../lib/utils'
-import { useThemeStore } from '../stores/useThemeStore'
-import { roomsApi, HistoryResponse, CommitInfo, CreateCommitRequest } from '../services/api/rooms'
-import { useModal } from './Modal'
-import { ContextMenu } from './ContextMenu'
-import { excalidrawYjsManager } from '../lib/excalidraw-yjs'
+import { cn } from '../../lib/utils'
+import { useThemeStore } from '../../stores/useThemeStore'
+import { roomsApi, HistoryResponse, CommitInfo, CreateCommitRequest } from '../../services/api/rooms'
+import { useModal } from '../common/Modal'
+import { ContextMenu } from '../common/ContextMenu'
+import { yjsManager } from '../../lib/yjs'
 
 interface HistoryPanelProps {
   /** 房间 ID */
@@ -57,7 +57,7 @@ const formatFullTime = (timestamp: number): string => {
   })
 }
 
-export const ExcalidrawHistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) => {
+export const HistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) => {
   const { theme } = useThemeStore()
   const [history, setHistory] = useState<HistoryResponse | null>(null)
   const [loading, setLoading] = useState(false)
@@ -77,7 +77,7 @@ export const ExcalidrawHistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) 
   useEffect(() => {
     if (!roomId) return
 
-    const elementsArray = excalidrawYjsManager.elementsArray
+    const elementsArray = yjsManager.elementsArray
     if (!elementsArray) return
 
     const handleChange = () => setHasLocalChanges(true)
@@ -107,7 +107,7 @@ export const ExcalidrawHistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) 
   useEffect(() => {
     if (!roomId) return
 
-    const awareness = excalidrawYjsManager.getAwareness()
+    const awareness = yjsManager.getAwareness()
     if (!awareness) return
 
     const handleAwarenessChange = () => {
@@ -148,7 +148,7 @@ export const ExcalidrawHistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) 
       setShowCommitDialog(false)
       setHasLocalChanges(false)
 
-      const awareness = excalidrawYjsManager.getAwareness()
+      const awareness = yjsManager.getAwareness()
       if (awareness) {
         awareness.setLocalStateField('historyChanged', Date.now())
       }
@@ -208,11 +208,11 @@ export const ExcalidrawHistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) 
 
   // 预览暂不支持 - Excalidraw 全量数据恢复较复杂，需要重新设计预览接口
   const handlePreviewStart = async () => {
-     console.log('Excalidraw 历史预览暂不支持');
+    console.log('Excalidraw 历史预览暂不支持');
   }
 
   const handlePreviewEnd = () => {
-     // no-op
+    // no-op
   }
 
   useEffect(() => {
@@ -451,7 +451,7 @@ export const ExcalidrawHistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) 
               label: '复制哈希',
               onClick: () => handleCopyHash(contextMenu.commit.hash)
             },
-             // 暂不启用差异查看，因为 diff 逻辑也是基于 Shape 的
+            // 暂不启用差异查看，因为 diff 逻辑也是基于 Shape 的
             {
               separator: true,
               label: '',
@@ -620,7 +620,7 @@ const CommitNode: React.FC<CommitNodeProps> = ({
           'ml-10 mr-2 mb-2 p-2 rounded text-xs',
           theme === 'dark' ? 'bg-slate-800/80' : 'bg-slate-100'
         )}>
-           <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+          <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
             <span className={theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}>时间:</span>
             <span className={theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}>
               {formatFullTime(commit.timestamp)}
@@ -630,7 +630,7 @@ const CommitNode: React.FC<CommitNodeProps> = ({
               {formatSize(commit.size)}
             </span>
           </div>
-           <div className={cn(
+          <div className={cn(
             'mt-2 pt-2 border-t',
             theme === 'dark' ? 'border-slate-700' : 'border-slate-200'
           )}>

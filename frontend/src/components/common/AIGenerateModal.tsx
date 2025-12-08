@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { X, Sparkles, Loader2 } from 'lucide-react'
-import { aiApi } from '../services/api/ai'
-import { cn } from '../lib/utils'
-import { yjsManager } from '../lib/yjs'
+import { aiApi } from '../../services/api/ai'
+import { cn } from '../../lib/utils'
+import { yjsManager } from '../../lib/yjs'
 
 interface AIGenerateModalProps {
   isOpen: boolean

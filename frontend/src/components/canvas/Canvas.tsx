@@ -1,5 +1,5 @@
 /**
- * 模块名称：ExcalidrawCanvas
+ * 模块名称：Canvas
  * 主要功能：Excalidraw 画布组件
  * 
  * 集成 Excalidraw 编辑器，通过 Yjs 实现实时协作。
@@ -8,30 +8,28 @@ import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { Excalidraw } from '@excalidraw/excalidraw';
 // 必须导入 Excalidraw 的核心 CSS，否则图标会显示异常
 import '@excalidraw/excalidraw/index.css';
-import { useExcalidraw } from '../hooks/useExcalidraw';
-import { useThemeStore } from '../stores/useThemeStore';
-import type { ExcalidrawElement } from '../lib/excalidraw-yjs';
-import { ExcalidrawSidebar } from './ExcalidrawSidebar';
+import { useCanvas } from '../../hooks/useCanvas';
+import { useThemeStore } from '../../stores/useThemeStore';
+import type { ExcalidrawElement } from '../../lib/yjs';
+import { Sidebar } from './Sidebar';
 
-interface ExcalidrawCanvasProps {
+interface CanvasProps {
     /** 房间 ID */
     roomId?: string;
 }
 
 /**
- * Excalidraw 画布组件
+ * 画布组件
  * 
  * @param roomId - 房间 ID
  */
-
-
-export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({ roomId }) => {
+export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
     const { theme, excalidrawConfig, setExcalidrawConfig } = useThemeStore();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [excalidrawAPI, setExcalidrawAPI] = useState<any>(null);
     const isRemoteUpdateRef = useRef(false);
     const containerRef = useRef<HTMLDivElement>(null);
-    
+
     const {
         elements,
         files,
@@ -40,7 +38,7 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({ roomId }) =>
         isSynced,
         handleChange,
         updatePointer,
-    } = useExcalidraw(roomId);
+    } = useCanvas(roomId);
 
 
     // 当远程元素变化时，更新 Excalidraw
@@ -54,7 +52,7 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({ roomId }) =>
                 // Excalidraw will merge them
             });
             if (files && Object.keys(files).length > 0) {
-               excalidrawAPI.addFiles(Object.values(files));
+                excalidrawAPI.addFiles(Object.values(files));
             }
             setTimeout(() => {
                 isRemoteUpdateRef.current = false;
@@ -66,7 +64,7 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({ roomId }) =>
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const onChangeHandler = useCallback((newElements: readonly ExcalidrawElement[], appState: any, files: any) => {
         if (isRemoteUpdateRef.current) return;
-        
+
         // 持久化背景颜色
         if (appState.viewBackgroundColor !== excalidrawConfig.viewBackgroundColor) {
             // 使用 debounce 避免频繁更新 store
@@ -93,16 +91,16 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({ roomId }) =>
 
     // 根据主题设置顶部栏样式
     const isDark = theme === 'dark';
-    
+
     // 自定义网格样式 (覆盖原生网格)
     useEffect(() => {
         const style = document.createElement('style');
         style.innerHTML = `
             .excalidraw .excalidraw-container {
-                ${isDark 
-                    ? 'background-image: radial-gradient(#374151 1px, transparent 1px);' 
-                    : 'background-image: radial-gradient(#e5e7eb 1px, transparent 1px);'
-                }
+                ${isDark
+                ? 'background-image: radial-gradient(#374151 1px, transparent 1px);'
+                : 'background-image: radial-gradient(#e5e7eb 1px, transparent 1px);'
+            }
                 background-size: 20px 20px;
             }
         `;
@@ -128,31 +126,31 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({ roomId }) =>
                         {collaborators.size} 人在线
                     </div>
                 )}
-                
+
                 {/* 连接状态 */}
                 <div style={{
                     padding: '4px 8px',
                     borderRadius: '4px',
                     fontSize: '12px',
                     fontWeight: 500,
-                    backgroundColor: isConnected 
-                        ? (isSynced ? '#dcfce7' : '#fef9c3') 
+                    backgroundColor: isConnected
+                        ? (isSynced ? '#dcfce7' : '#fef9c3')
                         : '#fee2e2',
-                    color: isConnected 
-                        ? (isSynced ? '#15803d' : '#a16207') 
+                    color: isConnected
+                        ? (isSynced ? '#15803d' : '#a16207')
                         : '#dc2626',
                 }}>
                     {isConnected ? (isSynced ? '已同步' : '同步中') : '连接中'}
                 </div>
-                
+
             </div>
         );
     }, [isDark, isConnected, isSynced, collaborators.size]);
 
     return (
         <div className="excalidraw-wrapper">
-             {/* Excalidraw 编辑器容器 */}
-            <div 
+            {/* Excalidraw 编辑器容器 */}
+            <div
                 ref={containerRef}
                 className="excalidraw-editor-container"
                 style={{
@@ -195,15 +193,12 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({ roomId }) =>
                     }}
                 />
             </div>
-            
+
             {/* 侧边栏 */}
-            <ExcalidrawSidebar 
+            <Sidebar
                 roomId={roomId}
                 onExport={excalidrawAPI ? () => {
-                    // Excalidraw 的导出由内部 UI 处理，或者我们可以触发它
-                    // 这里我们暂时不传递 onExport，使用 Excalidraw 自带导出
-                    // 如果需要自定义导出按钮，可以调用 excalidrawAPI 的导出方法
-                    // 但目前的 Excalidraw API 导出比较复杂，建议保留默认行为或此处留空，让 sidebar 仅显示其他面板
+                    // Excalidraw 的导出由内部 UI 处理
                 } : undefined}
             />
         </div>

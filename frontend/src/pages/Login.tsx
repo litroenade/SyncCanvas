@@ -4,7 +4,6 @@ import { config } from '../config/env';
 import { useThemeStore } from '../stores/useThemeStore';
 import { cn } from '../lib/utils';
 import { Sun, Moon, User, Users } from 'lucide-react';
-import { useCanvasStore } from '../stores/useCanvasStore';
 
 export const Login: React.FC = () => {
     const [username, setUsername] = useState('');
@@ -12,7 +11,6 @@ export const Login: React.FC = () => {
     const [error, setError] = useState('');
     const navigate = useNavigate();
     const { theme, toggleTheme } = useThemeStore();
-    const { setIsGuest } = useCanvasStore();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -39,7 +37,6 @@ export const Login: React.FC = () => {
             localStorage.setItem('token', data.access_token);
             localStorage.setItem('username', username);
             localStorage.removeItem('isGuest');
-            setIsGuest(false);
             navigate('/rooms');
         } catch (err: any) {
             setError(err.message);
@@ -50,7 +47,6 @@ export const Login: React.FC = () => {
         localStorage.removeItem('token');
         localStorage.removeItem('username');
         localStorage.setItem('isGuest', 'true');
-        setIsGuest(true);
         navigate('/rooms');
     };
 
@@ -149,7 +145,7 @@ export const Login: React.FC = () => {
                                     ? "bg-slate-900/50 border-slate-700 text-slate-100 focus:border-blue-500 focus:bg-slate-900/80 placeholder:text-slate-600"
                                     : "bg-white/50 border-slate-200 text-slate-900 focus:border-blue-500 focus:bg-white placeholder:text-slate-400"
                             )}
-                            placeholder="输入服务端密钥 (data/settings.json)"
+                            placeholder="输入服务端密钥 ()"
                             required
                         />
                     </div>

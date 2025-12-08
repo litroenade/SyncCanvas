@@ -1,11 +1,11 @@
 /**
- * 模块名称：useExcalidraw
+ * 模块名称：useCanvas
  * 主要功能：Excalidraw 与 Yjs 同步的 React Hook
  * 
  * 提供 Excalidraw 组件所需的状态管理和同步方法。
  */
 import { useEffect, useCallback, useState, useRef } from 'react';
-import { excalidrawYjsManager, ExcalidrawElement, BinaryFiles } from '../lib/excalidraw-yjs';
+import { yjsManager, ExcalidrawElement, BinaryFiles } from '../lib/yjs';
 
 // AppState 简化类型定义
 type AppState = Record<string, unknown>;
@@ -55,15 +55,15 @@ export interface Collaborator {
 }
 
 /**
- * Excalidraw Yjs 同步 Hook
+ * Canvas Yjs 同步 Hook
  */
-export const useExcalidraw = (roomId?: string) => {
+export const useCanvas = (roomId?: string) => {
     const [isConnected, setIsConnected] = useState(false);
     const [isSynced, setIsSynced] = useState(false);
     const [elements, setElements] = useState<readonly ExcalidrawElement[]>([]);
     const [files, setFiles] = useState<BinaryFiles>({});
     const [collaborators, setCollaborators] = useState<Map<string, Collaborator>>(new Map());
-    
+
     const userInfoRef = useRef(getUserInfo());
     const lastSyncedElementsRef = useRef<string>('');
 
@@ -75,11 +75,11 @@ export const useExcalidraw = (roomId?: string) => {
         }
 
         // 连接到房间
-        excalidrawYjsManager.connect(roomId);
+        yjsManager.connect(roomId);
 
-        const provider = excalidrawYjsManager.provider;
-        const elementsArray = excalidrawYjsManager.elementsArray;
-        const filesMap = excalidrawYjsManager.filesMap;
+        const provider = yjsManager.provider;
+        const elementsArray = yjsManager.elementsArray;
+        const filesMap = yjsManager.filesMap;
 
         if (!elementsArray) {
             console.error('Excalidraw Yjs 初始化失败');
@@ -115,9 +115,9 @@ export const useExcalidraw = (roomId?: string) => {
                 return;
             }
 
-            const newElements = excalidrawYjsManager.getElements();
+            const newElements = yjsManager.getElements();
             const newElementsStr = JSON.stringify(newElements);
-            
+
             // 避免不必要的更新
             if (newElementsStr !== lastSyncedElementsRef.current) {
                 lastSyncedElementsRef.current = newElementsStr;
@@ -133,7 +133,7 @@ export const useExcalidraw = (roomId?: string) => {
                 return;
             }
             if (!filesMap) return;
-            const newFiles = excalidrawYjsManager.getFiles();
+            const newFiles = yjsManager.getFiles();
             setFiles(newFiles);
         };
 
@@ -144,7 +144,7 @@ export const useExcalidraw = (roomId?: string) => {
         // observer(); // 初始同步不需要调用，因为初始状态应该是空的或已有的
         // 但我们需要获取初始数据
         // 手动调用一次以加载初始数据，模拟非本地 origin
-        observer({ transaction: { origin: 'initial' } }); 
+        observer({ transaction: { origin: 'initial' } });
         filesObserver({ transaction: { origin: 'initial' } });
 
         // Awareness（协作者光标）
@@ -167,7 +167,7 @@ export const useExcalidraw = (roomId?: string) => {
                     if (clientId !== awareness.clientID && state.user) {
                         const user = state.user as { name?: string; color?: string };
                         const pointer = state.pointer as { x: number; y: number } | undefined;
-                        
+
                         newCollaborators.set(String(clientId), {
                             pointer,
                             username: user.name,
@@ -211,21 +211,21 @@ export const useExcalidraw = (roomId?: string) => {
         newFiles: BinaryFiles
     ) => {
         const newElementsStr = JSON.stringify(newElements);
-        
+
         // 避免循环更新
         if (newElementsStr === lastSyncedElementsRef.current) {
             // 即使元素没变，文件也可能变了，所以这里不能直接 return，或者需要分开判断
             // 但 Excalidraw 的机制通常是 files 变了 elements 也会变（引用了 fileId）
         }
-        
+
         if (newElementsStr !== lastSyncedElementsRef.current) {
             lastSyncedElementsRef.current = newElementsStr;
-            excalidrawYjsManager.syncElements(newElements);
+            yjsManager.syncElements(newElements);
         }
-        
+
         // 同步文件
         if (newFiles && Object.keys(newFiles).length > 0) {
-            excalidrawYjsManager.syncFiles(newFiles);
+            yjsManager.syncFiles(newFiles);
         }
     }, []);
 
@@ -233,7 +233,7 @@ export const useExcalidraw = (roomId?: string) => {
      * 更新协作者光标位置
      */
     const updatePointer = useCallback((pointer: { x: number; y: number }) => {
-        const awareness = excalidrawYjsManager.getAwareness();
+        const awareness = yjsManager.getAwareness();
         if (awareness) {
             awareness.setLocalStateField('pointer', pointer);
         }
@@ -243,7 +243,7 @@ export const useExcalidraw = (roomId?: string) => {
      * 撤销
      */
     const undo = useCallback(() => {
-        const undoManager = excalidrawYjsManager.undoManager;
+        const undoManager = yjsManager.undoManager;
         if (undoManager) {
             undoManager.undo();
         }
@@ -253,7 +253,7 @@ export const useExcalidraw = (roomId?: string) => {
      * 重做
      */
     const redo = useCallback(() => {
-        const undoManager = excalidrawYjsManager.undoManager;
+        const undoManager = yjsManager.undoManager;
         if (undoManager) {
             undoManager.redo();
         }
@@ -263,7 +263,7 @@ export const useExcalidraw = (roomId?: string) => {
      * 离开房间
      */
     const leaveRoom = useCallback(() => {
-        excalidrawYjsManager.disconnect();
+        yjsManager.disconnect();
         setElements([]);
         setCollaborators(new Map());
     }, []);
@@ -279,6 +279,6 @@ export const useExcalidraw = (roomId?: string) => {
         undo,
         redo,
         leaveRoom,
-        currentRoomId: excalidrawYjsManager.roomId,
+        currentRoomId: yjsManager.roomId,
     };
 };

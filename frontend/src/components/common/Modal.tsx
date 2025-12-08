@@ -5,8 +5,8 @@
 
 import React, { useEffect, useCallback } from 'react'
 import { X, AlertTriangle, Info, CheckCircle, AlertCircle } from 'lucide-react'
-import { cn } from '../lib/utils'
-import { useThemeStore } from '../stores/useThemeStore'
+import { cn } from '../../lib/utils'
+import { useThemeStore } from '../../stores/useThemeStore'
 
 // ==================== 基础 Modal ====================
 
@@ -332,7 +332,7 @@ interface ModalState {
 
 const initialState: ModalState = {
   alert: { isOpen: false, message: '', type: 'info' },
-  confirm: { isOpen: false, message: '', type: 'warning', onConfirm: () => {}, isLoading: false },
+  confirm: { isOpen: false, message: '', type: 'warning', onConfirm: () => { }, isLoading: false },
   toast: { isVisible: false, message: '', type: 'info' },
 }
 

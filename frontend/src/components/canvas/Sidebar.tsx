@@ -1,35 +1,35 @@
 import React, { useState } from 'react';
 import { Settings, ChevronLeft, ChevronRight, Download, Undo, Redo, Sun, Moon, Home, History } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { cn } from '../lib/utils';
-import { excalidrawYjsManager } from '../lib/excalidraw-yjs';
-import { useThemeStore } from '../stores/useThemeStore';
-import { SettingsModal } from './SettingsModal';
-import { ExcalidrawHistoryPanel } from './ExcalidrawHistoryPanel';
+import { cn } from '../../lib/utils';
+import { yjsManager } from '../../lib/yjs';
+import { useThemeStore } from '../../stores/useThemeStore';
+import { SettingsModal } from '../common/SettingsModal';
+import { HistoryPanel } from './HistoryPanel';
 
 const undo = () => {
-    excalidrawYjsManager.undoManager?.undo();
+    yjsManager.undoManager?.undo();
 };
 
 const redo = () => {
-    excalidrawYjsManager.undoManager?.redo();
+    yjsManager.undoManager?.redo();
 };
 
 const leaveRoom = () => {
-    excalidrawYjsManager.disconnect();
+    yjsManager.disconnect();
 };
 
-interface ExcalidrawSidebarProps {
+interface SidebarProps {
     roomId?: string;
     onExport?: () => void;
 }
 
-export const ExcalidrawSidebar: React.FC<ExcalidrawSidebarProps> = ({ roomId, onExport }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ roomId, onExport }) => {
     const navigate = useNavigate();
     const [isOpen, setIsOpen] = useState(false);
     const [activePanel, setActivePanel] = useState<'history' | 'none'>('none');
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-    
+
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { theme, toggleTheme } = useThemeStore();
 
@@ -56,15 +56,15 @@ export const ExcalidrawSidebar: React.FC<ExcalidrawSidebarProps> = ({ roomId, on
             <div
                 className={cn(
                     "fixed top-48 left-0 h-[calc(100%-48px)] transition-all duration-300 z-40 flex flex-col pointer-events-none", // pointer-events-none 让出点击
-                     // 这里不设置背景，让 Sidebar Item 浮动，或者设置背景
-                     // 既然是 Overlay，我们希望它看起来像浮在上面的工具栏，或者一个抽屉
+                    // 这里不设置背景，让 Sidebar Item 浮动，或者设置背景
+                    // 既然是 Overlay，我们希望它看起来像浮在上面的工具栏，或者一个抽屉
                 )}
             >
                 {/* 实际的 Sidebar 容器，恢复 pointer-events */}
                 <div className={cn(
                     "h-full shadow-sm border-r pointer-events-auto transition-all duration-300 flex flex-col",
-                     isOpen ? "w-64" : "w-12",
-                     theme === 'dark' ? "bg-slate-900 border-slate-700" : "bg-white border-slate-200"
+                    isOpen ? "w-64" : "w-12",
+                    theme === 'dark' ? "bg-slate-900 border-slate-700" : "bg-white border-slate-200"
                 )}>
                     {/* Toggle Button */}
                     <button
@@ -82,24 +82,14 @@ export const ExcalidrawSidebar: React.FC<ExcalidrawSidebarProps> = ({ roomId, on
 
                     <div className="flex-1 overflow-y-auto py-4">
                         <div className="flex flex-col gap-1 px-2">
-                             <SidebarItem
+                            <SidebarItem
                                 icon={Home}
                                 label="返回房间列表"
                                 isOpen={isOpen}
                                 onClick={handleBackToRooms}
                                 theme={theme}
                             />
-                            
-                            <div className={cn("h-px my-2 mx-2", theme === 'dark' ? "bg-slate-700" : "bg-slate-100")} />
 
-                             <SidebarItem
-                                icon={Home}
-                                label="房间列表"
-                                isOpen={isOpen}
-                                onClick={handleBackToRooms}
-                                theme={theme}
-                            />
-                            
                             <div className={cn("h-px my-2 mx-2", theme === 'dark' ? "bg-slate-700" : "bg-slate-100")} />
 
                             {!isGuest && (
@@ -116,20 +106,20 @@ export const ExcalidrawSidebar: React.FC<ExcalidrawSidebarProps> = ({ roomId, on
                                         active={activePanel === 'history'}
                                         theme={theme}
                                     />
-                                    
-                                     {activePanel === 'history' && isOpen && roomId && (
+
+                                    {activePanel === 'history' && isOpen && roomId && (
                                         <div className={cn(
                                             "mt-2 mb-2 border-t border-b py-2 flex-1 overflow-hidden", // flex-1 to fill space
-                                             theme === 'dark' ? "border-slate-700" : "border-slate-100"
+                                            theme === 'dark' ? "border-slate-700" : "border-slate-100"
                                         )} style={{ minHeight: '300px' }}>
-                                            <ExcalidrawHistoryPanel roomId={roomId} />
+                                            <HistoryPanel roomId={roomId} />
                                         </div>
                                     )}
-                                    
+
                                     <div className={cn("h-px my-2 mx-2", theme === 'dark' ? "bg-slate-700" : "bg-slate-100")} />
                                 </>
                             )}
-                            
+
                             <SidebarItem
                                 icon={theme === 'dark' ? Moon : Sun}
                                 label={theme === 'dark' ? "暗色模式" : "亮色模式"}
@@ -144,7 +134,7 @@ export const ExcalidrawSidebar: React.FC<ExcalidrawSidebarProps> = ({ roomId, on
                     </div>
                 </div>
             </div>
-             <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+            <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
         </>
     );
 };
