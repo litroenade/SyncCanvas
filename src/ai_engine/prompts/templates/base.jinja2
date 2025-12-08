@@ -1,0 +1,48 @@
+{#- 基础模板 - 所有 Agent 共用的部分 -#}
+{% block header %}
+{%- endblock %}
+
+{% block role %}
+{%- endblock %}
+
+{% block capabilities %}
+## 核心能力
+{% for cap in capabilities %}
+- {{ cap }}
+{% endfor %}
+{%- endblock %}
+
+{% block tools %}
+{% if tools %}
+## 可用工具
+
+{% for tool in tools %}
+### {{ tool.name }}
+{{ tool.description }}
+{% if tool.params %}
+参数:
+{% for param in tool.params %}
+- `{{ param.name }}`: {{ param.description }}{% if param.required %} (必需){% endif %}
+
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% endif %}
+{%- endblock %}
+
+{% block workflow %}
+{%- endblock %}
+
+{% block guidelines %}
+## 注意事项
+{% for item in guidelines %}
+{{ loop.index }}. {{ item }}
+{% endfor %}
+{%- endblock %}
+
+{% block examples %}
+{%- endblock %}
+
+{% block footer %}
+{%- endblock %}
+

@@ -1,18 +1,19 @@
 """模块名称: config
-主要功能: 配置管理，提供版本化、热重载与默认文件生成
+主要功能: 配置管理，基于 Pydantic 模型的类型安全配置系统
 """
 
 from __future__ import annotations
 
 import secrets
-import shutil
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import List, Optional
+
+from pydantic import BaseModel, Field, field_validator
 
 try:
-    import tomllib  # Python 3.11+
-except ImportError:  # pragma: no cover - 兼容低版本
-    import tomli as tomllib  # type: ignore
+    import tomllib
+except ImportError:
+    import tomli as tomllib
 
 import tomli_w
 
@@ -20,359 +21,246 @@ from src.logger import get_logger
 
 logger = get_logger(__name__)
 
-CONFIG_VERSION_LATEST = 1
+# 配置文件路径
 CONFIG_DIR = Path(__file__).resolve().parents[1] / "config"
 CONFIG_FILE = CONFIG_DIR / "config.toml"
-LEGACY_CONFIG_FILE = Path(__file__).resolve().parents[1] / "config.toml"
 
 
-def _build_default_config(secret_key: str | None = None) -> Dict[str, Any]:
-    """构建默认配置字典，便于落盘或用于缺省值。"""
+# ==================== 配置模型 ====================
 
-    secret_value = secret_key or secrets.token_hex(32)
-    return {
-        "version": CONFIG_VERSION_LATEST,
-        "security": {
-            "secret_key": secret_value,
-            "admin_key": "admin",
-        },
-        "server": {
-            "host": "0.0.0.0",
-            "port": 8000,
-            "allowed_origins": ["*"],
-        },
-        "database": {
-            "url": "sqlite:///./data/sync_canvas.db",
-            "echo": False,
-        },
-        "ai": {
-            "provider": "siliconflow",
-            "model": "Qwen/Qwen2.5-14B-Instruct",
-            "base_url": "https://api.siliconflow.cn/v1",
-            "api_key": "",
-            "fallback_provider": "openai",
-            "fallback_model": "gpt-4o-mini",
-            "fallback_base_url": "https://api.openai.com/v1",
-            "fallback_api_key": "",
-            "tool_choice": "auto",
-            "max_tool_calls": 6,
-        },
-    }
+class SecurityConfig(BaseModel):
+    """安全配置"""
+    secret_key: str = Field(default_factory=lambda: secrets.token_hex(32))
+    admin_key: str = "admin"
 
 
-class Config:
-    """配置管理类，支持版本迁移与热重载。"""
+class ServerConfig(BaseModel):
+    """服务器配置"""
+    host: str = "0.0.0.0"
+    port: int = 8000
+    allowed_origins: List[str] = ["*"]
 
+
+class DatabaseConfig(BaseModel):
+    """数据库配置"""
+    url: str = "sqlite:///./data/sync_canvas.db"
+    echo: bool = False
+
+
+class AIProviderConfig(BaseModel):
+    """AI 提供商配置"""
+    provider: str = "siliconflow"
+    model: str = "Qwen/Qwen2.5-14B-Instruct"
+    base_url: str = "https://api.siliconflow.cn/v1"
+    api_key: str = ""
+    
+    # 备用提供商
+    fallback_provider: str = "openai"
+    fallback_model: str = "gpt-4o-mini"
+    fallback_base_url: str = "https://api.openai.com/v1"
+    fallback_api_key: str = ""
+    
+    # 工具调用配置
+    tool_choice: str = "auto"
+    max_tool_calls: int = 10
+
+
+class LoggingConfig(BaseModel):
+    """日志配置"""
+    level: str = "INFO"
+    format: str = "[%(levelname).1s] %(name)s: %(message)s"
+    show_time: bool = True
+    colorize: bool = True
+    file: Optional[str] = None
+
+
+class AppConfig(BaseModel):
+    """应用主配置
+    
+    基于 Pydantic 的配置模型，支持类型验证和默认值。
+    """
+    version: str = "1.0.0"
+    security: SecurityConfig = Field(default_factory=SecurityConfig)
+    server: ServerConfig = Field(default_factory=ServerConfig)
+    database: DatabaseConfig = Field(default_factory=DatabaseConfig)
+    ai: AIProviderConfig = Field(default_factory=AIProviderConfig)
+    logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    
+    @field_validator("version")
+    @classmethod
+    def validate_version(cls, v: str) -> str:
+        """验证版本号格式 (x.x.x)"""
+        parts = v.split(".")
+        if len(parts) != 3:
+            raise ValueError("版本号格式必须为 x.x.x")
+        for part in parts:
+            if not part.isdigit():
+                raise ValueError("版本号各部分必须为数字")
+        return v
+
+
+class ConfigManager:
+    """配置管理器
+    
+    负责加载、保存和管理应用配置。
+    """
+    
     def __init__(self, config_file: Path = CONFIG_FILE):
-        self._config_dir = CONFIG_DIR
         self._config_file = config_file
-        self._legacy_config_file = LEGACY_CONFIG_FILE
-        self._config: Dict[str, Any] = {}
-        self._last_mtime = 0.0
+        self._config: Optional[AppConfig] = None
+        self._last_mtime: float = 0.0
         self._ensure_config_dir()
-        self._bootstrap_config_file()
-        self._load_config()
-
+        self._load()
+    
     def _ensure_config_dir(self) -> None:
-        """确保配置目录存在。"""
-
-        try:
-            self._config_dir.mkdir(parents=True, exist_ok=True)
-        except Exception as exc:  # pragma: no cover - 目录创建极少失败
-            logger.error("创建配置目录失败: %s", exc)
-
-    def _bootstrap_config_file(self) -> None:
-        """初始化配置文件: 优先迁移旧文件，否则写入默认模板。"""
-
-        if self._config_file.exists():
-            return
-
-        if self._legacy_config_file.exists():
-            try:
-                shutil.copy(self._legacy_config_file, self._config_file)
-                logger.info(
-                    "已迁移旧版配置文件", extra={"from": str(self._legacy_config_file)}
-                )
-                return
-            except Exception as exc:  # pragma: no cover - 迁移失败属异常场景
-                logger.warning("迁移旧配置失败，将使用默认配置: %s", exc)
-
-        self._write_config(_build_default_config())
-        logger.info("已创建默认配置文件: %s", self._config_file)
-
-    def _write_config(self, data: Dict[str, Any]) -> None:
-        """将配置安全写入磁盘。"""
-
-        try:
-            with self._config_file.open("wb") as handle:
-                tomli_w.dump(data, handle)
-        except Exception as exc:  # pragma: no cover - IO 异常
-            logger.error("写入配置失败: %s", exc)
-
-    def _merge_defaults(
-        self, current: Dict[str, Any], defaults: Dict[str, Any]
-    ) -> Tuple[Dict[str, Any], bool]:
-        """用默认值填充缺失键，返回合并结果与是否发生变化。"""
-
-        merged: Dict[str, Any] = {}
-        changed = False
-
-        for key, default_value in defaults.items():
-            if key in current:
-                if isinstance(default_value, dict) and isinstance(current[key], dict):
-                    nested, nested_changed = self._merge_defaults(
-                        current[key], default_value
-                    )
-                    merged[key] = nested
-                    changed = changed or nested_changed
-                else:
-                    merged[key] = current[key]
-            else:
-                merged[key] = default_value
-                changed = True
-
-        for key, value in current.items():
-            if key not in merged:
-                merged[key] = value
-
-        return merged, changed
-
-    def _upgrade_config_if_needed(self) -> None:
-        """当版本落后或缺失字段时自动升级配置文件。"""
-
-        defaults = _build_default_config()
-        merged, changed = self._merge_defaults(self._config, defaults)
-        current_version = int(self._config.get("version", 0))
-
-        if current_version < CONFIG_VERSION_LATEST:
-            merged["version"] = CONFIG_VERSION_LATEST
-            changed = True
-
-        if changed:
-            self._config = merged
-            self._write_config(self._config)
-            self._last_mtime = self._config_file.stat().st_mtime
-            logger.info("配置已自动升级到最新版本", extra={"version": CONFIG_VERSION_LATEST})
-
-    def _load_config(self) -> None:
-        """加载配置文件并在必要时触发升级。"""
-
+        """确保配置目录存在"""
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    
+    def _load(self) -> None:
+        """加载配置文件"""
         if not self._config_file.exists():
-            self._bootstrap_config_file()
-
+            # 创建默认配置
+            self._config = AppConfig()
+            self._save()
+            logger.info(f"已创建默认配置文件: {self._config_file}")
+            return
+        
         try:
             mtime = self._config_file.stat().st_mtime
-            if mtime <= self._last_mtime:
+            if mtime <= self._last_mtime and self._config is not None:
                 return
-
-            with self._config_file.open("rb") as handle:
-                raw_config = tomllib.load(handle)
-
-            self._config = raw_config
+            
+            with self._config_file.open("rb") as f:
+                raw = tomllib.load(f)
+            
+            # 处理旧版本号格式
+            if "version" in raw and isinstance(raw["version"], int):
+                raw["version"] = f"{raw['version']}.0.0"
+            
+            self._config = AppConfig(**raw)
             self._last_mtime = mtime
-            self._upgrade_config_if_needed()
-            logger.info("配置已加载", extra={"path": str(self._config_file)})
-        except Exception as exc:  # pragma: no cover - 防止配置损坏致崩溃
-            logger.error("加载配置失败: %s", exc)
-
-    def _check_reload(self) -> None:
-        """检测磁盘变更并热重载。"""
-
+            logger.info(f"配置已加载 (v{self._config.version})")
+            
+        except Exception as e:
+            logger.error(f"加载配置失败: {e}")
+            self._config = AppConfig()
+    
+    def _save(self) -> None:
+        """保存配置到文件"""
+        if self._config is None:
+            return
+        
         try:
-            if not self._config_file.exists():
-                return
-            mtime = self._config_file.stat().st_mtime
-            if mtime > self._last_mtime:
-                logger.info("检测到配置变更，正在热重载")
-                self._load_config()
-        except Exception as exc:  # pragma: no cover - 文件系统异常
-            logger.error("检查配置变更失败: %s", exc)
-
-    def _get(self, section: str, key: str, fallback: Any) -> Any:
-        """安全读取配置项，缺失时返回默认值。"""
-
-        self._check_reload()
-        section_data = self._config.get(section, {})
-        return section_data.get(key, fallback)
-
+            data = self._config.model_dump()
+            with self._config_file.open("wb") as f:
+                tomli_w.dump(data, f)
+            self._last_mtime = self._config_file.stat().st_mtime
+        except Exception as e:
+            logger.error(f"保存配置失败: {e}")
+    
+    def reload(self) -> None:
+        """重新加载配置"""
+        self._last_mtime = 0.0
+        self._load()
+    
     @property
-    def version(self) -> int:
-        """获取配置文件版本号。"""
-
-        self._check_reload()
-        return int(self._config.get("version", CONFIG_VERSION_LATEST))
-
+    def config(self) -> AppConfig:
+        """获取配置对象"""
+        if self._config is None:
+            self._load()
+        return self._config  # type: ignore
+    
+    # ==================== 便捷属性 ====================
+    
+    @property
+    def version(self) -> str:
+        return self.config.version
+    
     @property
     def secret_key(self) -> str:
-        """获取 secret_key，支持热重载。"""
-
-        return str(self._get("security", "secret_key", ""))
-
+        return self.config.security.secret_key
+    
     @property
     def admin_key(self) -> str:
-        """获取 admin_key，支持热重载。"""
-
-        return str(self._get("security", "admin_key", ""))
-
-    @property
-    def database_url(self) -> str:
-        """获取数据库连接 URL。"""
-
-        return str(
-            self._get("database", "url", "sqlite:///./data/sync_canvas.db")
-        )
-
-    @property
-    def db_echo(self) -> bool:
-        """获取数据库 Echo 设置。"""
-
-        return bool(self._get("database", "echo", False))
-
+        return self.config.security.admin_key
+    
     @property
     def host(self) -> str:
-        """获取服务绑定主机。"""
-
-        return str(self._get("server", "host", "0.0.0.0"))
-
+        return self.config.server.host
+    
     @property
     def port(self) -> int:
-        """获取服务端口。"""
-
-        return int(self._get("server", "port", 8000))
-
+        return self.config.server.port
+    
     @property
-    def allowed_origins(self) -> list[str]:
-        """获取允许的跨域来源。"""
-
-        origins = self._get("server", "allowed_origins", ["*"])
-        if isinstance(origins, list):
-            return [str(item) for item in origins]
-        return ["*"]
-
+    def allowed_origins(self) -> List[str]:
+        return self.config.server.allowed_origins
+    
+    @property
+    def database_url(self) -> str:
+        return self.config.database.url
+    
+    @property
+    def db_echo(self) -> bool:
+        return self.config.database.echo
+    
+    # AI 配置
     @property
     def llm_provider(self) -> str:
-        """获取首选 LLM 服务商。"""
-
-        return str(self._get("ai", "provider", "siliconflow"))
-
+        return self.config.ai.provider
+    
     @property
     def llm_model(self) -> str:
-        """获取首选 LLM 模型名称。"""
-
-        return str(self._get("ai", "model", "Qwen/Qwen2.5-14B-Instruct"))
-
+        return self.config.ai.model
+    
     @property
     def llm_base_url(self) -> str:
-        """获取首选 LLM Base URL。"""
-
-        return str(self._get("ai", "base_url", "https://api.siliconflow.cn/v1"))
-
+        return self.config.ai.base_url
+    
     @property
     def llm_api_key(self) -> str:
-        """统一获取首选 LLM 的 API Key。"""
-
-        primary_key = str(self._get("ai", "api_key", ""))
-        if primary_key:
-            return primary_key
-
-        fallback_key = str(self._get("ai", "fallback_api_key", ""))
-        return fallback_key
-
+        key = self.config.ai.api_key
+        if not key:
+            key = self.config.ai.fallback_api_key
+        return key
+    
     @property
     def llm_fallback_provider(self) -> str:
-        """获取兜底 LLM 服务商。"""
-
-        return str(self._get("ai", "fallback_provider", "openai"))
-
+        return self.config.ai.fallback_provider
+    
     @property
     def llm_fallback_model(self) -> str:
-        """获取兜底 LLM 模型名称。"""
-
-        return str(self._get("ai", "fallback_model", "gpt-4o-mini"))
-
+        return self.config.ai.fallback_model
+    
     @property
     def llm_fallback_base_url(self) -> str:
-        """获取兜底 LLM Base URL。"""
-
-        return str(self._get("ai", "fallback_base_url", "https://api.openai.com/v1"))
-
+        return self.config.ai.fallback_base_url
+    
     @property
     def llm_fallback_api_key(self) -> str:
-        """获取兜底 LLM 的 API Key。"""
-
-        return str(self._get("ai", "fallback_api_key", ""))
-
+        return self.config.ai.fallback_api_key
+    
     @property
     def llm_tool_choice(self) -> str:
-        """获取工具调用策略 (auto/none/required)。"""
-
-        choice = str(self._get("ai", "tool_choice", "auto"))
-        if choice not in {"auto", "none", "required"}:
-            return "auto"
-        return choice
-
+        return self.config.ai.tool_choice
+    
     @property
     def llm_max_tool_calls(self) -> int:
-        """获取单次会话允许的工具调用上限。"""
-
-        return int(self._get("ai", "max_tool_calls", 6))
-
+        return self.config.ai.max_tool_calls
+    
+    # 兼容旧属性名
     @property
     def openai_api_key(self) -> str:
-        """获取 OpenAI API Key（兼容旧用法）。"""
-
-        return str(self._get("ai", "fallback_api_key", ""))
-
+        return self.config.ai.fallback_api_key
+    
     @property
     def openai_base_url(self) -> str:
-        """获取 OpenAI Base URL（兼容旧用法）。"""
-
-        return str(self._get("ai", "fallback_base_url", "https://api.openai.com/v1"))
-
+        return self.config.ai.fallback_base_url
+    
     @property
     def openai_model(self) -> str:
-        """获取 OpenAI 模型名称（兼容旧用法）。"""
-
-        return str(self._get("ai", "fallback_model", "gpt-4o-mini"))
-
-    @property
-    def siliconflow_api_key(self) -> str:
-        """获取 SiliconFlow API Key（兼容旧用法）。"""
-
-        return str(self._get("ai", "api_key", ""))
-
-    @property
-    def siliconflow_base_url(self) -> str:
-        """获取 SiliconFlow Base URL（兼容旧用法）。"""
-
-        return str(self._get("ai", "base_url", "https://api.siliconflow.cn/v1"))
-
-    @property
-    def siliconflow_model(self) -> str:
-        """获取 SiliconFlow 模型名称（兼容旧用法）。"""
-
-        return str(self._get("ai", "model", "Qwen/Qwen2.5-14B-Instruct"))
+        return self.config.ai.fallback_model
 
 
 # 全局配置实例
-config = Config()
-
-# 导出常用配置项，保持兼容性
-CONFIG_VERSION = config.version
-DATABASE_URL = config.database_url
-DB_ECHO = config.db_echo
-HOST = config.host
-PORT = config.port
-ALLOWED_ORIGINS = config.allowed_origins
-OPENAI_API_KEY = config.openai_api_key
-OPENAI_BASE_URL = config.openai_base_url
-OPENAI_MODEL = config.openai_model
-SILICONFLOW_API_KEY = config.siliconflow_api_key
-SILICONFLOW_BASE_URL = config.siliconflow_base_url
-SILICONFLOW_MODEL = config.siliconflow_model
-LLM_PROVIDER = config.llm_provider
-LLM_API_KEY = config.llm_api_key
-LLM_BASE_URL = config.llm_base_url
-LLM_MODEL = config.llm_model
-LLM_TOOL_CHOICE = config.llm_tool_choice
-LLM_MAX_TOOL_CALLS = config.llm_max_tool_calls
+config = ConfigManager()

@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 from src.db.database import init_db
 from src.ws.sync import websocket_server, asgi_server
 from src.core.async_task import async_task_manager
-from src.config import HOST, PORT, ALLOWED_ORIGINS
+from src.config import config
 from src.logger import get_logger, setup_logging
 from src.auth.router import router as auth_router
 from src.routers.ai import router as ai_router
@@ -55,7 +55,7 @@ app = FastAPI(
 # 挂载中间件 (CORS 等)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=config.allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -165,4 +165,4 @@ else:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host=HOST, port=PORT)
+    uvicorn.run(app, host=config.host, port=config.port)

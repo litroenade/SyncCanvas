@@ -175,9 +175,8 @@ async def list_rooms(
     for room in rooms:
         members = crud.get_room_members(session, room.id)
         
-        # 获取在线人数
-        ws_path = f"/ws/{room.id}"
-        online_count = websocket_server.get_room_connections(ws_path)
+        # 获取在线人数 (WebSocket 路径格式: /ws/{room_id})
+        online_count = websocket_server.get_room_connections(f"/ws/{room.id}")
         
         room_responses.append(
             RoomResponse(

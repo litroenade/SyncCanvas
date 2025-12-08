@@ -3,16 +3,25 @@
 
 提供 AI Agent 的 HTTP API 接口，包括:
 - 生成/绘图请求
+- 流式响应
 - 运行历史查询
 - 运行详情查询
+- 工具列表
+- Agent 状态监控
 """
 
-from typing import Optional
+import json
+import asyncio
+from typing import Optional, List, AsyncGenerator
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlmodel import Session
 
+from src.ai_engine.core.agent import RoomLockManager, ReActStep
+from src.ai_engine.core.tools import registry
+from src.ai_engine.prompts import prompt_manager
 from src.db.database import get_session
 from src.logger import get_logger
 from src.services.ai_service import ai_service
@@ -162,3 +171,209 @@ async def get_run_detail(
         raise HTTPException(status_code=404, detail=result.get("message", "run_not_found"))
 
     return result
+
+
+# ==================== 管理 API ====================
+
+@router.get("/tools")
+async def list_tools():
+    """获取所有可用工具列表
+    
+    返回 AI Agent 可以使用的所有工具及其元数据。
+    
+    Returns:
+        dict: 工具列表
+    """
+    tools = registry.list_tools()
+    return {
+        "status": "success",
+        "count": len(tools),
+        "tools": tools
+    }
+
+
+@router.get("/tools/{tool_name}")
+async def get_tool_info(tool_name: str):
+    """获取单个工具的详细信息
+    
+    Args:
+        tool_name: 工具名称
+        
+    Returns:
+        dict: 工具详情
+        
+    Raises:
+        HTTPException: 工具不存在时抛出 404 错误
+    """
+    meta = registry.get_metadata(tool_name)
+    if not meta:
+        raise HTTPException(status_code=404, detail=f"工具 {tool_name} 不存在")
+    
+    schema = registry._schemas.get(tool_name, {})
+    
+    return {
+        "status": "success",
+        "tool": {
+            "name": meta.name,
+            "description": meta.description,
+            "category": meta.category.value,
+            "requires_room": meta.requires_room,
+            "timeout": meta.timeout,
+            "retries": meta.retries,
+            "dangerous": meta.dangerous,
+            "schema": schema.get("function", {}).get("parameters", {}),
+        }
+    }
+
+
+@router.get("/status")
+async def get_agent_status():
+    """获取 Agent 系统状态
+    
+    返回当前活跃房间、工具数量等状态信息。
+    
+    Returns:
+        dict: 系统状态
+    """
+    # 获取活跃房间列表
+    active_rooms = list(RoomLockManager._active_rooms)
+    
+    # 统计工具
+    tools = registry.list_tools()
+    enabled_tools = [t for t in tools if t.get("enabled")]
+    
+    # 按分类统计
+    category_counts = {}
+    for tool in tools:
+        cat = tool.get("category", "unknown")
+        category_counts[cat] = category_counts.get(cat, 0) + 1
+    
+    return {
+        "status": "success",
+        "agent": {
+            "active_rooms": active_rooms,
+            "active_count": len(active_rooms),
+        },
+        "tools": {
+            "total": len(tools),
+            "enabled": len(enabled_tools),
+            "by_category": category_counts,
+        }
+    }
+
+
+@router.get("/status/{room_id}")
+async def get_room_agent_status(room_id: str):
+    """检查指定房间的 Agent 状态
+    
+    Args:
+        room_id: 房间 ID
+        
+    Returns:
+        dict: 房间 Agent 状态
+    """
+    is_busy = RoomLockManager.is_room_busy(room_id)
+    
+    return {
+        "status": "success",
+        "room_id": room_id,
+        "is_busy": is_busy,
+        "message": "房间正在处理 AI 任务" if is_busy else "房间空闲"
+    }
+
+
+@router.post("/cancel/{run_id}")
+async def cancel_run(run_id: int):
+    """取消正在进行的 AI 请求
+    
+    Args:
+        run_id: 运行记录 ID
+        
+    Returns:
+        dict: 操作结果
+    """
+    result = await ai_service.cancel_request(run_id)
+    return result
+
+
+@router.get("/stats")
+async def get_service_stats():
+    """获取 AI 服务统计信息
+    
+    返回请求总数、成功率、平均响应时间等统计数据。
+    
+    Returns:
+        dict: 服务统计信息
+    """
+    return ai_service.get_service_status()
+
+
+@router.post("/tools/{tool_name}/disable")
+async def disable_tool(tool_name: str):
+    """禁用指定工具
+    
+    Args:
+        tool_name: 工具名称
+        
+    Returns:
+        dict: 操作结果
+    """
+    return ai_service.disable_tool(tool_name)
+
+
+@router.post("/tools/{tool_name}/enable")
+async def enable_tool(tool_name: str):
+    """启用指定工具
+    
+    Args:
+        tool_name: 工具名称
+        
+    Returns:
+        dict: 操作结果
+    """
+    return ai_service.enable_tool(tool_name)
+
+
+# ==================== 模板 API ====================
+
+@router.get("/templates")
+async def list_templates():
+    """列出所有可用的 Prompt 模板
+    
+    Returns:
+        dict: 模板列表
+    """
+    templates = prompt_manager.list_templates()
+    return {
+        "status": "success",
+        "count": len(templates),
+        "templates": templates
+    }
+
+
+@router.get("/templates/{template_name}")
+async def get_template(template_name: str):
+    """获取模板源码
+    
+    Args:
+        template_name: 模板名称
+        
+    Returns:
+        dict: 模板源码
+    """
+    source = prompt_manager.get_template_source(template_name)
+    if source is None:
+        raise HTTPException(status_code=404, detail=f"模板 {template_name} 不存在")
+    
+    return {
+        "status": "success",
+        "name": template_name,
+        "source": source,
+        "length": len(source)
+    }
+
+
+class RenderTemplateRequest(BaseModel):
+    """渲染模板请求"""
+    template_name: str = Field(..., description="模板名称")
+    variables: dict = Field(default_factory=dict, description="模板变量")

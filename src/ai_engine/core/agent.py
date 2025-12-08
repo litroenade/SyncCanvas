@@ -6,16 +6,25 @@
 - Action: 选择并执行工具
 - Observation: 获取工具执行结果并反馈给 Agent
 - 循环直到任务完成
+
+增强特性:
+- 重试机制: LLM 调用和工具执行失败自动重试
+- 超时控制: 防止任务无限期执行
+- 并发锁: 防止同一房间同时多个 Agent 操作
+- 执行指标: 详细的性能统计
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
+import time
 import traceback
 from abc import ABC
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Callable, Dict, List, Optional, Set, TYPE_CHECKING
 
 from openai.types.chat import ChatCompletionMessageParam
 
@@ -28,101 +37,195 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-class AgentStatus(Enum):
-    """Agent 运行状态枚举
+# ==================== 房间锁管理 ====================
 
-    Attributes:
-        IDLE: 空闲状态
-        THINKING: 推理中
-        ACTING: 执行工具中
-        OBSERVING: 观察结果中
-        COMPLETED: 已完成
-        ERROR: 发生错误
+class RoomLockManager:
+    """房间级别的并发锁管理器
+    
+    防止同一房间同时有多个 Agent 操作，避免元素冲突。
     """
+    
+    _locks: Dict[str, asyncio.Lock] = {}
+    _active_rooms: Set[str] = set()
+    
+    @classmethod
+    def get_lock(cls, room_id: str) -> asyncio.Lock:
+        """获取房间锁"""
+        if room_id not in cls._locks:
+            cls._locks[room_id] = asyncio.Lock()
+        return cls._locks[room_id]
+    
+    @classmethod
+    @asynccontextmanager
+    async def acquire(cls, room_id: str, timeout: float = 30.0):
+        """获取房间锁的上下文管理器
+        
+        Args:
+            room_id: 房间 ID
+            timeout: 获取锁的超时时间
+            
+        Raises:
+            TimeoutError: 获取锁超时
+            RuntimeError: 房间正忙
+        """
+        lock = cls.get_lock(room_id)
+        
+        try:
+            acquired = await asyncio.wait_for(lock.acquire(), timeout=timeout)
+            if not acquired:
+                raise RuntimeError(f"房间 {room_id} 正忙，请稍后再试")
+            
+            cls._active_rooms.add(room_id)
+            logger.debug(f"获取房间锁: {room_id}")
+            
+            yield
+            
+        except asyncio.TimeoutError:
+            raise TimeoutError(f"获取房间 {room_id} 的锁超时")
+        finally:
+            if room_id in cls._active_rooms:
+                cls._active_rooms.discard(room_id)
+            if lock.locked():
+                lock.release()
+                logger.debug(f"释放房间锁: {room_id}")
+    
+    @classmethod
+    def is_room_busy(cls, room_id: str) -> bool:
+        """检查房间是否正忙"""
+        return room_id in cls._active_rooms
+
+
+# ==================== 状态和数据结构 ====================
+
+class AgentStatus(Enum):
+    """Agent 运行状态枚举"""
     IDLE = "idle"
     THINKING = "thinking"
     ACTING = "acting"
     OBSERVING = "observing"
     COMPLETED = "completed"
     ERROR = "error"
+    TIMEOUT = "timeout"
+    CANCELLED = "cancelled"
+
+
+@dataclass
+class AgentMetrics:
+    """Agent 执行指标
+    
+    用于性能监控和调试。
+    """
+    start_time: float = 0.0
+    end_time: float = 0.0
+    total_llm_calls: int = 0
+    total_tool_calls: int = 0
+    total_retries: int = 0
+    llm_latency_ms: List[float] = field(default_factory=list)
+    tool_latency_ms: List[float] = field(default_factory=list)
+    errors: List[str] = field(default_factory=list)
+    
+    @property
+    def duration_ms(self) -> float:
+        """总执行时间 (毫秒)"""
+        if self.end_time > 0:
+            return (self.end_time - self.start_time) * 1000
+        return 0.0
+    
+    @property
+    def avg_llm_latency_ms(self) -> float:
+        """平均 LLM 延迟"""
+        if self.llm_latency_ms:
+            return sum(self.llm_latency_ms) / len(self.llm_latency_ms)
+        return 0.0
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典"""
+        return {
+            "duration_ms": round(self.duration_ms, 2),
+            "total_llm_calls": self.total_llm_calls,
+            "total_tool_calls": self.total_tool_calls,
+            "total_retries": self.total_retries,
+            "avg_llm_latency_ms": round(self.avg_llm_latency_ms, 2),
+            "errors": self.errors[-5:],  # 最近 5 个错误
+        }
 
 
 @dataclass
 class AgentContext:
-    """Agent 执行上下文
-
-    在 Agent 执行过程中传递的上下文对象，包含运行 ID、会话 ID 等信息。
-
-    Attributes:
-        run_id: 运行记录 ID
-        session_id: 会话/房间 ID
-        user_id: 用户 ID (可选)
-        shared_state: 共享状态字典，用于在工具间传递数据
-        tool_results: 本次运行的工具调用结果历史
-        created_element_ids: 本次运行创建的元素 ID 列表
-    """
+    """Agent 执行上下文"""
     run_id: int
     session_id: str
     user_id: Optional[str] = None
     shared_state: Dict[str, Any] = field(default_factory=dict)
     tool_results: List[Dict[str, Any]] = field(default_factory=list)
     created_element_ids: List[str] = field(default_factory=list)
+    _cancelled: bool = field(default=False, repr=False)
+    
+    def cancel(self) -> None:
+        """标记任务为已取消"""
+        self._cancelled = True
+    
+    @property
+    def is_cancelled(self) -> bool:
+        """检查任务是否已取消"""
+        return self._cancelled
 
 
 @dataclass
 class ToolDefinition:
-    """工具定义
-
-    Attributes:
-        name: 工具名称
-        description: 工具描述
-        func: 工具函数
-        schema: OpenAI Function Calling 格式的 JSON Schema
-    """
+    """工具定义"""
     name: str
     description: str
     func: Callable
     schema: Dict[str, Any]
+    timeout: float = 30.0  # 工具执行超时
+    retries: int = 2       # 重试次数
 
 
 @dataclass
 class ReActStep:
-    """ReAct 单步记录
-
-    Attributes:
-        step_number: 步骤编号
-        thought: 思考内容
-        action: 执行的动作 (工具名称)
-        action_input: 动作输入参数
-        observation: 观察结果
-        success: 是否执行成功
-    """
+    """ReAct 单步记录"""
     step_number: int
     thought: str = ""
     action: Optional[str] = None
     action_input: Optional[Dict[str, Any]] = None
     observation: Optional[str] = None
     success: bool = True
+    latency_ms: float = 0.0
 
+
+# ==================== Agent 配置 ====================
+
+@dataclass
+class AgentConfig:
+    """Agent 配置
+    
+    集中管理 Agent 的各项配置参数。
+    """
+    max_iterations: int = 15
+    max_retries: int = 3
+    llm_timeout: float = 60.0      # LLM 调用超时
+    tool_timeout: float = 30.0     # 工具执行超时
+    total_timeout: float = 300.0   # 总执行超时 (5分钟)
+    retry_delay: float = 1.0       # 重试间隔
+    enable_room_lock: bool = True  # 是否启用房间锁
+
+
+# ==================== Agent 基类 ====================
 
 class BaseAgent(ABC):
     """ReAct Agent 抽象基类
-
+    
     实现标准的 ReAct 循环: Think -> Act -> Observe -> Repeat
-
-    Attributes:
-        name: Agent 名称
-        role: Agent 角色描述
-        llm: LLM 客户端
-        system_prompt: 系统提示词
-        max_iterations: 最大迭代次数
-        tools: 已注册的工具字典
-        run_service: Agent 运行记录服务 (可选)
+    
+    增强特性:
+    - 自动重试失败的 LLM 调用和工具执行
+    - 超时控制，防止无限期执行
+    - 并发锁，防止同房间冲突
+    - 详细的执行指标
     """
 
-    # 类级别常量
-    DEFAULT_MAX_ITERATIONS: int = 15
-    DEFAULT_TEMPERATURE: float = 0.3
+    DEFAULT_CONFIG = AgentConfig()
 
     def __init__(
         self,
@@ -130,60 +233,61 @@ class BaseAgent(ABC):
         role: str,
         llm_client: LLMClient,
         system_prompt: str,
-        max_iterations: int = DEFAULT_MAX_ITERATIONS,
+        config: Optional[AgentConfig] = None,
         run_service: Optional["AgentRunService"] = None,
+        # 兼容旧参数
+        max_iterations: Optional[int] = None,
     ):
-        """初始化 Agent
-
-        Args:
-            name: Agent 名称
-            role: Agent 角色
-            llm_client: LLM 客户端实例
-            system_prompt: 系统提示词
-            max_iterations: 最大迭代次数
-            run_service: Agent 运行记录服务 (可选)
-        """
         self.name = name
         self.role = role
         self.llm = llm_client
         self.system_prompt = system_prompt
-        self.max_iterations = max_iterations
         self.run_service = run_service
+        
+        # 配置
+        self.config = config or AgentConfig()
+        if max_iterations is not None:
+            self.config.max_iterations = max_iterations
+        
+        # 兼容旧属性
+        self.max_iterations = self.config.max_iterations
+        
+        # 运行时状态
         self.tools: Dict[str, ToolDefinition] = {}
         self._status = AgentStatus.IDLE
         self._steps: List[ReActStep] = []
+        self._metrics = AgentMetrics()
         self._on_step_callback: Optional[Callable[[ReActStep], None]] = None
 
     @property
     def status(self) -> AgentStatus:
-        """获取当前状态"""
         return self._status
 
     @property
     def steps(self) -> List[ReActStep]:
-        """获取执行步骤历史"""
         return self._steps.copy()
+    
+    @property
+    def metrics(self) -> AgentMetrics:
+        return self._metrics
 
     def register_tool(
         self,
         name: str,
         func: Callable,
         schema: Dict[str, Any],
-        description: str = ""
+        description: str = "",
+        timeout: float = 30.0,
+        retries: int = 2,
     ) -> None:
-        """注册工具
-
-        Args:
-            name: 工具名称
-            func: 工具函数 (必须是 async 函数)
-            schema: OpenAI Function Calling 格式的 schema
-            description: 工具描述
-        """
+        """注册工具"""
         self.tools[name] = ToolDefinition(
             name=name,
             description=description or schema.get("function", {}).get("description", ""),
             func=func,
-            schema=schema
+            schema=schema,
+            timeout=timeout,
+            retries=retries,
         )
         logger.debug(f"Agent {self.name} 注册工具: {name}")
 
@@ -192,7 +296,7 @@ class BaseAgent(ABC):
         return [tool.schema for tool in self.tools.values()]
 
     def set_step_callback(self, callback: Callable[[ReActStep], None]) -> None:
-        """设置步骤回调，用于实时监控 Agent 执行"""
+        """设置步骤回调"""
         self._on_step_callback = callback
 
     async def _log_action(
@@ -202,14 +306,7 @@ class BaseAgent(ABC):
         args: Dict[str, Any],
         result: Any
     ) -> None:
-        """记录工具调用到数据库
-
-        Args:
-            context: Agent 上下文
-            tool_name: 工具名称
-            args: 工具参数
-            result: 执行结果
-        """
+        """记录工具调用到数据库"""
         if self.run_service:
             try:
                 await self.run_service.log_action(
@@ -221,14 +318,115 @@ class BaseAgent(ABC):
             except Exception as e:
                 logger.warning(f"记录工具调用失败: {e}")
 
+    async def _call_llm_with_retry(
+        self,
+        messages: List[ChatCompletionMessageParam],
+        tools: Optional[List[Dict[str, Any]]],
+        temperature: float,
+    ) -> LLMResponse:
+        """带重试的 LLM 调用
+        
+        Returns:
+            LLMResponse: LLM 响应
+            
+        Raises:
+            Exception: 所有重试都失败后抛出最后一个异常
+        """
+        last_error: Optional[Exception] = None
+        
+        for attempt in range(self.config.max_retries):
+            try:
+                start_time = time.time()
+                
+                response = await asyncio.wait_for(
+                    self.llm.chat_completion(
+                        messages=messages,
+                        tools=tools,
+                        tool_choice="auto" if tools else "none",
+                        temperature=temperature,
+                    ),
+                    timeout=self.config.llm_timeout
+                )
+                
+                # 记录延迟
+                latency = (time.time() - start_time) * 1000
+                self._metrics.llm_latency_ms.append(latency)
+                self._metrics.total_llm_calls += 1
+                
+                return response
+                
+            except asyncio.TimeoutError:
+                last_error = TimeoutError(f"LLM 调用超时 ({self.config.llm_timeout}s)")
+                self._metrics.errors.append(f"LLM 超时 (尝试 {attempt + 1})")
+            except Exception as e:
+                last_error = e
+                self._metrics.errors.append(f"LLM 错误: {str(e)[:100]}")
+            
+            if attempt < self.config.max_retries - 1:
+                self._metrics.total_retries += 1
+                await asyncio.sleep(self.config.retry_delay * (attempt + 1))
+                logger.warning(f"LLM 调用重试 ({attempt + 2}/{self.config.max_retries})")
+        
+        raise last_error or Exception("未知错误")
+
+    async def _execute_tool_with_retry(
+        self,
+        name: str,
+        args: Dict[str, Any],
+        context: AgentContext,
+    ) -> Dict[str, Any]:
+        """带重试和超时的工具执行
+        
+        Returns:
+            dict: 工具执行结果
+        """
+        tool = self.tools[name]
+        last_error: Optional[Exception] = None
+        
+        for attempt in range(tool.retries):
+            try:
+                start_time = time.time()
+                
+                # 使用工具专属超时
+                result = await asyncio.wait_for(
+                    self._execute_tool(name, args, context),
+                    timeout=tool.timeout
+                )
+                
+                # 记录延迟
+                latency = (time.time() - start_time) * 1000
+                self._metrics.tool_latency_ms.append(latency)
+                self._metrics.total_tool_calls += 1
+                
+                return result
+                
+            except asyncio.TimeoutError:
+                last_error = TimeoutError(f"工具 {name} 执行超时 ({tool.timeout}s)")
+                self._metrics.errors.append(f"工具 {name} 超时")
+            except Exception as e:
+                last_error = e
+                self._metrics.errors.append(f"工具 {name} 错误: {str(e)[:100]}")
+            
+            if attempt < tool.retries - 1:
+                self._metrics.total_retries += 1
+                await asyncio.sleep(self.config.retry_delay)
+                logger.warning(f"工具 {name} 重试 ({attempt + 2}/{tool.retries})")
+        
+        # 返回错误结果而不是抛出异常
+        return {
+            "status": "error",
+            "message": str(last_error) if last_error else "未知错误",
+            "retries": tool.retries
+        }
+
     async def run(
         self,
         context: AgentContext,
         user_input: str,
-        temperature: float = DEFAULT_TEMPERATURE,
+        temperature: float = 0.3,
     ) -> str:
         """执行 ReAct 循环
-
+        
         Args:
             context: Agent 上下文
             user_input: 用户输入
@@ -237,14 +435,59 @@ class BaseAgent(ABC):
         Returns:
             str: Agent 最终响应
         """
+        # 初始化
+        self._status = AgentStatus.THINKING
+        self._steps = []
+        self._metrics = AgentMetrics(start_time=time.time())
+        
         logger.info(f"Agent {self.name} 开始执行", extra={
             "run_id": context.run_id,
             "session_id": context.session_id
         })
 
-        self._status = AgentStatus.THINKING
-        self._steps = []
+        try:
+            # 如果启用房间锁，获取锁
+            if self.config.enable_room_lock and context.session_id:
+                async with RoomLockManager.acquire(context.session_id, timeout=30.0):
+                    return await self._run_react_loop(context, user_input, temperature)
+            else:
+                return await self._run_react_loop(context, user_input, temperature)
+                
+        except TimeoutError as e:
+            self._status = AgentStatus.TIMEOUT
+            self._metrics.errors.append(str(e))
+            logger.error(f"Agent {self.name} 执行超时: {e}")
+            return f"执行超时: {str(e)}"
+            
+        except asyncio.CancelledError:
+            self._status = AgentStatus.CANCELLED
+            logger.warning(f"Agent {self.name} 被取消")
+            return "任务已取消"
+            
+        except Exception as e:
+            self._status = AgentStatus.ERROR
+            self._metrics.errors.append(str(e))
+            logger.error(f"Agent {self.name} 执行失败: {e}\n{traceback.format_exc()}")
+            return f"执行失败: {str(e)}"
+            
+        finally:
+            self._metrics.end_time = time.time()
+            logger.info(f"Agent {self.name} 执行结束", extra={
+                "run_id": context.run_id,
+                "status": self._status.value,
+                "metrics": self._metrics.to_dict()
+            })
 
+    async def _run_react_loop(
+        self,
+        context: AgentContext,
+        user_input: str,
+        temperature: float,
+    ) -> str:
+        """ReAct 主循环
+        
+        使用总超时控制整个执行过程。
+        """
         # 初始化消息历史
         messages: List[ChatCompletionMessageParam] = [
             {"role": "system", "content": self._build_system_prompt()},
@@ -255,136 +498,136 @@ class BaseAgent(ABC):
         final_response = ""
         iteration = 0
 
-        while iteration < self.max_iterations:
-            iteration += 1
-            current_step = ReActStep(step_number=iteration)
+        # 总超时控制
+        async with asyncio.timeout(self.config.total_timeout):
+            while iteration < self.config.max_iterations:
+                # 检查是否被取消
+                if context.is_cancelled:
+                    self._status = AgentStatus.CANCELLED
+                    return "任务已取消"
+                
+                iteration += 1
+                step_start = time.time()
+                current_step = ReActStep(step_number=iteration)
 
-            # ========== THINK: 调用 LLM 进行推理 ==========
-            self._status = AgentStatus.THINKING
-            try:
-                response = await self.llm.chat_completion(
-                    messages=messages,
-                    tools=tool_definitions,
-                    tool_choice="auto" if tool_definitions else "none",
-                    temperature=temperature,
-                )
-            except Exception as e:
-                logger.error(f"Agent {self.name} LLM 调用失败: {e}")
-                self._status = AgentStatus.ERROR
-                current_step.success = False
-                return f"处理请求时发生错误: {str(e)}"
+                # ========== THINK: 调用 LLM ==========
+                self._status = AgentStatus.THINKING
+                try:
+                    response = await self._call_llm_with_retry(
+                        messages, tool_definitions, temperature
+                    )
+                except Exception as e:
+                    self._status = AgentStatus.ERROR
+                    current_step.success = False
+                    current_step.observation = str(e)
+                    self._steps.append(current_step)
+                    return f"处理请求时发生错误: {str(e)}"
 
-            current_step.thought = response.content or ""
+                current_step.thought = response.content or ""
 
-            # 记录 assistant 消息
-            assistant_message: Dict[str, Any] = {
-                "role": "assistant",
-                "content": response.content,
-            }
-            if response.tool_calls:
-                assistant_message["tool_calls"] = [
-                    {
-                        "id": tc["id"],
-                        "type": "function",
-                        "function": tc["function"]
-                    }
-                    for tc in response.tool_calls
-                ]
-            messages.append(assistant_message)
+                # 构建 assistant 消息
+                assistant_message: Dict[str, Any] = {
+                    "role": "assistant",
+                    "content": response.content,
+                }
+                if response.tool_calls:
+                    assistant_message["tool_calls"] = [
+                        {
+                            "id": tc["id"],
+                            "type": "function",
+                            "function": tc["function"]
+                        }
+                        for tc in response.tool_calls
+                    ]
+                messages.append(assistant_message)
 
-            # ========== ACT: 执行工具调用 ==========
-            if response.tool_calls:
-                self._status = AgentStatus.ACTING
+                # ========== ACT: 执行工具 ==========
+                if response.tool_calls:
+                    self._status = AgentStatus.ACTING
 
-                for tool_call in response.tool_calls:
-                    func_name = tool_call["function"]["name"]
-                    func_args_str = tool_call["function"]["arguments"]
-                    call_id = tool_call["id"]
+                    for tool_call in response.tool_calls:
+                        func_name = tool_call["function"]["name"]
+                        func_args_str = tool_call["function"]["arguments"]
+                        call_id = tool_call["id"]
 
-                    current_step.action = func_name
+                        current_step.action = func_name
 
-                    try:
-                        func_args = json.loads(func_args_str)
-                        current_step.action_input = func_args
+                        try:
+                            func_args = json.loads(func_args_str)
+                            current_step.action_input = func_args
 
-                        logger.info(f"Agent {self.name} 执行工具: {func_name}", extra={
-                            "args": func_args,
-                            "run_id": context.run_id
+                            logger.info(f"Agent {self.name} 执行工具: {func_name}", extra={
+                                "run_id": context.run_id
+                            })
+
+                            # 执行工具 (带重试)
+                            if func_name in self.tools:
+                                result = await self._execute_tool_with_retry(
+                                    func_name, func_args, context
+                                )
+                                result_str = json.dumps(result, ensure_ascii=False)
+
+                                # 提取创建的元素 ID
+                                if isinstance(result, dict):
+                                    if result.get("element_id"):
+                                        context.created_element_ids.append(result["element_id"])
+                                    if result.get("arrow_id"):
+                                        context.created_element_ids.append(result["arrow_id"])
+                            else:
+                                result = {"status": "error", "message": f"工具 {func_name} 不存在"}
+                                result_str = json.dumps(result, ensure_ascii=False)
+
+                            # 记录工具调用
+                            await self._log_action(context, func_name, func_args, result)
+
+                            # 记录到上下文
+                            context.tool_results.append({
+                                "tool": func_name,
+                                "args": func_args,
+                                "result": result_str[:1000]
+                            })
+
+                        except json.JSONDecodeError as e:
+                            result_str = json.dumps({
+                                "status": "error",
+                                "message": f"参数解析失败: {str(e)}"
+                            }, ensure_ascii=False)
+                            current_step.success = False
+                        except Exception as e:
+                            logger.error(f"工具 {func_name} 执行失败: {e}")
+                            result_str = json.dumps({
+                                "status": "error",
+                                "message": f"执行失败: {str(e)}"
+                            }, ensure_ascii=False)
+                            current_step.success = False
+
+                        # ========== OBSERVE ==========
+                        self._status = AgentStatus.OBSERVING
+                        current_step.observation = result_str
+
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": call_id,
+                            "content": result_str
                         })
 
-                        # 执行工具
-                        if func_name in self.tools:
-                            result = await self._execute_tool(
-                                func_name, func_args, context
-                            )
-                            result_str = json.dumps(result, ensure_ascii=False)
+                    # 记录步骤
+                    current_step.latency_ms = (time.time() - step_start) * 1000
+                    self._steps.append(current_step)
+                    if self._on_step_callback:
+                        self._on_step_callback(current_step)
+                    continue
 
-                            # 提取创建的元素 ID
-                            if isinstance(result, dict):
-                                if result.get("element_id"):
-                                    context.created_element_ids.append(result["element_id"])
-                                if result.get("arrow_id"):
-                                    context.created_element_ids.append(result["arrow_id"])
-                        else:
-                            result = {"status": "error", "message": f"工具 {func_name} 不存在"}
-                            result_str = json.dumps(result, ensure_ascii=False)
-
-                        # 记录工具调用
-                        await self._log_action(context, func_name, func_args, result)
-
-                        # 记录到上下文
-                        context.tool_results.append({
-                            "tool": func_name,
-                            "args": func_args,
-                            "result": result_str[:1000]  # 限制长度
-                        })
-
-                    except json.JSONDecodeError as e:
-                        result_str = json.dumps({
-                            "status": "error",
-                            "message": f"参数解析失败: {str(e)}"
-                        }, ensure_ascii=False)
-                        current_step.success = False
-                    except Exception as e:
-                        logger.error(f"工具 {func_name} 执行失败: {e}\n{traceback.format_exc()}")
-                        result_str = json.dumps({
-                            "status": "error",
-                            "message": f"执行失败: {str(e)}"
-                        }, ensure_ascii=False)
-                        current_step.success = False
-
-                    # ========== OBSERVE: 记录观察结果 ==========
-                    self._status = AgentStatus.OBSERVING
-                    current_step.observation = result_str
-
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": call_id,
-                        "content": result_str
-                    })
-
-                # 记录步骤并继续循环
+                # ========== COMPLETE ==========
+                current_step.latency_ms = (time.time() - step_start) * 1000
                 self._steps.append(current_step)
                 if self._on_step_callback:
                     self._on_step_callback(current_step)
-                continue
 
-            # ========== COMPLETE: 无工具调用，任务完成 ==========
-            self._steps.append(current_step)
-            if self._on_step_callback:
-                self._on_step_callback(current_step)
-
-            final_response = response.content or ""
-            break
+                final_response = response.content or ""
+                break
 
         self._status = AgentStatus.COMPLETED
-        logger.info(f"Agent {self.name} 执行完成", extra={
-            "run_id": context.run_id,
-            "iterations": iteration,
-            "tools_called": len(context.tool_results),
-            "elements_created": len(context.created_element_ids)
-        })
-
         return final_response
 
     async def _execute_tool(
@@ -393,20 +636,10 @@ class BaseAgent(ABC):
         args: Dict[str, Any],
         context: AgentContext
     ) -> Any:
-        """执行已注册的工具
-
-        Args:
-            name: 工具名称
-            args: 工具参数
-            context: Agent 上下文
-
-        Returns:
-            工具执行结果
-        """
+        """执行已注册的工具"""
         tool = self.tools[name]
         func = tool.func
 
-        # 检查函数是否接受 context 参数
         import inspect
         sig = inspect.signature(func)
         if "context" in sig.parameters:
@@ -414,20 +647,16 @@ class BaseAgent(ABC):
         return await func(**args)
 
     def _build_system_prompt(self) -> str:
-        """构建完整的系统提示词
-
-        子类可以重写此方法来定制提示词。
-        """
+        """构建完整的系统提示词"""
         return self.system_prompt
 
 
+# ==================== PlanningAgent ====================
+
 class PlanningAgent(BaseAgent):
-    """支持规划的 Agent 基类
-
+    """支持规划的 Agent
+    
     在执行前先进行任务规划，将复杂任务分解为子任务。
-
-    Attributes:
-        enable_planning: 是否启用规划功能
     """
 
     PLANNING_PROMPT_TEMPLATE: str = """
@@ -449,22 +678,13 @@ class PlanningAgent(BaseAgent):
         role: str,
         llm_client: LLMClient,
         system_prompt: str,
-        max_iterations: int = BaseAgent.DEFAULT_MAX_ITERATIONS,
+        config: Optional[AgentConfig] = None,
         run_service: Optional["AgentRunService"] = None,
         enable_planning: bool = True,
+        # 兼容旧参数
+        max_iterations: Optional[int] = None,
     ):
-        """初始化规划型 Agent
-
-        Args:
-            name: Agent 名称
-            role: Agent 角色
-            llm_client: LLM 客户端
-            system_prompt: 系统提示词
-            max_iterations: 最大迭代次数
-            run_service: 运行记录服务
-            enable_planning: 是否启用规划
-        """
-        super().__init__(name, role, llm_client, system_prompt, max_iterations, run_service)
+        super().__init__(name, role, llm_client, system_prompt, config, run_service, max_iterations)
         self.enable_planning = enable_planning
 
     def _build_system_prompt(self) -> str:

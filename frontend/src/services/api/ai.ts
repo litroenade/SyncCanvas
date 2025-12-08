@@ -42,6 +42,33 @@ const getAuthHeaders = () => {
 };
 
 /**
+ * 工具信息接口
+ */
+export interface ToolInfo {
+    name: string;
+    description: string;
+    category: string;
+    requires_room: boolean;
+    dangerous: boolean;
+    enabled: boolean;
+}
+
+/**
+ * Agent 状态接口
+ */
+export interface AgentStatus {
+    agent: {
+        active_rooms: string[];
+        active_count: number;
+    };
+    tools: {
+        total: number;
+        enabled: number;
+        by_category: Record<string, number>;
+    };
+}
+
+/**
  * AI 服务接口
  */
 export const aiApi = {
@@ -71,6 +98,43 @@ export const aiApi = {
             { headers: getAuthHeaders() }
         );
         return response.data.data;
+    },
+
+    /**
+     * 获取可用工具列表
+     * @returns 工具列表
+     */
+    getTools: async (): Promise<ToolInfo[]> => {
+        const response = await axios.get(
+            `${config.apiBaseUrl}/ai/tools`,
+            { headers: getAuthHeaders() }
+        );
+        return response.data.tools;
+    },
+
+    /**
+     * 获取 Agent 系统状态
+     * @returns Agent 状态信息
+     */
+    getStatus: async (): Promise<AgentStatus> => {
+        const response = await axios.get(
+            `${config.apiBaseUrl}/ai/status`,
+            { headers: getAuthHeaders() }
+        );
+        return response.data;
+    },
+
+    /**
+     * 检查房间是否正忙
+     * @param roomId - 房间 ID
+     * @returns 是否正忙
+     */
+    isRoomBusy: async (roomId: string): Promise<boolean> => {
+        const response = await axios.get(
+            `${config.apiBaseUrl}/ai/status/${roomId}`,
+            { headers: getAuthHeaders() }
+        );
+        return response.data.is_busy;
     },
 };
 

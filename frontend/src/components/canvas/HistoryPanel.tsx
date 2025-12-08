@@ -3,7 +3,7 @@
  * 主要功能: Git 风格的版本历史面板
  */
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import {
   GitBranch,
   Save,
@@ -15,7 +15,6 @@ import {
   MessageSquare,
   Check,
   Shapes,
-  Info,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useThemeStore } from '../../stores/useThemeStore'

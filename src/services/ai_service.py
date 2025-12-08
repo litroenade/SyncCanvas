@@ -2,34 +2,95 @@
 主要功能: AI 服务层
 
 提供高级 AI 功能接口，初始化 Agent 并路由请求。
+支持请求处理、历史查询、状态监控。
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
+from dataclasses import dataclass, field
+from datetime import datetime
+import asyncio
 
 from sqlmodel import Session
 
 from src.ai_engine.agents.teacher import TeacherAgent
-from src.ai_engine.core.agent import AgentContext
+from src.ai_engine.core.agent import AgentContext, AgentStatus, RoomLockManager
 from src.ai_engine.core.llm import LLMClient
+from src.ai_engine.core.tools import registry
 from src.services.agent_runs import AgentRunService
 from src.logger import get_logger
 
 logger = get_logger(__name__)
 
 
+# ==================== 服务状态 ====================
+
+@dataclass
+class ServiceStats:
+    """服务统计信息"""
+    total_requests: int = 0
+    successful_requests: int = 0
+    failed_requests: int = 0
+    total_tool_calls: int = 0
+    total_elements_created: int = 0
+    avg_response_time_ms: float = 0.0
+    _response_times: List[float] = field(default_factory=list)
+    
+    def record_request(self, success: bool, duration_ms: float, tool_calls: int, elements: int):
+        """记录请求"""
+        self.total_requests += 1
+        if success:
+            self.successful_requests += 1
+        else:
+            self.failed_requests += 1
+        
+        self.total_tool_calls += tool_calls
+        self.total_elements_created += elements
+        
+        # 保留最近 100 个响应时间计算平均值
+        self._response_times.append(duration_ms)
+        if len(self._response_times) > 100:
+            self._response_times.pop(0)
+        
+        if self._response_times:
+            self.avg_response_time_ms = sum(self._response_times) / len(self._response_times)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "total_requests": self.total_requests,
+            "successful_requests": self.successful_requests,
+            "failed_requests": self.failed_requests,
+            "success_rate": round(self.successful_requests / max(1, self.total_requests) * 100, 1),
+            "total_tool_calls": self.total_tool_calls,
+            "total_elements_created": self.total_elements_created,
+            "avg_response_time_ms": round(self.avg_response_time_ms, 2),
+        }
+
+
+# ==================== AI 服务 ====================
+
 class AIService:
     """AI 服务
-
+    
     高级 AI 功能服务，管理 Agent 生命周期并处理请求。
-
-    Attributes:
-        llm_client: LLM 客户端实例
+    
+    Features:
+    - 请求处理和路由
+    - 运行历史查询
+    - 服务状态监控
+    - 工具管理
     """
 
     def __init__(self):
         """初始化 AI 服务"""
         self.llm_client = LLMClient()
+        self._stats = ServiceStats()
+        self._active_contexts: Dict[int, AgentContext] = {}  # run_id -> context
         logger.info("AI 服务已初始化")
+
+    @property
+    def stats(self) -> ServiceStats:
+        """获取服务统计"""
+        return self._stats
 
     async def process_request(
         self,
@@ -39,7 +100,7 @@ class AIService:
         user_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """处理用户 AI 请求
-
+        
         通过 Teacher Agent 处理用户请求，支持对话和绘图。
 
         Args:
@@ -49,8 +110,11 @@ class AIService:
             user_id: 用户 ID (可选)
 
         Returns:
-            dict: 包含 response, run_id, status 的结果
+            dict: 包含 response, run_id, status, metrics 的结果
         """
+        import time
+        start_time = time.time()
+        
         run_service = AgentRunService(db)
 
         # 创建运行记录
@@ -66,6 +130,9 @@ class AIService:
             session_id=session_id,
             user_id=user_id
         )
+        
+        # 追踪活跃上下文
+        self._active_contexts[run.id] = context
 
         # 初始化 Teacher Agent
         teacher = TeacherAgent(self.llm_client, run_service)
@@ -73,13 +140,25 @@ class AIService:
         try:
             # 执行 Agent
             response = await teacher.run(context, user_input)
+            
+            # 计算耗时
+            duration_ms = (time.time() - start_time) * 1000
 
             # 更新运行状态
             run_service.complete_run(run.id, message=response)
+            
+            # 记录统计
+            self._stats.record_request(
+                success=True,
+                duration_ms=duration_ms,
+                tool_calls=len(context.tool_results),
+                elements=len(context.created_element_ids)
+            )
 
             logger.info("AI 请求处理完成", extra={
                 "run_id": run.id,
                 "session_id": session_id,
+                "duration_ms": round(duration_ms, 2),
                 "tools_called": len(context.tool_results),
                 "elements_created": len(context.created_element_ids)
             })
@@ -89,12 +168,27 @@ class AIService:
                 "response": response,
                 "run_id": run.id,
                 "elements_created": context.created_element_ids,
-                "tools_used": [r["tool"] for r in context.tool_results]
+                "tools_used": [r["tool"] for r in context.tool_results],
+                "metrics": {
+                    "duration_ms": round(duration_ms, 2),
+                    "iterations": len(teacher.steps),
+                    **teacher.metrics.to_dict()
+                }
             }
 
         except Exception as e:
             error_msg = str(e)
+            duration_ms = (time.time() - start_time) * 1000
+            
             run_service.fail_run(run.id, error=error_msg)
+            
+            # 记录统计
+            self._stats.record_request(
+                success=False,
+                duration_ms=duration_ms,
+                tool_calls=len(context.tool_results),
+                elements=len(context.created_element_ids)
+            )
 
             logger.error("AI 请求处理失败", extra={
                 "run_id": run.id,
@@ -106,9 +200,37 @@ class AIService:
                 "status": "error",
                 "response": f"处理请求时发生错误: {error_msg}",
                 "run_id": run.id,
-                "elements_created": [],
-                "tools_used": []
+                "elements_created": context.created_element_ids,
+                "tools_used": [r["tool"] for r in context.tool_results],
+                "metrics": {"duration_ms": round(duration_ms, 2)}
             }
+        finally:
+            # 清理上下文
+            self._active_contexts.pop(run.id, None)
+
+    async def cancel_request(self, run_id: int) -> Dict[str, Any]:
+        """取消正在进行的请求
+        
+        Args:
+            run_id: 运行记录 ID
+            
+        Returns:
+            dict: 操作结果
+        """
+        context = self._active_contexts.get(run_id)
+        if not context:
+            return {
+                "status": "error",
+                "message": f"运行 {run_id} 不存在或已完成"
+            }
+        
+        context.cancel()
+        logger.info(f"取消请求: run_id={run_id}")
+        
+        return {
+            "status": "success",
+            "message": f"已发送取消信号给运行 {run_id}"
+        }
 
     async def get_run_history(
         self,
@@ -116,16 +238,7 @@ class AIService:
         db: Session,
         limit: int = 20
     ) -> Dict[str, Any]:
-        """获取会话的 AI 运行历史
-
-        Args:
-            session_id: 会话/房间 ID
-            db: 数据库会话
-            limit: 返回数量限制
-
-        Returns:
-            dict: 包含运行历史列表
-        """
+        """获取会话的 AI 运行历史"""
         run_service = AgentRunService(db)
         runs = run_service.get_room_runs(session_id, limit)
 
@@ -148,15 +261,7 @@ class AIService:
         run_id: int,
         db: Session
     ) -> Dict[str, Any]:
-        """获取运行详情
-
-        Args:
-            run_id: 运行记录 ID
-            db: 数据库会话
-
-        Returns:
-            dict: 运行详情
-        """
+        """获取运行详情"""
         run_service = AgentRunService(db)
         detail = run_service.get_run_detail(run_id)
 
@@ -170,6 +275,74 @@ class AIService:
             "status": "success",
             "run": detail
         }
+
+    def get_service_status(self) -> Dict[str, Any]:
+        """获取服务状态
+        
+        Returns:
+            dict: 服务状态信息
+        """
+        # 获取可用工具
+        tools = registry.list_tools()
+        
+        return {
+            "status": "healthy",
+            "llm": {
+                "provider": self.llm_client._primary_config.provider,
+                "model": self.llm_client._primary_config.model,
+            },
+            "stats": self._stats.to_dict(),
+            "active_requests": len(self._active_contexts),
+            "busy_rooms": list(RoomLockManager._active_rooms),
+            "tools": {
+                "total": len(tools),
+                "enabled": len([t for t in tools if t["enabled"]]),
+                "by_category": self._count_tools_by_category(tools),
+            }
+        }
+    
+    def _count_tools_by_category(self, tools: List[Dict]) -> Dict[str, int]:
+        """按分类统计工具数量"""
+        counts: Dict[str, int] = {}
+        for tool in tools:
+            cat = tool.get("category", "general")
+            counts[cat] = counts.get(cat, 0) + 1
+        return counts
+
+    def list_tools(self) -> List[Dict[str, Any]]:
+        """列出所有可用工具
+        
+        Returns:
+            list: 工具列表
+        """
+        return registry.list_tools()
+
+    def disable_tool(self, name: str) -> Dict[str, Any]:
+        """禁用工具
+        
+        Args:
+            name: 工具名称
+            
+        Returns:
+            dict: 操作结果
+        """
+        if registry.get_tool(name) is None:
+            return {"status": "error", "message": f"工具 {name} 不存在"}
+        
+        registry.disable_tool(name)
+        return {"status": "success", "message": f"已禁用工具 {name}"}
+
+    def enable_tool(self, name: str) -> Dict[str, Any]:
+        """启用工具
+        
+        Args:
+            name: 工具名称
+            
+        Returns:
+            dict: 操作结果
+        """
+        registry.enable_tool(name)
+        return {"status": "success", "message": f"已启用工具 {name}"}
 
 
 # 全局实例

@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from src.config import ALLOWED_ORIGINS
+from src.config import config
 from src.logger import get_logger
 from .ai import router as ai_router
 from .rooms import router as rooms_router
@@ -27,10 +27,11 @@ def mount_middlewares(app: FastAPI):
     
     @param app - FastAPI 应用实例
     """
-    allow_all = "*" in ALLOWED_ORIGINS
+    origins = config.allowed_origins
+    allow_all = "*" in origins
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"] if allow_all else ALLOWED_ORIGINS,
+        allow_origins=["*"] if allow_all else origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

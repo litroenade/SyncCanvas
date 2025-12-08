@@ -6,52 +6,83 @@
 
 from typing import Optional, TYPE_CHECKING
 
-from src.ai_engine.core.agent import BaseAgent, AgentContext
+from src.ai_engine.core.agent import BaseAgent, AgentContext, AgentConfig
 from src.ai_engine.core.llm import LLMClient
 from src.ai_engine.core.tools import registry
+from src.ai_engine.prompts import prompt_manager
 from src.ai_engine.agents.painter import PainterAgent
 from src.logger import get_logger
 
 # 导入工具以确保它们被注册
 import src.ai_engine.tools.excalidraw_tools  # noqa: F401
-import src.ai_engine.tools.knowledge_tools  # noqa: F401
+import src.ai_engine.tools.web_tools  # noqa: F401
+import src.ai_engine.tools.general_tools  # noqa: F401
 
 if TYPE_CHECKING:
     from src.services.agent_runs import AgentRunService
 
 logger = get_logger(__name__)
 
-TEACHER_SYSTEM_PROMPT = """你是一个专业的 AI 白板助手。
-你的目标是帮助用户通过清晰的解释和可视化来学习和理解概念。
+TEACHER_SYSTEM_PROMPT = """你是 SyncCanvas 的 AI 助手，一个多功能的智能白板协作平台助手。
 
 ## 核心能力
-1. 回答用户问题，提供清晰的解释
-2. 在白板上绘制图表来辅助说明
-3. 管理画布元素（创建、修改、删除）
+
+### 1. 智能对话
+- 回答用户问题，提供清晰、专业的解释
+- 理解上下文，进行多轮对话
+- 帮助用户理解复杂概念
+
+### 2. 白板绘图
+- 在画布上绘制流程图、架构图、数据流图
+- 管理画布元素（创建、修改、删除）
+- 智能布局，避免元素重叠
+
+### 3. 信息获取
+- 获取网页内容，提取关键信息
+- 分析文本，总结要点
+- 获取当前时间，执行数学计算
 
 ## 可用工具
-- create_flowchart_node: 创建流程图节点
-- connect_nodes: 连接两个节点
-- create_element: 创建基础图形元素
-- list_elements: 列出画布元素
-- update_element: 更新元素属性
-- delete_elements: 删除指定元素
-- clear_canvas: 清空画布
+
+### 绘图工具
+- `get_canvas_bounds`: 获取画布边界和建议绘图位置 ⚠️ 绘图前必须先调用
+- `create_flowchart_node`: 创建流程图节点 (矩形/菱形/椭圆 + 文字)
+- `connect_nodes`: 用箭头连接两个节点
+- `create_element`: 创建基础图形
+- `list_elements`: 查看画布元素
+- `update_element`: 更新元素属性
+- `delete_elements`: 删除元素
+- `clear_canvas`: 清空画布
+
+### 信息工具
+- `fetch_webpage`: 获取网页内容
+- `get_current_time`: 获取当前时间
+- `calculate`: 执行数学计算
 
 ## 工作流程
-1. 理解用户的请求
-2. 如果是绘图请求，规划需要的元素和布局
-3. 使用工具逐步执行
-4. 确认完成并给出反馈
 
-## 绘图指南
-当需要绘制流程图时:
-- 使用 ellipse 表示开始/结束
-- 使用 rectangle 表示处理步骤
-- 使用 diamond 表示判断/条件
-- 从上到下布局，Y 坐标递增
+### 普通对话
+直接回答用户问题，提供有帮助的信息。
 
-你是协调者，可以直接使用工具或将复杂绘图任务委托给专门的绘图助手。
+### 绘图任务
+1. 首先调用 `get_canvas_bounds` 获取画布状态
+2. 根据 `suggested_start` 规划元素位置
+3. 依次创建节点，记录返回的 element_id
+4. 使用 connect_nodes 连接节点
+5. 确认完成
+
+### 信息查询
+1. 使用 `fetch_webpage` 获取网页内容
+2. 分析并总结关键信息
+3. 如需可视化，在白板上绘制
+
+## 注意事项
+1. 绘图前务必先获取画布边界，避免覆盖现有内容
+2. 每次创建节点后记住 element_id，用于后续连接
+3. 保持回复简洁友好
+4. 遇到复杂绘图任务，会自动委托给专业绘图助手
+
+你是用户的得力助手，随时准备帮助他们完成工作！
 """
 
 
@@ -74,36 +105,103 @@ class TeacherAgent(BaseAgent):
         "思维导图", "关系图", "时序图", "类图"
     ]
 
+    # Teacher 专用配置
+    TEACHER_CONFIG = AgentConfig(
+        max_iterations=15,
+        llm_timeout=60.0,
+        tool_timeout=30.0,
+        total_timeout=300.0,
+        enable_room_lock=True,
+    )
+
     def __init__(
         self,
         llm_client: LLMClient,
-        run_service: Optional["AgentRunService"] = None
+        run_service: Optional["AgentRunService"] = None,
+        config: Optional[AgentConfig] = None,
     ):
         """初始化 Teacher Agent
 
         Args:
             llm_client: LLM 客户端实例
             run_service: Agent 运行记录服务 (可选)
+            config: 自定义配置 (可选)
         """
+        # 构建系统提示词
+        system_prompt = self._build_prompt_from_template()
+        
         super().__init__(
             name="Teacher",
             role="Orchestrator",
             llm_client=llm_client,
-            system_prompt=TEACHER_SYSTEM_PROMPT,
-            max_iterations=15,
+            system_prompt=system_prompt,
+            config=config or self.TEACHER_CONFIG,
             run_service=run_service,
         )
         # 初始化 Painter Agent
         self.painter = PainterAgent(llm_client, run_service)
         self._register_default_tools()
+    
+    def _build_prompt_from_template(self) -> str:
+        """从 Jinja2 模板构建系统提示词
+        
+        Returns:
+            str: 渲染后的系统提示词
+        """
+        try:
+            return prompt_manager.render(
+                "teacher.jinja2",
+                drawing_tools=[
+                    {"name": "get_canvas_bounds", "description": "获取画布边界和建议绘图位置"},
+                    {"name": "create_flowchart_node", "description": "创建流程图节点"},
+                    {"name": "connect_nodes", "description": "用箭头连接两个节点"},
+                    {"name": "create_element", "description": "创建基础图形"},
+                    {"name": "list_elements", "description": "查看画布元素"},
+                    {"name": "update_element", "description": "更新元素属性"},
+                    {"name": "delete_elements", "description": "删除元素"},
+                    {"name": "clear_canvas", "description": "清空画布"},
+                ],
+                info_tools=[
+                    {"name": "fetch_webpage", "description": "获取网页内容"},
+                    {"name": "get_current_time", "description": "获取当前时间"},
+                    {"name": "calculate", "description": "执行数学计算"},
+                ],
+                guidelines=[
+                    "绘图前务必先获取画布边界，避免覆盖现有内容",
+                    "每次创建节点后记住 element_id，用于后续连接",
+                    "保持回复简洁友好",
+                    "遇到复杂绘图任务，会自动委托给专业绘图助手",
+                ]
+            )
+        except Exception as e:
+            logger.warning(f"Jinja2 模板渲染失败，使用静态 prompt: {e}")
+            return TEACHER_SYSTEM_PROMPT
 
     def _register_default_tools(self) -> None:
-        """注册默认工具"""
-        # 从全局注册表加载所有工具
+        """注册默认工具
+        
+        注册所有非危险工具。
+        """
         for name, func in registry.get_all_tools().items():
             schema = registry._schemas.get(name)
-            if schema:
-                self.register_tool(name, func, schema)
+            meta = registry.get_metadata(name)
+            
+            if not schema:
+                continue
+            
+            # 跳过危险工具
+            if meta and meta.dangerous:
+                continue
+            
+            # 获取工具配置
+            timeout = meta.timeout if meta else 30.0
+            retries = meta.retries if meta else 2
+            
+            self.register_tool(
+                name, func, schema,
+                timeout=timeout,
+                retries=retries,
+            )
 
         logger.info(f"Teacher Agent 已注册 {len(self.tools)} 个工具")
 

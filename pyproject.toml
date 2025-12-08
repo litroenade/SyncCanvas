@@ -22,4 +22,5 @@ dependencies = [
     "python-jose[cryptography]>=3.5.0",
     "pycrdt-websocket>=0.16.0",
     "pycrdt-store>=0.1.0",
+    "jinja2>=3.1.6",
 ]

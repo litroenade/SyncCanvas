@@ -20,6 +20,7 @@ import {
     Database,
     AlertCircle,
     CheckCircle,
+    Trash2,
 } from 'lucide-react';
 
 interface AIAssistantProps {
@@ -37,13 +38,26 @@ interface Message {
     status?: 'pending' | 'success' | 'error';
 }
 
-// 预设提示词
-const PRESET_PROMPTS = [
-    { icon: Workflow, label: '流程图', prompt: '画一个简单的软件开发流程图，包含需求分析、设计、开发、测试、部署五个阶段' },
-    { icon: Database, label: '数据流图', prompt: '画一个用户登录系统的数据流图，展示用户输入、验证、数据库查询的流程' },
-    { icon: Lightbulb, label: '思维导图', prompt: '创建一个关于项目管理的思维导图，中心是项目管理，分支包括计划、执行、监控、收尾' },
-    { icon: Wand2, label: '架构图', prompt: '画一个简单的微服务架构图，包含网关、用户服务、订单服务和数据库' },
+// 预设提示词分类
+const PRESET_CATEGORIES = [
+    {
+        name: '绘图',
+        prompts: [
+            { icon: Workflow, label: '流程图', prompt: '画一个简单的软件开发流程图，包含需求分析、设计、开发、测试、部署五个阶段' },
+            { icon: Database, label: '数据流图', prompt: '画一个用户登录系统的数据流图，展示用户输入、验证、数据库查询的流程' },
+            { icon: Wand2, label: '架构图', prompt: '画一个简单的微服务架构图，包含网关、用户服务、订单服务和数据库' },
+        ]
+    },
+    {
+        name: '对话',
+        prompts: [
+            { icon: Lightbulb, label: '解释概念', prompt: '解释一下什么是 CRDT (无冲突复制数据类型)' },
+        ]
+    }
 ];
+
+// 扁平化预设 (用于渲染)
+const PRESET_PROMPTS = PRESET_CATEGORIES.flatMap(cat => cat.prompts);
 
 export const AIAssistant: React.FC<AIAssistantProps> = ({
     roomId,
@@ -157,6 +171,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                 }}
             >
                 {/* 头部 */}
+                {/* 头部 */}
                 <div className={cn(
                     'flex items-center justify-between px-4 py-3 border-b',
                     isDark ? 'border-zinc-700/50' : 'border-zinc-200/50'
@@ -180,11 +195,25 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                                 'text-[10px]',
                                 isDark ? 'text-zinc-500' : 'text-zinc-400'
                             )}>
-                                智能绘图 · 流程图 · 架构图
+                                智能绘图 · 对话 · 信息获取
                             </p>
                         </div>
                     </div>
                     <div className="flex items-center gap-1">
+                        {messages.length > 0 && (
+                            <button
+                                onClick={() => setMessages([])}
+                                title="清除对话"
+                                className={cn(
+                                    'p-1.5 rounded-lg transition-colors',
+                                    isDark
+                                        ? 'hover:bg-zinc-800 text-zinc-400 hover:text-red-400'
+                                        : 'hover:bg-zinc-100 text-zinc-500 hover:text-red-500'
+                                )}
+                            >
+                                <Trash2 size={14} />
+                            </button>
+                        )}
                         <button
                             onClick={() => setIsExpanded(!isExpanded)}
                             className={cn(

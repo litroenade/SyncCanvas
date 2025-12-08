@@ -15,19 +15,20 @@ from src.db.models import (  # noqa: F401  # pylint: disable=unused-import
     AgentRun,
     AgentAction,
 )
-from src.config import DATABASE_URL, DB_ECHO
+from src.config import config
 
 # 确保数据库目录存在
-_db_path = DATABASE_URL.replace("sqlite:///", "").lstrip("./")
+_db_url = config.database_url
+_db_path = _db_url.replace("sqlite:///", "").lstrip("./")
 _db_dir = Path(_db_path).parent
 _db_dir.mkdir(parents=True, exist_ok=True)
 
 engine = create_engine(
-    DATABASE_URL,
+    _db_url,
     connect_args={"check_same_thread": False}
-    if DATABASE_URL.startswith("sqlite")
+    if _db_url.startswith("sqlite")
     else {},
-    echo=DB_ECHO,
+    echo=config.db_echo,
 )
 
 

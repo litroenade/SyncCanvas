@@ -8,9 +8,10 @@
 
 from typing import Dict, List, Any, Optional, TYPE_CHECKING
 
-from src.ai_engine.core.agent import PlanningAgent, AgentContext
+from src.ai_engine.core.agent import PlanningAgent, AgentContext, AgentConfig
 from src.ai_engine.core.llm import LLMClient
-from src.ai_engine.core.tools import registry
+from src.ai_engine.core.tools import registry, ToolCategory
+from src.ai_engine.prompts import prompt_manager
 from src.logger import get_logger
 
 # 确保工具被加载
@@ -24,29 +25,24 @@ logger = get_logger(__name__)
 
 # ==================== 布局常量 ====================
 
-class LayoutConfig:
-    """流程图布局配置
+from dataclasses import dataclass, asdict
 
-    Attributes:
-        NODE_WIDTH: 矩形节点宽度
-        NODE_HEIGHT: 矩形节点高度
-        DECISION_SIZE: 菱形节点尺寸
-        ELLIPSE_WIDTH: 椭圆节点宽度
-        ELLIPSE_HEIGHT: 椭圆节点高度
-        VERTICAL_GAP: 垂直间距
-        HORIZONTAL_GAP: 水平间距 (用于分支)
-        START_X: 起始 X 坐标 (居中)
-        START_Y: 起始 Y 坐标
-    """
-    NODE_WIDTH: int = 160
-    NODE_HEIGHT: int = 70
-    DECISION_SIZE: int = 120
-    ELLIPSE_WIDTH: int = 120
-    ELLIPSE_HEIGHT: int = 50
-    VERTICAL_GAP: int = 80
-    HORIZONTAL_GAP: int = 220
-    START_X: int = 400
-    START_Y: int = 50
+@dataclass
+class LayoutConfig:
+    """流程图布局配置"""
+    node_width: int = 160
+    node_height: int = 70
+    decision_size: int = 120
+    ellipse_width: int = 120
+    ellipse_height: int = 50
+    vertical_gap: int = 80
+    horizontal_gap: int = 220
+    start_x: int = 400
+    start_y: int = 50
+    
+    def to_dict(self) -> Dict[str, int]:
+        """转换为字典 (用于 Jinja2 模板)"""
+        return asdict(self)
 
 
 # ==================== 系统提示词 ====================
@@ -91,6 +87,12 @@ PAINTER_SYSTEM_PROMPT = """你是一个专业的图形绘制助手 (Painter Agen
 
 ## 执行流程
 
+### 步骤 0: 获取画布状态 ⚠️ 重要
+**首先**调用 `get_canvas_bounds` 获取当前画布状态:
+- 如果画布为空，使用 suggested_start 作为起始位置
+- 如果有现有元素，在 suggested_start 位置绘制新内容，避免覆盖
+- 这一步必须先执行！
+
 ### 步骤 1: 分析需求
 仔细阅读用户描述，识别:
 - 需要哪些节点 (开始、步骤、判断、结束)
@@ -98,8 +100,8 @@ PAINTER_SYSTEM_PROMPT = """你是一个专业的图形绘制助手 (Painter Agen
 - 是否有分支和汇合
 
 ### 步骤 2: 规划布局
-为每个节点计算坐标:
-- 从 Y=50 开始向下排列
+基于 get_canvas_bounds 返回的 suggested_start，为每个节点计算坐标:
+- 从 suggested_start.x, suggested_start.y 开始
 - 每个节点高度 + 80px 间距
 - 分支时水平偏移
 
@@ -175,43 +177,130 @@ class PainterAgent(PlanningAgent):
 
     专门用于绘制流程图、数据流图、架构图等技术图表。
     继承自 PlanningAgent，具备任务规划能力。
+    使用 Jinja2 模板构建系统提示词。
 
     Attributes:
         layout_config: 布局配置
         node_registry: 已创建节点的 ID 映射
     """
 
+    # Painter 专用配置
+    PAINTER_CONFIG = AgentConfig(
+        max_iterations=25,       # 绘图需要更多迭代
+        llm_timeout=90.0,        # LLM 调用超时
+        tool_timeout=30.0,       # 工具执行超时
+        total_timeout=600.0,     # 总超时 10 分钟
+        enable_room_lock=True,   # 启用房间锁
+    )
+
     def __init__(
         self,
         llm_client: LLMClient,
-        run_service: Optional["AgentRunService"] = None
+        run_service: Optional["AgentRunService"] = None,
+        config: Optional[AgentConfig] = None,
     ):
         """初始化 Painter Agent
 
         Args:
             llm_client: LLM 客户端实例
             run_service: Agent 运行记录服务 (可选)
+            config: 自定义配置 (可选)
         """
+        self.layout_config = LayoutConfig()
+        
+        # 尝试使用 Jinja2 模板，失败则使用静态 prompt
+        system_prompt = self._build_prompt_from_template()
+        
         super().__init__(
             name="Painter",
             role="图形绘制专家",
             llm_client=llm_client,
-            system_prompt=PAINTER_SYSTEM_PROMPT,
-            max_iterations=25,  # 绘图可能需要更多迭代
+            system_prompt=system_prompt,
+            config=config or self.PAINTER_CONFIG,
             run_service=run_service,
             enable_planning=True,
         )
-        self.layout_config = LayoutConfig()
         self.node_registry: Dict[str, str] = {}  # 逻辑名称 -> element_id
         self._register_tools()
+    
+    def _build_prompt_from_template(self) -> str:
+        """从 Jinja2 模板构建系统提示词
+        
+        Returns:
+            str: 渲染后的系统提示词
+        """
+        try:
+            return prompt_manager.render(
+                "painter.jinja2",
+                layout=self.layout_config.to_dict(),
+                tools=[
+                    {"name": "get_canvas_bounds", "description": "获取画布边界和建议绘图位置", "params": []},
+                    {"name": "create_flowchart_node", "description": "创建流程图节点 (形状+绑定文本)", "params": [
+                        {"name": "label", "desc": "节点文字"},
+                        {"name": "node_type", "desc": "rectangle/diamond/ellipse"},
+                        {"name": "x, y", "desc": "坐标"},
+                    ]},
+                    {"name": "connect_nodes", "description": "用箭头连接两个节点", "params": [
+                        {"name": "from_id", "desc": "起始节点 ID"},
+                        {"name": "to_id", "desc": "目标节点 ID"},
+                        {"name": "label", "desc": "连线标签 (可选)"},
+                    ]},
+                    {"name": "list_elements", "description": "查看画布现有元素", "params": []},
+                    {"name": "delete_elements", "description": "删除指定元素", "params": []},
+                    {"name": "clear_canvas", "description": "清空画布", "params": []},
+                ],
+                guidelines=[
+                    "每次创建节点后，务必记住返回的 element_id",
+                    "连接时使用正确的 from_id 和 to_id",
+                    "判断分支必须添加 label (如 \"是\"/\"否\")",
+                    "保持图表简洁，布局整齐",
+                ],
+                examples=[
+                    {
+                        "title": "登录流程图",
+                        "user_input": "画一个登录流程图",
+                        "analysis": "开始 → 输入账号密码 → 验证 → (成功?)是→登录成功/否→显示错误 → 结束",
+                        "steps": [
+                            'create_flowchart_node(label="开始", node_type="ellipse", x=400, y=50) → 记录 id1',
+                            'create_flowchart_node(label="输入账号密码", node_type="rectangle", x=400, y=180) → 记录 id2',
+                            'create_flowchart_node(label="验证", node_type="diamond", x=400, y=330) → 记录 id3',
+                            'connect_nodes(from_id=id1, to_id=id2)',
+                            'connect_nodes(from_id=id2, to_id=id3)',
+                            '...',
+                        ]
+                    }
+                ]
+            )
+        except Exception as e:
+            logger.warning(f"Jinja2 模板渲染失败，使用静态 prompt: {e}")
+            return PAINTER_SYSTEM_PROMPT
 
     def _register_tools(self) -> None:
-        """注册绘图相关工具"""
-        # 从全局注册表加载所有已注册的工具
+        """注册绘图相关工具
+        
+        只注册画布相关和通用工具，不注册危险操作。
+        """
+        # 从全局注册表加载工具
         for name, func in registry.get_all_tools().items():
             schema = registry._schemas.get(name)
-            if schema:
-                self.register_tool(name, func, schema)
+            meta = registry.get_metadata(name)
+            
+            if not schema:
+                continue
+            
+            # 跳过危险工具
+            if meta and meta.dangerous:
+                continue
+            
+            # 获取工具配置
+            timeout = meta.timeout if meta else 30.0
+            retries = meta.retries if meta else 2
+            
+            self.register_tool(
+                name, func, schema,
+                timeout=timeout,
+                retries=retries,
+            )
 
         logger.info(f"Painter Agent 已注册 {len(self.tools)} 个工具")
 
