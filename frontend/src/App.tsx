@@ -4,6 +4,7 @@ const Canvas = React.lazy(() => import('./components/canvas/Canvas').then(module
 import { Login } from './pages/Login';
 import { Rooms } from './pages/Rooms';
 import { Welcome } from './pages/Welcome';
+import Settings from './pages/Settings';
 import { Loader2 } from 'lucide-react';
 
 // ==================== 错误边界组件 ====================
@@ -126,6 +127,16 @@ function App() {
             element={
               <ProtectedRoute>
                 <Rooms />
+              </ProtectedRoute>
+            }
+          />
+          
+          {/* AI 设置页面 */}
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <Settings />
               </ProtectedRoute>
             }
           />

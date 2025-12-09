@@ -6,35 +6,36 @@
 
 from enum import Enum
 from typing import Optional, Any, Dict
-
+import traceback
+import json
 
 class ErrorCode(Enum):
     """错误代码枚举"""
-    
+
     # 通用错误 (1xxx)
     UNKNOWN = 1000
     VALIDATION_ERROR = 1001
     TIMEOUT = 1002
     CANCELLED = 1003
-    
+
     # LLM 错误 (2xxx)
     LLM_CONNECTION = 2001
     LLM_TIMEOUT = 2002
     LLM_RATE_LIMIT = 2003
     LLM_INVALID_RESPONSE = 2004
     LLM_CONTENT_FILTER = 2005
-    
+
     # 工具错误 (3xxx)
     TOOL_NOT_FOUND = 3001
     TOOL_INVALID_ARGS = 3002
     TOOL_EXECUTION_ERROR = 3003
     TOOL_TIMEOUT = 3004
-    
+
     # 房间错误 (4xxx)
     ROOM_NOT_FOUND = 4001
     ROOM_BUSY = 4002
     ROOM_LOCK_TIMEOUT = 4003
-    
+
     # Agent 错误 (5xxx)
     AGENT_MAX_ITERATIONS = 5001
     AGENT_INVALID_STATE = 5002
@@ -45,7 +46,7 @@ class AIEngineError(Exception):
     
     所有 AI Engine 相关异常的基类。
     """
-    
+
     def __init__(
         self,
         message: str,
@@ -58,7 +59,7 @@ class AIEngineError(Exception):
         self.code = code
         self.details = details or {}
         self.cause = cause
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典格式"""
         return {
@@ -67,14 +68,14 @@ class AIEngineError(Exception):
             "code_name": self.code.name,
             "details": self.details,
         }
-    
+
     def __str__(self) -> str:
         return f"[{self.code.name}] {self.message}"
 
 
 class LLMError(AIEngineError):
     """LLM 相关异常"""
-    
+
     def __init__(
         self,
         message: str,
@@ -86,7 +87,7 @@ class LLMError(AIEngineError):
 
 class ToolError(AIEngineError):
     """工具执行异常"""
-    
+
     def __init__(
         self,
         message: str,
@@ -102,7 +103,7 @@ class ToolError(AIEngineError):
 
 class RoomError(AIEngineError):
     """房间相关异常"""
-    
+
     def __init__(
         self,
         message: str,
@@ -118,7 +119,7 @@ class RoomError(AIEngineError):
 
 class AgentError(AIEngineError):
     """Agent 执行异常"""
-    
+
     def __init__(
         self,
         message: str,
@@ -134,7 +135,7 @@ class AgentError(AIEngineError):
 
 class ValidationError(AIEngineError):
     """参数验证异常"""
-    
+
     def __init__(
         self,
         message: str,
@@ -162,7 +163,7 @@ def safe_json_parse(text: str, default: Any = None) -> Any:
     Returns:
         解析结果或默认值
     """
-    import json
+
     try:
         return json.loads(text)
     except (json.JSONDecodeError, TypeError):
@@ -194,16 +195,14 @@ def format_exception(exc: Exception, include_traceback: bool = False) -> str:
     Returns:
         格式化后的错误信息
     """
-    import traceback
-    
+
     if isinstance(exc, AIEngineError):
         msg = str(exc)
     else:
         msg = f"{type(exc).__name__}: {str(exc)}"
-    
+
     if include_traceback:
         tb = traceback.format_exception(type(exc), exc, exc.__traceback__)
         msg += "\n" + "".join(tb[-3:])  # 只保留最后 3 行
-    
-    return truncate_error_message(msg, 500)
 
+    return truncate_error_message(msg, 500)

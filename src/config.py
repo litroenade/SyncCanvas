@@ -26,43 +26,131 @@ CONFIG_DIR = Path(__file__).resolve().parents[1] / "config"
 CONFIG_FILE = CONFIG_DIR / "config.toml"
 
 
+# ==================== 配置字段元数据 ====================
+
+class ExtraField(BaseModel):
+    """配置字段扩展元数据
+    
+    用于向前端传递 UI 渲染相关信息。
+    参考 nekro-agent 的 ExtraField 设计。
+    """
+    is_secret: bool = False         # 敏感字段 (显示为密码框)
+    is_textarea: bool = False       # 多行文本输入
+    is_hidden: bool = False         # 隐藏字段 (不在 UI 显示)
+    placeholder: str = ""           # 输入占位符
+    overridable: bool = False       # 可被覆盖配置
+    required: bool = False          # 必填字段
+
+
 # ==================== 配置模型 ====================
 
 class SecurityConfig(BaseModel):
     """安全配置"""
-    secret_key: str = Field(default_factory=lambda: secrets.token_hex(32))
-    admin_key: str = "admin"
+    secret_key: str = Field(
+        default_factory=lambda: secrets.token_hex(32),
+        title="密钥",
+        description="应用安全密钥，用于 JWT 签名",
+        json_schema_extra=ExtraField(is_secret=True, is_hidden=True).model_dump()
+    )
+    admin_key: str = Field(
+        default="admin",
+        title="管理员密钥",
+        description="管理员 API 访问密钥",
+        json_schema_extra=ExtraField(is_secret=True).model_dump()
+    )
 
 
 class ServerConfig(BaseModel):
     """服务器配置"""
-    host: str = "0.0.0.0"
-    port: int = 8000
-    allowed_origins: List[str] = ["*"]
+    host: str = Field(
+        default="0.0.0.0",
+        title="监听地址",
+        description="服务器监听的 IP 地址"
+    )
+    port: int = Field(
+        default=8000,
+        title="监听端口",
+        description="服务器监听的端口号"
+    )
+    allowed_origins: List[str] = Field(
+        default=["*"],
+        title="允许的跨域来源",
+        description="CORS 允许的 Origin 列表"
+    )
 
 
 class DatabaseConfig(BaseModel):
     """数据库配置"""
-    url: str = "sqlite:///./data/sync_canvas.db"
-    echo: bool = False
+    url: str = Field(
+        default="sqlite:///./data/sync_canvas.db",
+        title="数据库 URL",
+        description="SQLAlchemy 数据库连接字符串"
+    )
+    echo: bool = Field(
+        default=False,
+        title="SQL 日志",
+        description="是否打印 SQL 语句到日志"
+    )
 
 
 class AIProviderConfig(BaseModel):
     """AI 提供商配置"""
-    provider: str = "siliconflow"
-    model: str = "Qwen/Qwen2.5-14B-Instruct"
-    base_url: str = "https://api.siliconflow.cn/v1"
-    api_key: str = ""
+    provider: str = Field(
+        default="siliconflow",
+        title="主模型提供商",
+        description="AI 服务提供商名称"
+    )
+    model: str = Field(
+        default="Qwen/Qwen2.5-14B-Instruct",
+        title="主模型名称",
+        description="用于 Agent 推理的模型"
+    )
+    base_url: str = Field(
+        default="https://api.siliconflow.cn/v1",
+        title="API 地址",
+        description="模型 API 端点 URL"
+    )
+    api_key: str = Field(
+        default="",
+        title="API 密钥",
+        description="模型服务 API Key",
+        json_schema_extra=ExtraField(is_secret=True, placeholder="sk-xxx").model_dump()
+    )
     
     # 备用提供商
-    fallback_provider: str = "openai"
-    fallback_model: str = "gpt-4o-mini"
-    fallback_base_url: str = "https://api.openai.com/v1"
-    fallback_api_key: str = ""
+    fallback_provider: str = Field(
+        default="openai",
+        title="备用提供商",
+        description="主模型不可用时的备用提供商"
+    )
+    fallback_model: str = Field(
+        default="gpt-4o-mini",
+        title="备用模型",
+        description="备用模型名称"
+    )
+    fallback_base_url: str = Field(
+        default="https://api.openai.com/v1",
+        title="备用 API 地址",
+        description="备用模型 API 端点"
+    )
+    fallback_api_key: str = Field(
+        default="",
+        title="备用 API 密钥",
+        description="备用模型服务 API Key",
+        json_schema_extra=ExtraField(is_secret=True, placeholder="sk-xxx").model_dump()
+    )
     
     # 工具调用配置
-    tool_choice: str = "auto"
-    max_tool_calls: int = 10
+    tool_choice: str = Field(
+        default="auto",
+        title="工具选择模式",
+        description="auto/required/none"
+    )
+    max_tool_calls: int = Field(
+        default=10,
+        title="最大工具调用数",
+        description="单次 Agent 运行最大工具调用次数"
+    )
 
 
 class LoggingConfig(BaseModel):

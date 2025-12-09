@@ -26,6 +26,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set, TYPE_CHECKING
 
+from pydantic import BaseModel, Field
+
 from openai.types.chat import ChatCompletionMessageParam
 
 from src.agent.core.llm import LLMClient, LLMResponse
@@ -44,17 +46,17 @@ class RoomLockManager:
     
     防止同一房间同时有多个 Agent 操作，避免元素冲突。
     """
-    
+
     _locks: Dict[str, asyncio.Lock] = {}
     _active_rooms: Set[str] = set()
-    
+
     @classmethod
     def get_lock(cls, room_id: str) -> asyncio.Lock:
         """获取房间锁"""
         if room_id not in cls._locks:
             cls._locks[room_id] = asyncio.Lock()
         return cls._locks[room_id]
-    
+
     @classmethod
     @asynccontextmanager
     async def acquire(cls, room_id: str, timeout: float = 30.0):
@@ -69,17 +71,17 @@ class RoomLockManager:
             RuntimeError: 房间正忙
         """
         lock = cls.get_lock(room_id)
-        
+
         try:
             acquired = await asyncio.wait_for(lock.acquire(), timeout=timeout)
             if not acquired:
                 raise RuntimeError(f"房间 {room_id} 正忙，请稍后再试")
-            
+
             cls._active_rooms.add(room_id)
             logger.debug(f"获取房间锁: {room_id}")
-            
+
             yield
-            
+
         except asyncio.TimeoutError:
             raise TimeoutError(f"获取房间 {room_id} 的锁超时")
         finally:
@@ -88,7 +90,7 @@ class RoomLockManager:
             if lock.locked():
                 lock.release()
                 logger.debug(f"释放房间锁: {room_id}")
-    
+
     @classmethod
     def is_room_busy(cls, room_id: str) -> bool:
         """检查房间是否正忙"""
@@ -123,21 +125,21 @@ class AgentMetrics:
     llm_latency_ms: List[float] = field(default_factory=list)
     tool_latency_ms: List[float] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
-    
+
     @property
     def duration_ms(self) -> float:
         """总执行时间 (毫秒)"""
         if self.end_time > 0:
             return (self.end_time - self.start_time) * 1000
         return 0.0
-    
+
     @property
     def avg_llm_latency_ms(self) -> float:
         """平均 LLM 延迟"""
         if self.llm_latency_ms:
             return sum(self.llm_latency_ms) / len(self.llm_latency_ms)
         return 0.0
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
         return {
@@ -160,11 +162,11 @@ class AgentContext:
     tool_results: List[Dict[str, Any]] = field(default_factory=list)
     created_element_ids: List[str] = field(default_factory=list)
     _cancelled: bool = field(default=False, repr=False)
-    
+
     def cancel(self) -> None:
         """标记任务为已取消"""
         self._cancelled = True
-    
+
     @property
     def is_cancelled(self) -> bool:
         """检查任务是否已取消"""
@@ -196,19 +198,47 @@ class ReActStep:
 
 # ==================== Agent 配置 ====================
 
-@dataclass
-class AgentConfig:
+class AgentConfig(BaseModel):
     """Agent 配置
     
     集中管理 Agent 的各项配置参数。
+    使用 pydantic BaseModel 以支持 UI 渲染元数据。
     """
-    max_iterations: int = 15
-    max_retries: int = 3
-    llm_timeout: float = 60.0      # LLM 调用超时
-    tool_timeout: float = 30.0     # 工具执行超时
-    total_timeout: float = 300.0   # 总执行超时 (5分钟)
-    retry_delay: float = 1.0       # 重试间隔
-    enable_room_lock: bool = True  # 是否启用房间锁
+    max_iterations: int = Field(
+        default=15,
+        title="最大迭代次数",
+        description="ReAct 循环最大迭代次数"
+    )
+    max_retries: int = Field(
+        default=3,
+        title="重试次数",
+        description="LLM/工具调用失败重试次数"
+    )
+    llm_timeout: float = Field(
+        default=60.0,
+        title="LLM 超时 (秒)",
+        description="单次 LLM 调用超时时间"
+    )
+    tool_timeout: float = Field(
+        default=30.0,
+        title="工具超时 (秒)",
+        description="单个工具执行超时时间"
+    )
+    total_timeout: float = Field(
+        default=300.0,
+        title="总超时 (秒)",
+        description="Agent 任务总执行超时 (5分钟)"
+    )
+    retry_delay: float = Field(
+        default=1.0,
+        title="重试间隔 (秒)",
+        description="失败后重试等待时间"
+    )
+    enable_room_lock: bool = Field(
+        default=True,
+        title="启用房间锁",
+        description="防止同一房间同时多个 Agent 操作"
+    )
 
 
 # ==================== Agent 基类 ====================
@@ -243,15 +273,15 @@ class BaseAgent(ABC):
         self.llm = llm_client
         self.system_prompt = system_prompt
         self.run_service = run_service
-        
+
         # 配置
         self.config = config or AgentConfig()
         if max_iterations is not None:
             self.config.max_iterations = max_iterations
-        
+
         # 兼容旧属性
         self.max_iterations = self.config.max_iterations
-        
+
         # 运行时状态
         self.tools: Dict[str, ToolDefinition] = {}
         self._status = AgentStatus.IDLE
@@ -266,7 +296,7 @@ class BaseAgent(ABC):
     @property
     def steps(self) -> List[ReActStep]:
         return self._steps.copy()
-    
+
     @property
     def metrics(self) -> AgentMetrics:
         return self._metrics
@@ -333,11 +363,11 @@ class BaseAgent(ABC):
             Exception: 所有重试都失败后抛出最后一个异常
         """
         last_error: Optional[Exception] = None
-        
+
         for attempt in range(self.config.max_retries):
             try:
                 start_time = time.time()
-                
+
                 response = await asyncio.wait_for(
                     self.llm.chat_completion(
                         messages=messages,
@@ -347,26 +377,26 @@ class BaseAgent(ABC):
                     ),
                     timeout=self.config.llm_timeout
                 )
-                
+
                 # 记录延迟
                 latency = (time.time() - start_time) * 1000
                 self._metrics.llm_latency_ms.append(latency)
                 self._metrics.total_llm_calls += 1
-                
+
                 return response
-                
+
             except asyncio.TimeoutError:
                 last_error = TimeoutError(f"LLM 调用超时 ({self.config.llm_timeout}s)")
                 self._metrics.errors.append(f"LLM 超时 (尝试 {attempt + 1})")
             except Exception as e:
                 last_error = e
                 self._metrics.errors.append(f"LLM 错误: {str(e)[:100]}")
-            
+
             if attempt < self.config.max_retries - 1:
                 self._metrics.total_retries += 1
                 await asyncio.sleep(self.config.retry_delay * (attempt + 1))
                 logger.warning(f"LLM 调用重试 ({attempt + 2}/{self.config.max_retries})")
-        
+
         raise last_error or Exception("未知错误")
 
     async def _execute_tool_with_retry(
@@ -382,36 +412,49 @@ class BaseAgent(ABC):
         """
         tool = self.tools[name]
         last_error: Optional[Exception] = None
-        
+
         for attempt in range(tool.retries):
             try:
                 start_time = time.time()
-                
+
                 # 使用工具专属超时
                 result = await asyncio.wait_for(
                     self._execute_tool(name, args, context),
                     timeout=tool.timeout
                 )
-                
+
                 # 记录延迟
                 latency = (time.time() - start_time) * 1000
                 self._metrics.tool_latency_ms.append(latency)
                 self._metrics.total_tool_calls += 1
-                
+
                 return result
-                
+
             except asyncio.TimeoutError:
                 last_error = TimeoutError(f"工具 {name} 执行超时 ({tool.timeout}s)")
                 self._metrics.errors.append(f"工具 {name} 超时")
+                logger.error(
+                    "工具 %s 执行超时 (timeout=%ss, attempt=%d)",
+                    name, tool.timeout, attempt + 1
+                )
             except Exception as e:
                 last_error = e
                 self._metrics.errors.append(f"工具 {name} 错误: {str(e)[:100]}")
-            
+                # 打印完整堆栈信息
+                logger.error(
+                    "工具 %s 执行失败 [%s]: %s",
+                    name, type(e).__name__, str(e)[:200],
+                    exc_info=True
+                )
+
             if attempt < tool.retries - 1:
                 self._metrics.total_retries += 1
                 await asyncio.sleep(self.config.retry_delay)
-                logger.warning(f"工具 {name} 重试 ({attempt + 2}/{tool.retries})")
-        
+                logger.warning(
+                    "工具 %s 重试 (%d/%d) - 上次错误: %s",
+                    name, attempt + 2, tool.retries, str(last_error)[:100]
+                )
+
         # 返回错误结果而不是抛出异常
         return {
             "status": "error",
@@ -439,7 +482,7 @@ class BaseAgent(ABC):
         self._status = AgentStatus.THINKING
         self._steps = []
         self._metrics = AgentMetrics(start_time=time.time())
-        
+    
         logger.info(f"Agent {self.name} 开始执行", extra={
             "run_id": context.run_id,
             "session_id": context.session_id
@@ -452,24 +495,24 @@ class BaseAgent(ABC):
                     return await self._run_react_loop(context, user_input, temperature)
             else:
                 return await self._run_react_loop(context, user_input, temperature)
-                
+
         except TimeoutError as e:
             self._status = AgentStatus.TIMEOUT
             self._metrics.errors.append(str(e))
             logger.error(f"Agent {self.name} 执行超时: {e}")
             return f"执行超时: {str(e)}"
-            
+
         except asyncio.CancelledError:
             self._status = AgentStatus.CANCELLED
             logger.warning(f"Agent {self.name} 被取消")
             return "任务已取消"
-            
+
         except Exception as e:
             self._status = AgentStatus.ERROR
             self._metrics.errors.append(str(e))
             logger.error(f"Agent {self.name} 执行失败: {e}\n{traceback.format_exc()}")
             return f"执行失败: {str(e)}"
-            
+
         finally:
             self._metrics.end_time = time.time()
             logger.info(f"Agent {self.name} 执行结束", extra={
@@ -505,7 +548,7 @@ class BaseAgent(ABC):
                 if context.is_cancelled:
                     self._status = AgentStatus.CANCELLED
                     return "任务已取消"
-                
+
                 iteration += 1
                 step_start = time.time()
                 current_step = ReActStep(step_number=iteration)

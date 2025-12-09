@@ -270,19 +270,19 @@ def _find_element_by_id(elements_array: Array, element_id: str) -> tuple:
     return -1, None
 
 
-def _element_to_ymap(element: Dict[str, Any]) -> Map:
-    """将元素字典转换为 Y.Map
+def _element_to_ymap(element: Dict[str, Any]) -> Dict[str, Any]:
+    """将元素字典转换为可 append 的格式
+
+    注意: pycrdt Array 可以直接 append dict，会自动转换为 Y.Map。
+    不需要手动创建 Map() 对象。
 
     Args:
         element: 元素字典
 
     Returns:
-        Map: Y.Map 对象
+        Dict: 元素字典（直接返回）
     """
-    y_map = Map()
-    for key, value in element.items():
-        y_map[key] = value
-    return y_map
+    return element
 
 
 # ==================== 工具实现 ====================

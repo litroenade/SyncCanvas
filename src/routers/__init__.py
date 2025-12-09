@@ -14,6 +14,8 @@ from src.logger import get_logger
 from .ai import router as ai_router
 from .rooms import router as rooms_router
 from .igit import igit_router
+from .settings import router as settings_router
+from .config_router import router as config_router
 
 
 logger = get_logger(__name__)
@@ -83,6 +85,8 @@ def mount_api_routes(app: FastAPI):
     app.include_router(api)
     app.include_router(ai_router, prefix="/api")
     app.include_router(rooms_router, prefix="/api")
+    app.include_router(settings_router, prefix="/api")
+    app.include_router(config_router)  # config_router 已有 /api/config 前缀
     # igit_router 需要挂载到 /api/rooms 下，因为它的端点是 /{room_id}/history 等
     app.include_router(igit_router, prefix="/api/rooms")
 
