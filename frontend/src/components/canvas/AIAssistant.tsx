@@ -1,12 +1,12 @@
 /**
  * AI 助手组件
  * 
- * 提供与 LLM Agent 的交互界面，支持智能绘图命令
+ * 提供与 LLM Agent 的交互界面，支持智能绘图命令和实时步骤反馈
  */
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../lib/utils';
-import { aiApi } from '../../services/api/ai';
+import { useAIStream } from '../../hooks/useAIStream';
 import {
     Sparkles,
     Send,
@@ -32,10 +32,15 @@ interface AIAssistantProps {
 
 interface Message {
     id: string;
-    role: 'user' | 'assistant' | 'system';
+    role: 'user' | 'assistant' | 'system' | 'step';
     content: string;
     timestamp: number;
     status?: 'pending' | 'success' | 'error';
+    stepInfo?: {
+        step_number: number;
+        action: string | null;
+        latency_ms: number;
+    };
 }
 
 // 预设提示词分类
@@ -67,10 +72,19 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
 }) => {
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState<Message[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
     const [isExpanded, setIsExpanded] = useState(true);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
+
+    // 使用 WebSocket 流式 AI
+    const {
+        isLoading,
+        steps,
+        response,
+        error,
+        sendRequest,
+        reset,
+    } = useAIStream({ roomId, autoConnect: isOpen });
 
     // 滚动到底部
     const scrollToBottom = useCallback(() => {
@@ -79,7 +93,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
 
     useEffect(() => {
         scrollToBottom();
-    }, [messages, scrollToBottom]);
+    }, [messages, steps, scrollToBottom]);
 
     // 自动聚焦输入框
     useEffect(() => {
@@ -87,6 +101,58 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
             setTimeout(() => inputRef.current?.focus(), 100);
         }
     }, [isOpen]);
+
+    // 监听步骤更新
+    useEffect(() => {
+        if (steps.length > 0) {
+            const latestStep = steps[steps.length - 1];
+            // 更新最后一条助手消息的内容为当前步骤
+            setMessages(prev => {
+                // 兼容性写法：从后往前查找
+                let lastAssistantIndex = -1;
+                for (let i = prev.length - 1; i >= 0; i--) {
+                    if (prev[i].role === 'assistant' && prev[i].status === 'pending') {
+                        lastAssistantIndex = i;
+                        break;
+                    }
+                }
+                if (lastAssistantIndex === -1) return prev;
+                
+                return prev.map((msg, i) => 
+                    i === lastAssistantIndex
+                        ? {
+                            ...msg,
+                            content: latestStep.action 
+                                ? `正在执行: ${latestStep.action}...`
+                                : latestStep.thought || '思考中...',
+                        }
+                        : msg
+                );
+            });
+        }
+    }, [steps]);
+
+    // 监听完成响应
+    useEffect(() => {
+        if (response) {
+            setMessages(prev => prev.map(msg => 
+                msg.role === 'assistant' && msg.status === 'pending'
+                    ? { ...msg, content: response, status: 'success' as const }
+                    : msg
+            ));
+        }
+    }, [response]);
+
+    // 监听错误
+    useEffect(() => {
+        if (error) {
+            setMessages(prev => prev.map(msg => 
+                msg.role === 'assistant' && msg.status === 'pending'
+                    ? { ...msg, content: error, status: 'error' as const }
+                    : msg
+            ));
+        }
+    }, [error]);
 
     // 发送消息
     const handleSend = useCallback(async (prompt?: string) => {
@@ -103,41 +169,18 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
         const assistantMessage: Message = {
             id: `assistant-${Date.now()}`,
             role: 'assistant',
-            content: '正在生成...',
+            content: '正在连接...',
             timestamp: Date.now(),
             status: 'pending',
         };
 
         setMessages(prev => [...prev, userMessage, assistantMessage]);
         setInput('');
-        setIsLoading(true);
+        reset();
 
-        try {
-            const result = await aiApi.generateShapes(text, roomId);
-            
-            setMessages(prev => prev.map(msg => 
-                msg.id === assistantMessage.id
-                    ? {
-                        ...msg,
-                        content: result.message || '绘图完成！',
-                        status: 'success' as const,
-                    }
-                    : msg
-            ));
-        } catch (error: any) {
-            setMessages(prev => prev.map(msg => 
-                msg.id === assistantMessage.id
-                    ? {
-                        ...msg,
-                        content: error.response?.data?.detail || '生成失败，请重试',
-                        status: 'error' as const,
-                    }
-                    : msg
-            ));
-        } finally {
-            setIsLoading(false);
-        }
-    }, [input, isLoading, roomId]);
+        // 使用 WebSocket 发送请求
+        await sendRequest(text);
+    }, [input, isLoading, sendRequest, reset]);
 
     // 处理按键
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {

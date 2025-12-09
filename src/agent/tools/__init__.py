@@ -4,10 +4,10 @@
 """
 
 # 导入工具模块以触发 @registry.register 装饰器
-from src.ai_engine.tools import excalidraw_tools
-from src.ai_engine.tools import web_tools
-from src.ai_engine.tools import general_tools
-from src.ai_engine.tools import text_tools
+from src.agent.tools import excalidraw_tools
+from src.agent.tools import web_tools
+from src.agent.tools import general_tools
+from src.agent.tools import text_tools
 
 __all__ = [
     "excalidraw_tools",

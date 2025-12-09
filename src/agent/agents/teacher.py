@@ -6,17 +6,17 @@
 
 from typing import Optional, TYPE_CHECKING
 
-from src.ai_engine.core.agent import BaseAgent, AgentContext, AgentConfig
-from src.ai_engine.core.llm import LLMClient
-from src.ai_engine.core.tools import registry
-from src.ai_engine.prompts import prompt_manager
-from src.ai_engine.agents.painter import PainterAgent
+from src.agent.core.agent import BaseAgent, AgentContext, AgentConfig
+from src.agent.core.llm import LLMClient
+from src.agent.core.tools import registry
+from src.agent.prompts import prompt_manager
+from src.agent.agents.painter import PainterAgent
 from src.logger import get_logger
 
 # 导入工具以确保它们被注册
-import src.ai_engine.tools.excalidraw_tools  # noqa: F401
-import src.ai_engine.tools.web_tools  # noqa: F401
-import src.ai_engine.tools.general_tools  # noqa: F401
+import src.agent.tools.excalidraw_tools  # noqa: F401
+import src.agent.tools.web_tools  # noqa: F401
+import src.agent.tools.general_tools  # noqa: F401
 
 if TYPE_CHECKING:
     from src.services.agent_runs import AgentRunService

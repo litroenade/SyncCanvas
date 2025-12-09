@@ -28,7 +28,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, TYPE_CHECKING
 
 from openai.types.chat import ChatCompletionMessageParam
 
-from src.ai_engine.core.llm import LLMClient, LLMResponse
+from src.agent.core.llm import LLMClient, LLMResponse
 from src.logger import get_logger
 
 if TYPE_CHECKING:
@@ -309,7 +309,7 @@ class BaseAgent(ABC):
         """记录工具调用到数据库"""
         if self.run_service:
             try:
-                await self.run_service.log_action(
+                await self.run_service.log_action_async(
                     run_id=context.run_id,
                     tool=tool_name,
                     arguments=args,

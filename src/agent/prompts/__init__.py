@@ -4,7 +4,7 @@
 提供 Prompt 模板的加载、渲染和管理功能。
 """
 
-from src.ai_engine.prompts.manager import PromptManager, prompt_manager
+from src.agent.prompts.manager import PromptManager, prompt_manager
 
 __all__ = ["PromptManager", "prompt_manager"]
 

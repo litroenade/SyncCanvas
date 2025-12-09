@@ -6,16 +6,18 @@
 使用 ReAct 架构进行推理和执行。
 """
 
+from dataclasses import dataclass, asdict
+import json
 from typing import Dict, List, Any, Optional, TYPE_CHECKING
 
-from src.ai_engine.core.agent import PlanningAgent, AgentContext, AgentConfig
-from src.ai_engine.core.llm import LLMClient
-from src.ai_engine.core.tools import registry, ToolCategory
-from src.ai_engine.prompts import prompt_manager
+from src.agent.core.agent import PlanningAgent, AgentContext, AgentConfig
+from src.agent.core.llm import LLMClient
+from src.agent.core.tools import registry, ToolCategory
+from src.agent.prompts import prompt_manager
 from src.logger import get_logger
 
 # 确保工具被加载
-import src.ai_engine.tools.excalidraw_tools  # noqa: F401
+import src.agent.tools.excalidraw_tools  # noqa: F401
 
 if TYPE_CHECKING:
     from src.services.agent_runs import AgentRunService
@@ -24,8 +26,6 @@ logger = get_logger(__name__)
 
 
 # ==================== 布局常量 ====================
-
-from dataclasses import dataclass, asdict
 
 @dataclass
 class LayoutConfig:
@@ -371,8 +371,8 @@ class PainterAgent(PlanningAgent):
             result_str = result.get("result", "{}")
 
             try:
-                result_data = eval(result_str) if isinstance(result_str, str) else result_str
-            except:
+                result_data = json.loads(result_str) if isinstance(result_str, str) else result_str
+            except (json.JSONDecodeError, TypeError):
                 result_data = {}
 
             if tool in ["create_flowchart_node", "create_element"]:

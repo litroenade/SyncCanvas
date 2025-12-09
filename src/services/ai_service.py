@@ -5,17 +5,16 @@
 支持请求处理、历史查询、状态监控。
 """
 
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Callable
 from dataclasses import dataclass, field
-from datetime import datetime
 import asyncio
 
 from sqlmodel import Session
 
-from src.ai_engine.agents.teacher import TeacherAgent
-from src.ai_engine.core.agent import AgentContext, AgentStatus, RoomLockManager
-from src.ai_engine.core.llm import LLMClient
-from src.ai_engine.core.tools import registry
+from src.agent.agents.teacher import TeacherAgent
+from src.agent.core.agent import AgentContext, RoomLockManager
+from src.agent.core.llm import LLMClient
+from src.agent.core.tools import registry
 from src.services.agent_runs import AgentRunService
 from src.logger import get_logger
 
@@ -231,6 +230,143 @@ class AIService:
             "status": "success",
             "message": f"已发送取消信号给运行 {run_id}"
         }
+
+    async def process_request_with_stream(
+        self,
+        user_input: str,
+        session_id: str,
+        step_callback: Callable = None,
+        user_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """处理用户 AI 请求 (支持流式步骤回调)
+        
+        与 process_request 类似，但支持每个步骤的实时回调。
+        
+        Args:
+            user_input: 用户输入文本
+            session_id: 会话/房间 ID
+            step_callback: 步骤回调函数，接收 ReActStep 参数
+            user_id: 用户 ID (可选)
+            
+        Returns:
+            dict: 包含 response, run_id, status, metrics 的结果
+        """
+        import time
+        from src.db.database import get_sync_session
+        
+        start_time = time.time()
+        
+        # 使用同步会话创建运行记录
+        with get_sync_session() as db:
+            run_service = AgentRunService(db)
+            
+            run = run_service.create_run(
+                room_id=session_id,
+                prompt=user_input,
+                model=self.llm_client._primary_config.model
+            )
+            run_id = run.id
+
+        # 初始化上下文
+        context = AgentContext(
+            run_id=run_id,
+            session_id=session_id,
+            user_id=user_id
+        )
+        
+        self._active_contexts[run_id] = context
+        
+        # 创建持久的 run_service 用于记录工具调用
+        # 注：使用新的会话实例确保线程安全
+        from src.db.database import engine
+        stream_session = Session(engine)
+        stream_run_service = AgentRunService(stream_session)
+        
+        # 初始化 Teacher Agent (传递 run_service 以记录工具调用)
+        teacher = TeacherAgent(self.llm_client, stream_run_service)
+        
+        # 设置步骤回调
+        if step_callback:
+            async def async_callback(step):
+                try:
+                    result = step_callback(step)
+                    if asyncio.iscoroutine(result):
+                        await result
+                except Exception as e:
+                    logger.warning(f"步骤回调失败: {e}")
+            
+            teacher.set_step_callback(async_callback)
+        
+        try:
+            response = await teacher.run(context, user_input)
+            duration_ms = (time.time() - start_time) * 1000
+            
+            # 更新运行状态
+            with get_sync_session() as db:
+                run_service = AgentRunService(db)
+                run_service.complete_run(run_id, message=response)
+            
+            self._stats.record_request(
+                success=True,
+                duration_ms=duration_ms,
+                tool_calls=len(context.tool_results),
+                elements=len(context.created_element_ids)
+            )
+            
+            logger.info("AI 流式请求处理完成", extra={
+                "run_id": run_id,
+                "session_id": session_id,
+                "duration_ms": round(duration_ms, 2),
+                "tools_called": len(context.tool_results),
+                "elements_created": len(context.created_element_ids)
+            })
+            
+            return {
+                "status": "success",
+                "response": response,
+                "run_id": run_id,
+                "elements_created": context.created_element_ids,
+                "tools_used": [r["tool"] for r in context.tool_results],
+                "metrics": {
+                    "duration_ms": round(duration_ms, 2),
+                    "iterations": len(teacher.steps),
+                    **teacher.metrics.to_dict()
+                }
+            }
+            
+        except Exception as e:
+            error_msg = str(e)
+            duration_ms = (time.time() - start_time) * 1000
+            
+            with get_sync_session() as db:
+                run_service = AgentRunService(db)
+                run_service.fail_run(run_id, error=error_msg)
+            
+            self._stats.record_request(
+                success=False,
+                duration_ms=duration_ms,
+                tool_calls=len(context.tool_results),
+                elements=len(context.created_element_ids)
+            )
+            
+            logger.error("AI 流式请求处理失败", extra={
+                "run_id": run_id,
+                "session_id": session_id,
+                "error": error_msg
+            })
+            
+            return {
+                "status": "error",
+                "response": f"处理请求时发生错误: {error_msg}",
+                "run_id": run_id,
+                "elements_created": context.created_element_ids,
+                "tools_used": [r["tool"] for r in context.tool_results],
+                "metrics": {"duration_ms": round(duration_ms, 2)}
+            }
+        finally:
+            # 关闭流式会话
+            stream_session.close()
+            self._active_contexts.pop(run_id, None)
 
     async def get_run_history(
         self,

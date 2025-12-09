@@ -14,6 +14,16 @@
 - **rectangle (矩形)**: 处理/操作步骤，尺寸 {{ layout.node_width }}x{{ layout.node_height }}
 - **diamond (菱形)**: 判断/条件分支，尺寸 {{ layout.decision_size }}x{{ layout.decision_size }}
 
+### 架构图元素
+- **容器 (container)**: 使用 `create_container` 创建分组区域框 (如 "前端"、"后端")
+  - 建议尺寸: 宽 300-400px，高度根据内容调整
+  - 返回 `content_area` 指示可放置组件的区域
+- **组件 (component)**: 使用 `create_component` 创建服务/模块节点
+  - service: 服务/API (圆角矩形)
+  - database: 数据库 (椭圆形)
+  - module: 模块/功能块 (矩形)
+  - client: 客户端/用户 (圆角矩形)
+
 ### 布局规则
 - 起始位置: X={{ layout.start_x }} (水平居中), Y={{ layout.start_y }} (顶部留白)
 - 垂直间距: 节点间隔 {{ layout.vertical_gap }}px

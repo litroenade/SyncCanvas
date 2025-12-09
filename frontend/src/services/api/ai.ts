@@ -138,3 +138,182 @@ export const aiApi = {
     },
 };
 
+
+// ==================== WebSocket 流式 AI ====================
+
+/**
+ * AI 流式步骤消息
+ */
+export interface AIStreamStep {
+    type: 'step';
+    step_number: number;
+    thought: string;
+    action: string | null;
+    action_input: Record<string, unknown> | null;
+    observation: string | null;
+    success: boolean;
+    latency_ms: number;
+}
+
+/**
+ * AI 流式完成消息
+ */
+export interface AIStreamComplete {
+    type: 'complete';
+    status: string;
+    response: string;
+    run_id: number;
+    elements_created: string[];
+    tools_used: string[];
+    metrics?: {
+        duration_ms?: number;
+        iterations?: number;
+        [key: string]: unknown;
+    };
+}
+
+/**
+ * AI 流式错误消息
+ */
+export interface AIStreamError {
+    type: 'error';
+    message: string;
+}
+
+/**
+ * AI 流式开始消息
+ */
+export interface AIStreamStarted {
+    type: 'started';
+    room_id: string;
+    prompt: string;
+}
+
+/**
+ * AI 流式消息联合类型
+ */
+export type AIStreamMessage = AIStreamStep | AIStreamComplete | AIStreamError | AIStreamStarted;
+
+/**
+ * AI 流式事件回调
+ */
+export interface AIStreamCallbacks {
+    onStep?: (step: AIStreamStep) => void;
+    onComplete?: (result: AIStreamComplete) => void;
+    onError?: (error: AIStreamError) => void;
+    onStarted?: (data: AIStreamStarted) => void;
+    onClose?: () => void;
+}
+
+/**
+ * AI WebSocket 流式客户端
+ * 
+ * 用于与后端 /ai/stream/{room_id} 端点建立 WebSocket 连接，
+ * 接收 Agent 执行的实时步骤反馈。
+ */
+export class AIStreamClient {
+    private ws: WebSocket | null = null;
+    private roomId: string;
+    private callbacks: AIStreamCallbacks;
+
+    constructor(roomId: string, callbacks: AIStreamCallbacks = {}) {
+        this.roomId = roomId;
+        this.callbacks = callbacks;
+    }
+
+    /**
+     * 连接到 AI 流式端点
+     */
+    connect(): Promise<void> {
+        return new Promise((resolve, reject) => {
+            // 从 wsBaseUrl 构建 AI 流式 WebSocket URL
+            // wsBaseUrl: ws://localhost:8000/ws -> ws://localhost:8000/api/ai/stream/{room_id}
+            const baseUrl = config.wsBaseUrl.replace('/ws', '');
+            const wsUrl = `${baseUrl}/api/ai/stream/${this.roomId}`;
+            console.log('[AI Stream] 连接:', wsUrl);
+            
+            this.ws = new WebSocket(wsUrl);
+
+            this.ws.onopen = () => {
+                console.log('[AI Stream] 已连接');
+                resolve();
+            };
+
+            this.ws.onerror = (error) => {
+                console.error('[AI Stream] 连接错误:', error);
+                reject(error);
+            };
+
+            this.ws.onclose = () => {
+                console.log('[AI Stream] 连接关闭');
+                this.callbacks.onClose?.();
+            };
+
+            this.ws.onmessage = (event) => {
+                try {
+                    const message: AIStreamMessage = JSON.parse(event.data);
+                    this.handleMessage(message);
+                } catch (e) {
+                    console.error('[AI Stream] 解析消息失败:', e);
+                }
+            };
+        });
+    }
+
+    /**
+     * 处理接收到的消息
+     */
+    private handleMessage(message: AIStreamMessage) {
+        switch (message.type) {
+            case 'started':
+                console.log('[AI Stream] 开始处理:', message.prompt);
+                this.callbacks.onStarted?.(message);
+                break;
+            case 'step':
+                console.log(`[AI Stream] 步骤 ${message.step_number}:`, message.action);
+                this.callbacks.onStep?.(message);
+                break;
+            case 'complete':
+                console.log('[AI Stream] 完成:', message.response?.substring(0, 50));
+                this.callbacks.onComplete?.(message);
+                break;
+            case 'error':
+                console.error('[AI Stream] 错误:', message.message);
+                this.callbacks.onError?.(message);
+                break;
+        }
+    }
+
+    /**
+     * 发送请求
+     */
+    sendRequest(prompt: string): void {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            console.error('[AI Stream] WebSocket 未连接');
+            return;
+        }
+
+        this.ws.send(JSON.stringify({
+            type: 'request',
+            prompt,
+        }));
+    }
+
+    /**
+     * 断开连接
+     */
+    disconnect(): void {
+        if (this.ws) {
+            this.ws.close();
+            this.ws = null;
+        }
+    }
+
+    /**
+     * 检查是否已连接
+     */
+    get isConnected(): boolean {
+        return this.ws?.readyState === WebSocket.OPEN;
+    }
+}
+

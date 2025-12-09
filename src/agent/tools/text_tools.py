@@ -12,7 +12,7 @@ from typing import Dict, Any, List, Optional
 
 from pydantic import BaseModel, Field
 
-from src.ai_engine.core.tools import registry, ToolCategory
+from src.agent.core.tools import registry, ToolCategory
 from src.logger import get_logger
 
 logger = get_logger(__name__)

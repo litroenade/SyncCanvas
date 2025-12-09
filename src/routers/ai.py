@@ -3,29 +3,23 @@
 
 提供 AI Agent 的 HTTP API 接口，包括:
 - 生成/绘图请求
-- 流式响应
+- 流式响应 (WebSocket)
 - 运行历史查询
 - 运行详情查询
 - 工具列表
 - Agent 状态监控
 """
 
-import json
-import asyncio
-from typing import Optional, List, AsyncGenerator
-
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 from sqlmodel import Session
 
-from src.ai_engine.core.agent import RoomLockManager, ReActStep
-from src.ai_engine.core.tools import registry
-from src.ai_engine.prompts import prompt_manager
+from src.agent.core.agent import RoomLockManager, ReActStep
+from src.agent.core.tools import registry
+from src.agent.prompts import prompt_manager
 from src.db.database import get_session
 from src.logger import get_logger
 from src.services.ai_service import ai_service
-from src.services.agent_runs import AgentRunService
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 logger = get_logger(__name__)
@@ -377,3 +371,150 @@ class RenderTemplateRequest(BaseModel):
     """渲染模板请求"""
     template_name: str = Field(..., description="模板名称")
     variables: dict = Field(default_factory=dict, description="模板变量")
+
+
+# ==================== WebSocket 流式响应 ====================
+
+
+class AIWebSocketManager:
+    """AI WebSocket 连接管理器
+    
+    管理每个房间的 WebSocket 连接，支持向多个连接广播消息。
+    """
+    
+    def __init__(self):
+        # room_id -> list of active websockets
+        self._connections: dict[str, list[WebSocket]] = {}
+    
+    async def connect(self, websocket: WebSocket, room_id: str) -> None:
+        """接受 WebSocket 连接"""
+        await websocket.accept()
+        if room_id not in self._connections:
+            self._connections[room_id] = []
+        self._connections[room_id].append(websocket)
+        logger.info(f"AI WebSocket 连接: room={room_id}")
+    
+    def disconnect(self, websocket: WebSocket, room_id: str) -> None:
+        """断开连接"""
+        if room_id in self._connections:
+            if websocket in self._connections[room_id]:
+                self._connections[room_id].remove(websocket)
+            if not self._connections[room_id]:
+                del self._connections[room_id]
+        logger.info(f"AI WebSocket 断开: room={room_id}")
+    
+    async def broadcast_to_room(self, room_id: str, message: dict) -> None:
+        """向房间所有连接广播消息"""
+        if room_id not in self._connections:
+            return
+        
+        disconnected = []
+        for ws in self._connections[room_id]:
+            try:
+                await ws.send_json(message)
+            except Exception:
+                disconnected.append(ws)
+        
+        # 清理断开的连接
+        for ws in disconnected:
+            self._connections[room_id].remove(ws)
+
+
+# 全局 WebSocket 管理器
+ai_ws_manager = AIWebSocketManager()
+
+
+@router.websocket("/stream/{room_id}")
+async def ai_stream_websocket(
+    websocket: WebSocket,
+    room_id: str,
+):
+    """WebSocket 流式 AI 响应
+    
+    连接后发送 JSON 消息开始请求:
+    {"type": "request", "prompt": "画一个流程图"}
+    
+    接收实时步骤消息:
+    {"type": "step", "step_number": 1, "thought": "...", "action": "create_flowchart_node", ...}
+    {"type": "tool_result", "tool": "create_flowchart_node", "result": {...}}
+    {"type": "complete", "response": "已完成绘制", "elements_created": [...]}
+    {"type": "error", "message": "..."}
+    """
+    await ai_ws_manager.connect(websocket, room_id)
+    
+    try:
+        while True:
+            # 接收请求
+            data = await websocket.receive_json()
+            
+            if data.get("type") != "request":
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "无效消息类型，请发送 {type: 'request', prompt: '...'}"
+                })
+                continue
+            
+            prompt = data.get("prompt", "")
+            if not prompt:
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "prompt 不能为空"
+                })
+                continue
+            
+            # 发送开始消息
+            await websocket.send_json({
+                "type": "started",
+                "room_id": room_id,
+                "prompt": prompt[:100] + "..." if len(prompt) > 100 else prompt,
+            })
+            
+            # 处理请求
+            try:
+                result = await ai_service.process_request_with_stream(
+                    user_input=prompt,
+                    session_id=room_id,
+                    step_callback=lambda step: _broadcast_step(websocket, room_id, step),
+                )
+                
+                # 发送完成消息
+                await websocket.send_json({
+                    "type": "complete",
+                    "status": result.get("status", "success"),
+                    "response": result.get("response", ""),
+                    "run_id": result.get("run_id", 0),
+                    "elements_created": result.get("elements_created", []),
+                    "tools_used": result.get("tools_used", []),
+                    "metrics": result.get("metrics", {}),
+                })
+                
+            except Exception as e:
+                logger.error(f"AI WebSocket 处理错误: {e}")
+                await websocket.send_json({
+                    "type": "error",
+                    "message": str(e)
+                })
+                
+    except WebSocketDisconnect:
+        ai_ws_manager.disconnect(websocket, room_id)
+    except Exception as e:
+        logger.error(f"AI WebSocket 异常: {e}")
+        ai_ws_manager.disconnect(websocket, room_id)
+
+
+async def _broadcast_step(websocket: WebSocket, room_id: str, step: ReActStep) -> None:
+    """广播 Agent 步骤"""
+    try:
+        message = {
+            "type": "step",
+            "step_number": step.step_number,
+            "thought": step.thought,
+            "action": step.action,
+            "action_input": step.action_input,
+            "observation": step.observation[:500] if step.observation and len(step.observation) > 500 else step.observation,
+            "success": step.success,
+            "latency_ms": round(step.latency_ms, 2),
+        }
+        await websocket.send_json(message)
+    except Exception as e:
+        logger.warning(f"广播步骤失败: {e}")

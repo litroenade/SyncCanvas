@@ -17,10 +17,6 @@ SyncCanvas/
 │   ├── config.py           # 配置加载
 │   ├── logger.py           # 日志配置
 │   │
-│   ├── ai/                 # AI 功能模块
-│   │   ├── __init__.py
-│   │   └── agent.py        # AI Agent 实现
-│   │
 │   ├── auth/               # 认证模块
 │   │   ├── __init__.py
 │   │   ├── router.py       # 认证路由 (登录/注册)

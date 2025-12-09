@@ -50,3 +50,26 @@ def get_session():
     """
     with Session(engine) as session:
         yield session
+
+
+from contextlib import contextmanager
+
+
+@contextmanager
+def get_sync_session():
+    """获取同步数据库会话上下文管理器
+    
+    用于非 FastAPI Depends 场景的同步数据库操作。
+    
+    Yields:
+        Session: SQLModel 数据库会话对象
+    """
+    session = Session(engine)
+    try:
+        yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()

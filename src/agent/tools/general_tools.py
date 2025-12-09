@@ -9,7 +9,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from src.ai_engine.core.tools import registry, ToolCategory
+from src.agent.core.tools import registry, ToolCategory
 from src.logger import get_logger
 
 logger = get_logger(__name__)
@@ -87,7 +87,7 @@ async def calculate(
 ) -> Dict[str, Any]:
     """执行数学计算
     
-    支持基本运算和常用数学函数。
+    支持基本运算和常用数学函数。使用 AST 安全解析。
     
     Args:
         expression: 数学表达式
@@ -95,15 +95,41 @@ async def calculate(
     Returns:
         dict: 计算结果
     """
+    import ast
     import math
+    import operator
     
-    # 允许的函数和常量
-    safe_dict = {
+    # 清理表达式
+    expr = expression.strip()
+    
+    # 安全检查
+    forbidden = ["import", "exec", "eval", "__", "open", "file", "os", "sys", "lambda"]
+    for word in forbidden:
+        if word in expr.lower():
+            return {
+                "status": "error",
+                "message": f"表达式包含不允许的关键词: {word}"
+            }
+    
+    # 支持的操作符
+    operators = {
+        ast.Add: operator.add,
+        ast.Sub: operator.sub,
+        ast.Mult: operator.mul,
+        ast.Div: operator.truediv,
+        ast.FloorDiv: operator.floordiv,
+        ast.Mod: operator.mod,
+        ast.Pow: operator.pow,
+        ast.USub: operator.neg,
+        ast.UAdd: operator.pos,
+    }
+    
+    # 支持的函数
+    functions = {
         "abs": abs,
         "round": round,
         "min": min,
         "max": max,
-        "sum": sum,
         "pow": pow,
         "sqrt": math.sqrt,
         "sin": math.sin,
@@ -112,24 +138,52 @@ async def calculate(
         "log": math.log,
         "log10": math.log10,
         "exp": math.exp,
+    }
+    
+    # 支持的常量
+    constants = {
         "pi": math.pi,
         "e": math.e,
     }
     
-    # 清理表达式
-    expr = expression.strip()
-    
-    # 安全检查
-    forbidden = ["import", "exec", "eval", "__", "open", "file", "os", "sys"]
-    for word in forbidden:
-        if word in expr.lower():
-            return {
-                "status": "error",
-                "message": f"表达式包含不允许的关键词: {word}"
-            }
+    def safe_eval(node):
+        """递归安全求值 AST 节点"""
+        if isinstance(node, ast.Constant):
+            return node.value
+        elif isinstance(node, ast.Num):  # Python 3.7 兼容
+            return node.n
+        elif isinstance(node, ast.Name):
+            name = node.id
+            if name in constants:
+                return constants[name]
+            raise ValueError(f"未知变量: {name}")
+        elif isinstance(node, ast.BinOp):
+            op_type = type(node.op)
+            if op_type not in operators:
+                raise ValueError(f"不支持的操作符: {op_type.__name__}")
+            left = safe_eval(node.left)
+            right = safe_eval(node.right)
+            return operators[op_type](left, right)
+        elif isinstance(node, ast.UnaryOp):
+            op_type = type(node.op)
+            if op_type not in operators:
+                raise ValueError(f"不支持的操作符: {op_type.__name__}")
+            operand = safe_eval(node.operand)
+            return operators[op_type](operand)
+        elif isinstance(node, ast.Call):
+            if not isinstance(node.func, ast.Name):
+                raise ValueError("不支持的函数调用方式")
+            func_name = node.func.id
+            if func_name not in functions:
+                raise ValueError(f"不支持的函数: {func_name}")
+            args = [safe_eval(arg) for arg in node.args]
+            return functions[func_name](*args)
+        else:
+            raise ValueError(f"不支持的表达式类型: {type(node).__name__}")
     
     try:
-        result = eval(expr, {"__builtins__": {}}, safe_dict)
+        tree = ast.parse(expr, mode='eval')
+        result = safe_eval(tree.body)
         
         logger.info(f"计算: {expr} = {result}")
         
@@ -138,6 +192,24 @@ async def calculate(
             "expression": expr,
             "result": result,
             "message": f"{expr} = {result}"
+        }
+    except SyntaxError as e:
+        return {
+            "status": "error",
+            "expression": expr,
+            "message": f"语法错误: {str(e)}"
+        }
+    except ValueError as e:
+        return {
+            "status": "error",
+            "expression": expr,
+            "message": f"计算错误: {str(e)}"
+        }
+    except ZeroDivisionError:
+        return {
+            "status": "error",
+            "expression": expr,
+            "message": "除零错误"
         }
     except Exception as e:
         return {
