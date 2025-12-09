@@ -314,12 +314,12 @@ class PainterAgent(PlanningAgent):
         # 添加当前布局配置
         config_info = f"""
 ## 当前布局配置
-- 矩形节点: {self.layout_config.NODE_WIDTH}x{self.layout_config.NODE_HEIGHT}
-- 菱形节点: {self.layout_config.DECISION_SIZE}x{self.layout_config.DECISION_SIZE}
-- 椭圆节点: {self.layout_config.ELLIPSE_WIDTH}x{self.layout_config.ELLIPSE_HEIGHT}
-- 垂直间距: {self.layout_config.VERTICAL_GAP}px
-- 水平分支间距: {self.layout_config.HORIZONTAL_GAP}px
-- 起始坐标: ({self.layout_config.START_X}, {self.layout_config.START_Y})
+- 矩形节点: {self.layout_config.node_width}x{self.layout_config.node_height}
+- 菱形节点: {self.layout_config.decision_size}x{self.layout_config.decision_size}
+- 椭圆节点: {self.layout_config.ellipse_width}x{self.layout_config.ellipse_height}
+- 垂直间距: {self.layout_config.vertical_gap}px
+- 水平分支间距: {self.layout_config.horizontal_gap}px
+- 起始坐标: ({self.layout_config.start_x}, {self.layout_config.start_y})
 """
         return base_prompt + config_info
 
