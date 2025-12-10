@@ -5,6 +5,7 @@ import { Login } from './pages/Login';
 import { Rooms } from './pages/Rooms';
 import { Welcome } from './pages/Welcome';
 import Settings from './pages/Settings';
+
 import { Loader2 } from 'lucide-react';
 import { ThemeProvider } from './components/common/ThemeProvider';
 import { NotificationProvider } from './components/common/NotificationProvider';
@@ -144,6 +145,7 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+
 
               {/* 画布房间 */}
               <Route

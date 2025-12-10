@@ -130,7 +130,7 @@ class AIService:
         run = run_service.create_run(
             room_id=session_id,
             prompt=user_input,
-            model=self.llm_client._primary_config.model,
+            model=self.llm_client.current_config.model,
         )
 
         # 初始化上下文
@@ -265,7 +265,7 @@ class AIService:
             run = run_service.create_run(
                 room_id=session_id,
                 prompt=user_input,
-                model=self.llm_client._primary_config.model,
+                model=self.llm_client.current_config.model,
             )
             run_id = run.id
 
@@ -415,8 +415,8 @@ class AIService:
         return {
             "status": "healthy",
             "llm": {
-                "provider": self.llm_client._primary_config.provider,
-                "model": self.llm_client._primary_config.model,
+                "provider": self.llm_client.current_config.provider,
+                "model": self.llm_client.current_config.model,
             },
             "stats": self._stats.to_dict(),
             "active_requests": len(self._active_contexts),

@@ -20,6 +20,7 @@ import { useNavigate } from 'react-router-dom';
 import { HistoryPanel } from './HistoryPanel';
 import { MobileFAB } from './MobileFAB';
 import { AIAssistant } from './AIAssistant';
+import { SettingsPanel } from './SettingsPanel';
 import { cn } from '../../lib/utils';
 import {
     Home,
@@ -30,6 +31,7 @@ import {
     Loader2,
     Sparkles,
     Bot,
+    Settings,
 } from 'lucide-react';
 
 interface CanvasProps {
@@ -38,6 +40,7 @@ interface CanvasProps {
 }
 
 const HISTORY_SIDEBAR_NAME = 'history-panel';
+const SETTINGS_SIDEBAR_NAME = 'settings-panel';
 
 /**
  * 改进的移动端检测 Hook
@@ -133,6 +136,10 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
 
     const toggleHistorySidebar = useCallback(() => {
         excalidrawAPI?.toggleSidebar({ name: HISTORY_SIDEBAR_NAME });
+    }, [excalidrawAPI]);
+
+    const toggleSettingsSidebar = useCallback(() => {
+        excalidrawAPI?.toggleSidebar({ name: SETTINGS_SIDEBAR_NAME });
     }, [excalidrawAPI]);
 
     const handleClearCanvas = useCallback(() => {
@@ -322,6 +329,11 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
                                 历史版本
                             </MainMenu.Item>
                         )}
+                        {!isGuest && (
+                            <MainMenu.Item onSelect={toggleSettingsSidebar} icon={<Settings size={16} />}>
+                                设置
+                            </MainMenu.Item>
+                        )}
                         <MainMenu.Separator />
                         <MainMenu.DefaultItems.ToggleTheme />
                         <MainMenu.DefaultItems.ChangeCanvasBackground />
@@ -340,6 +352,19 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
                         <div className="h-[calc(100%-50px)] overflow-auto p-2">
                             <HistoryPanel roomId={roomId} />
                         </div>
+                    </ExcalidrawSidebar>
+                )}
+
+                {/* 设置侧边栏 */}
+                {!isGuest && (
+                    <ExcalidrawSidebar name={SETTINGS_SIDEBAR_NAME}>
+                        <ExcalidrawSidebar.Header>
+                            <div className="flex items-center gap-2 px-2">
+                                <Settings size={18} />
+                                <span className="font-semibold">设置</span>
+                            </div>
+                        </ExcalidrawSidebar.Header>
+                        <SettingsPanel isDark={isDark} />
                     </ExcalidrawSidebar>
                 )}
             </Excalidraw>

@@ -16,7 +16,7 @@ from src.db.database import get_session
 from src.db.models import Room, RoomMember
 from src.db import crud
 from src.auth.utils import get_current_user_optional, get_current_user
-from src.models.user import User
+from src.db.user import User
 from src.logger import get_logger
 from src.ws.sync import websocket_server
 
@@ -174,10 +174,10 @@ async def list_rooms(
     room_responses = []
     for room in rooms:
         members = crud.get_room_members(session, room.id)
-        
+
         # 获取在线人数 (WebSocket 路径格式: /ws/{room_id})
         online_count = websocket_server.get_room_connections(f"/ws/{room.id}")
-        
+
         room_responses.append(
             RoomResponse(
                 id=room.id,

@@ -11,23 +11,23 @@ import '../styles/Settings.css';
  */
 export default function Settings() {
     const navigate = useNavigate();
-    
+
     // 配置状态
     const [config, setConfig] = useState<AIConfig | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
-    
+
     // 表单状态
     const [formData, setFormData] = useState<AIConfigUpdate>({});
     const [showApiKey, setShowApiKey] = useState(false);
-    
+
     // 供应商和模型
     const [providers, setProviders] = useState<ProviderInfo[]>([]);
     const [models, setModels] = useState<ModelInfo[]>([]);
     const [fetchingModels, setFetchingModels] = useState(false);
-    
+
     // 加载配置
     const loadConfig = useCallback(async () => {
         try {
@@ -51,18 +51,18 @@ export default function Settings() {
             setLoading(false);
         }
     }, []);
-    
+
     useEffect(() => {
         loadConfig();
     }, [loadConfig]);
-    
+
     // 获取可用模型
     const fetchModels = async () => {
         if (!formData.base_url) {
             setError('请先填写 API 地址');
             return;
         }
-        
+
         try {
             setFetchingModels(true);
             setError(null);
@@ -82,7 +82,7 @@ export default function Settings() {
             setFetchingModels(false);
         }
     };
-    
+
     // 保存配置
     const handleSave = async () => {
         try {
@@ -99,7 +99,7 @@ export default function Settings() {
             setSaving(false);
         }
     };
-    
+
     // 自动清除提示
     useEffect(() => {
         if (success) {
@@ -107,7 +107,7 @@ export default function Settings() {
             return () => clearTimeout(timer);
         }
     }, [success]);
-    
+
     if (loading) {
         return (
             <div className="settings-page">
@@ -118,7 +118,7 @@ export default function Settings() {
             </div>
         );
     }
-    
+
     return (
         <div className="settings-page">
             <header className="settings-header">
@@ -131,7 +131,7 @@ export default function Settings() {
                     <span>AI 设置</span>
                 </h1>
             </header>
-            
+
             <main className="settings-content">
                 {error && (
                     <div className="settings-alert error">
@@ -140,20 +140,22 @@ export default function Settings() {
                         <button onClick={() => setError(null)}>×</button>
                     </div>
                 )}
-                
+
                 {success && (
                     <div className="settings-alert success">
                         <Check size={16} />
                         <span>{success}</span>
                     </div>
                 )}
-                
+
                 <section className="settings-section">
                     <h2>
-                        <Server size={20} />
-                        主要模型配置
+                        <div className="flex items-center gap-2">
+                            <Server size={20} />
+                            主要模型配置
+                        </div>
                     </h2>
-                    
+
                     <div className="form-group">
                         <label>提供商</label>
                         <input
@@ -163,7 +165,7 @@ export default function Settings() {
                             placeholder="例如: siliconflow, openai"
                         />
                     </div>
-                    
+
                     <div className="form-group">
                         <label>API 地址</label>
                         <div className="input-with-dropdown">
@@ -183,7 +185,7 @@ export default function Settings() {
                             </datalist>
                         </div>
                     </div>
-                    
+
                     <div className="form-group">
                         <label>API 密钥</label>
                         <div className="input-with-button">
@@ -202,7 +204,7 @@ export default function Settings() {
                             </button>
                         </div>
                     </div>
-                    
+
                     <div className="form-group">
                         <label>模型名称</label>
                         <div className="input-with-button">
@@ -236,10 +238,10 @@ export default function Settings() {
                         </div>
                     </div>
                 </section>
-                
+
                 <section className="settings-section">
                     <h2>高级选项</h2>
-                    
+
                     <div className="form-row">
                         <div className="form-group">
                             <label>工具调用模式</label>
@@ -252,7 +254,7 @@ export default function Settings() {
                                 <option value="none">禁用 (none)</option>
                             </select>
                         </div>
-                        
+
                         <div className="form-group">
                             <label>最大工具调用次数</label>
                             <input
@@ -265,7 +267,7 @@ export default function Settings() {
                         </div>
                     </div>
                 </section>
-                
+
                 <div className="settings-actions">
                     <button
                         className="save-button"
@@ -285,7 +287,7 @@ export default function Settings() {
                         )}
                     </button>
                 </div>
-                
+
                 {config && (
                     <section className="settings-section">
                         <h2>当前状态</h2>
@@ -311,7 +313,7 @@ export default function Settings() {
                         </div>
                     </section>
                 )}
-                
+
                 {/* Agent 配置展示 */}
                 <AgentConfigSection onError={(err) => setError(err)} />
             </main>

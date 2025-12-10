@@ -32,6 +32,8 @@ from openai.types.chat import ChatCompletionMessageParam
 
 from src.agent.core.llm import LLMClient, LLMResponse
 from src.agent.core.json_parser import parse_tool_call_args
+from src.agent.core.state_machine import AgentState, AgentStateMachine
+from src.agent.core.error_recovery import ErrorRecoveryManager, RetryPolicy
 from src.logger import get_logger
 
 if TYPE_CHECKING:
@@ -395,9 +397,23 @@ class BaseAgent(ABC):
         self._metrics = AgentMetrics()
         self._on_step_callback: Optional[Callable[[ReActStep], None]] = None
 
+        # 状态机和错误恢复
+        self._state_machine = AgentStateMachine()
+        self._recovery_manager = ErrorRecoveryManager(
+            default_policy=RetryPolicy(
+                max_retries=self.config.max_retries,
+                base_delay=self.config.retry_delay,
+            )
+        )
+
     @property
     def status(self) -> AgentStatus:
         return self._status
+
+    @property
+    def state_machine(self) -> AgentStateMachine:
+        """获取状态机"""
+        return self._state_machine
 
     @property
     def steps(self) -> List[ReActStep]:
@@ -540,7 +556,7 @@ class BaseAgent(ABC):
                 last_error = TimeoutError(f"工具 {name} 执行超时 ({tool.timeout}s)")
                 self._metrics.errors.append(f"工具 {name} 超时")
                 logger.error(
-                    "工具 %s 执行超时 (timeout=%ss, attempt=%d)",
+                    "工具执行超时 (timeout=%ss, attempt=%d)",
                     name,
                     tool.timeout,
                     attempt + 1,
@@ -591,7 +607,9 @@ class BaseAgent(ABC):
         Returns:
             str: Agent 最终响应
         """
-        # 初始化
+        # 初始化状态机和指标
+        self._state_machine.reset()
+        self._state_machine.transition(AgentState.INITIALIZING, reason="开始任务")
         self._status = AgentStatus.THINKING
         self._steps = []
         self._metrics = AgentMetrics(start_time=time.time())
@@ -602,25 +620,46 @@ class BaseAgent(ABC):
         )
 
         try:
+            # 转换到思考状态
+            self._state_machine.transition(
+                AgentState.THINKING, reason="开始处理用户请求"
+            )
+
             # 如果启用房间锁，获取锁
             if self.config.enable_room_lock and context.session_id:
                 async with RoomLockManager.acquire(context.session_id, timeout=30.0):
-                    return await self._run_react_loop(context, user_input, temperature)
+                    result = await self._run_react_loop(
+                        context, user_input, temperature
+                    )
             else:
-                return await self._run_react_loop(context, user_input, temperature)
+                result = await self._run_react_loop(context, user_input, temperature)
+
+            # 成功完成
+            self._state_machine.transition(AgentState.COMPLETED, reason="任务完成")
+            self._status = AgentStatus.COMPLETED
+            return result
 
         except TimeoutError as e:
+            self._state_machine.transition(
+                AgentState.FAILED, reason=f"超时: {e}", force=True
+            )
             self._status = AgentStatus.TIMEOUT
             self._metrics.errors.append(str(e))
             logger.error(f"Agent {self.name} 执行超时: {e}")
             return f"执行超时: {str(e)}"
 
         except asyncio.CancelledError:
+            self._state_machine.transition(
+                AgentState.CANCELLED, reason="用户取消", force=True
+            )
             self._status = AgentStatus.CANCELLED
             logger.warning(f"Agent {self.name} 被取消")
             return "任务已取消"
 
         except Exception as e:
+            self._state_machine.transition(
+                AgentState.FAILED, reason=f"错误: {e}", force=True
+            )
             self._status = AgentStatus.ERROR
             self._metrics.errors.append(str(e))
             logger.error(f"Agent {self.name} 执行失败: {e}\n{traceback.format_exc()}")
@@ -634,6 +673,7 @@ class BaseAgent(ABC):
                     "run_id": context.run_id,
                     "status": self._status.value,
                     "metrics": self._metrics.to_dict(),
+                    "state_machine": self._state_machine.get_summary(),
                 },
             )
 
@@ -671,12 +711,18 @@ class BaseAgent(ABC):
 
                 # ========== THINK: 调用 LLM ==========
                 self._status = AgentStatus.THINKING
+                self._state_machine.transition(
+                    AgentState.THINKING, reason=f"迭代 {iteration}"
+                )
                 try:
                     response = await self._call_llm_with_retry(
                         messages, tool_definitions, temperature
                     )
                 except Exception as e:
                     self._status = AgentStatus.ERROR
+                    self._state_machine.transition(
+                        AgentState.RECOVERING, reason=f"LLM 错误: {e}"
+                    )
                     current_step.success = False
                     current_step.observation = str(e)
                     self._steps.append(current_step)
@@ -699,6 +745,10 @@ class BaseAgent(ABC):
                 # ========== ACT: 执行工具 ==========
                 if response.tool_calls:
                     self._status = AgentStatus.ACTING
+                    self._state_machine.transition(
+                        AgentState.ACTING,
+                        reason=f"执行 {len(response.tool_calls)} 个工具",
+                    )
 
                     for tool_call in response.tool_calls:
                         func_name = tool_call["function"]["name"]
@@ -788,14 +838,18 @@ class BaseAgent(ABC):
                     current_step.latency_ms = (time.time() - step_start) * 1000
                     self._steps.append(current_step)
                     if self._on_step_callback:
-                        self._on_step_callback(current_step)
+                        result = self._on_step_callback(current_step)
+                        if asyncio.iscoroutine(result):
+                            await result
                     continue
 
                 # ========== COMPLETE ==========
                 current_step.latency_ms = (time.time() - step_start) * 1000
                 self._steps.append(current_step)
                 if self._on_step_callback:
-                    self._on_step_callback(current_step)
+                    result = self._on_step_callback(current_step)
+                    if asyncio.iscoroutine(result):
+                        await result
 
                 final_response = response.content or ""
                 break

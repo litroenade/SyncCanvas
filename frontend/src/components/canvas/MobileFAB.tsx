@@ -57,14 +57,14 @@ const TOP_SAFE_ZONE = 80; // 避开 Excalidraw 顶部工具栏
 function getSafePosition(saved?: FabPosition | null): FabPosition {
     const windowWidth = typeof window !== 'undefined' ? window.innerWidth : 400;
     const windowHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
-    
+
     const defaultPos = {
         x: windowWidth - FAB_SIZE - EDGE_MARGIN,
         y: windowHeight - FAB_SIZE - 100, // 距离底部留出空间
     };
-    
+
     if (!saved) return defaultPos;
-    
+
     // 确保在安全范围内
     return {
         x: Math.min(Math.max(EDGE_MARGIN, saved.x), windowWidth - FAB_SIZE - EDGE_MARGIN),
@@ -77,28 +77,28 @@ function getSafePosition(saved?: FabPosition | null): FabPosition {
  */
 function getStatusConfig(isConnected: boolean, isSynced: boolean) {
     if (!isConnected) {
-        return { 
-            color: 'bg-red-500', 
+        return {
+            color: 'bg-red-500',
             textColor: 'text-red-500',
-            icon: WifiOff, 
+            icon: WifiOff,
             text: '离线',
             pulse: false,
         };
     }
     if (!isSynced) {
-        return { 
-            color: 'bg-amber-500', 
+        return {
+            color: 'bg-amber-500',
             textColor: 'text-amber-500',
-            icon: Loader2, 
+            icon: Loader2,
             text: '同步中',
             pulse: true,
             spin: true,
         };
     }
-    return { 
-        color: 'bg-emerald-500', 
+    return {
+        color: 'bg-emerald-500',
         textColor: 'text-emerald-500',
-        icon: Wifi, 
+        icon: Wifi,
         text: '已连接',
         pulse: false,
     };
@@ -134,10 +134,10 @@ export const MobileFAB: React.FC<MobileFABProps> = ({
         const handleResize = () => {
             setPosition(prev => getSafePosition(prev));
         };
-        
+
         window.addEventListener('resize', handleResize);
         window.addEventListener('orientationchange', handleResize);
-        
+
         return () => {
             window.removeEventListener('resize', handleResize);
             window.removeEventListener('orientationchange', handleResize);
@@ -148,7 +148,7 @@ export const MobileFAB: React.FC<MobileFABProps> = ({
     const handlePointerDown = useCallback((e: React.PointerEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        
+
         dragStartRef.current = {
             x: e.clientX,
             y: e.clientY,
@@ -169,7 +169,7 @@ export const MobileFAB: React.FC<MobileFABProps> = ({
         // 超过阈值才开始拖拽
         if (distance > 10) {
             setIsDragging(true);
-            
+
             const newX = Math.min(
                 Math.max(EDGE_MARGIN, dragStartRef.current.posX + deltaX),
                 window.innerWidth - FAB_SIZE - EDGE_MARGIN
@@ -178,7 +178,7 @@ export const MobileFAB: React.FC<MobileFABProps> = ({
                 Math.max(TOP_SAFE_ZONE, dragStartRef.current.posY + deltaY),
                 window.innerHeight - FAB_SIZE - EDGE_MARGIN
             );
-            
+
             setPosition({ x: newX, y: newY });
         }
     }, []);
@@ -195,7 +195,7 @@ export const MobileFAB: React.FC<MobileFABProps> = ({
             // 点击事件
             setIsOpen(prev => !prev);
         }
-        
+
         dragStartRef.current = null;
     }, [isDragging, position]);
 
@@ -208,27 +208,27 @@ export const MobileFAB: React.FC<MobileFABProps> = ({
 
     // 菜单项
     const menuItems = useMemo(() => [
-        { 
-            label: '撤销', 
-            icon: Undo2, 
+        {
+            label: '撤销',
+            icon: Undo2,
             onClick: onUndo,
             closeOnClick: true,
         },
-        { 
-            label: '重做', 
-            icon: Redo2, 
+        {
+            label: '重做',
+            icon: Redo2,
             onClick: onRedo,
             closeOnClick: true,
         },
-        { 
-            label: isDark ? '浅色模式' : '深色模式', 
-            icon: isDark ? Sun : Moon, 
+        {
+            label: isDark ? '浅色模式' : '深色模式',
+            icon: isDark ? Sun : Moon,
             onClick: onToggleTheme,
             closeOnClick: true,
         },
-        { 
-            label: '历史版本', 
-            icon: History, 
+        {
+            label: '历史版本',
+            icon: History,
             onClick: onToggleHistory,
             closeOnClick: true,
         },
@@ -244,9 +244,9 @@ export const MobileFAB: React.FC<MobileFABProps> = ({
             danger: true,
             closeOnClick: false,
         },
-        { 
-            label: '返回房间', 
-            icon: Home, 
+        {
+            label: '返回房间',
+            icon: Home,
             onClick: onBackToRooms,
             closeOnClick: true,
         },
@@ -275,9 +275,9 @@ export const MobileFAB: React.FC<MobileFABProps> = ({
                         initial={{ y: '100%' }}
                         animate={{ y: 0 }}
                         exit={{ y: '100%' }}
-                        transition={{ 
-                            type: 'spring', 
-                            damping: 28, 
+                        transition={{
+                            type: 'spring',
+                            damping: 28,
                             stiffness: 350,
                             mass: 0.8,
                         }}
@@ -290,7 +290,11 @@ export const MobileFAB: React.FC<MobileFABProps> = ({
                         )}
                         style={{
                             paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))',
+                            maxHeight: '80vh',
+                            overflowY: 'auto',
+                            overflowX: 'hidden'
                         }}
+                        onClick={(e) => e.stopPropagation()}
                     >
                         {/* 拖拽指示条 */}
                         <div className="flex justify-center pt-3 pb-2">
@@ -422,8 +426,8 @@ export const MobileFAB: React.FC<MobileFABProps> = ({
                 onPointerCancel={handlePointerUp}
                 animate={{
                     scale: isDragging ? 1.15 : 1,
-                    boxShadow: isDragging 
-                        ? '0 20px 40px rgba(0,0,0,0.25)' 
+                    boxShadow: isDragging
+                        ? '0 20px 40px rgba(0,0,0,0.25)'
                         : '0 8px 24px rgba(0,0,0,0.15)',
                 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 25 }}

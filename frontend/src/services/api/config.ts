@@ -22,6 +22,37 @@ export interface ConfigItem {
     overridable?: boolean;
     required?: boolean;
     enum?: string[];
+    // UI 渲染元数据
+    ref_model_groups?: boolean;
+    model_type?: string;
+    enable_toggle?: string;
+    is_need_restart?: boolean;
+    sub_item_name?: string;
+}
+
+/** 模型组配置 */
+export interface ModelGroupConfig {
+    provider: string;
+    model: string;
+    base_url: string;
+    api_key: string;
+    model_type?: string;
+    temperature?: number | null;
+    top_p?: number | null;
+    presence_penalty?: number | null;
+    frequency_penalty?: number | null;
+    extra_body?: string | null;
+    enable_vision?: boolean;
+    enable_cot?: boolean;
+}
+
+/** 模型类型定义 */
+export interface ModelType {
+    value: string;
+    label: string;
+    icon?: string;
+    description?: string;
+    color?: string;
 }
 
 /** 全部配置响应 */
@@ -85,5 +116,21 @@ export const configApi = {
     getAIConfigList,
     getAgentConfigList,
     updateConfigItem,
+
+    // 模型组 API
+    getModelGroups: async (): Promise<Record<string, ModelGroupConfig>> => {
+        const response = await apiClient.get<Record<string, ModelGroupConfig>>('/config/models');
+        return response.data;
+    },
+    updateModelGroup: async (name: string, config: ModelGroupConfig): Promise<void> => {
+        await apiClient.post('/config/models', { name, config });
+    },
+    deleteModelGroup: async (name: string): Promise<void> => {
+        await apiClient.delete(`/config/models/${encodeURIComponent(name)}`);
+    },
+    getModelTypes: async (): Promise<ModelType[]> => {
+        const response = await apiClient.get<ModelType[]>('/config/models/types');
+        return response.data;
+    },
 };
 

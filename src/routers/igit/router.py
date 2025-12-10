@@ -9,7 +9,7 @@ from sqlmodel import Session
 
 from src.db.database import get_session
 from src.auth.utils import get_current_user_optional
-from src.models.user import User
+from src.db.user import User
 from src.logger import get_logger
 from src.services.igit import IGitService
 from src.ws.sync import websocket_server

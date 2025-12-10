@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from src.db.database import init_db
 from src.ws.sync import websocket_server, asgi_server
+from src.ws.message_router import message_router
 from src.core.async_task import async_task_manager
 from src.config import config
 from src.logger import get_logger, setup_logging
@@ -15,6 +16,7 @@ from src.routers.upload import router as upload_router
 from src.routers.rooms import router as rooms_router
 from src.routers.igit import igit_router
 from src.routers.settings import router as settings_router
+from src.routers.config import router as config_router
 
 setup_logging()
 logger = get_logger(__name__)
@@ -33,6 +35,10 @@ async def lifespan(_app: FastAPI):
 
     # 启动 pycrdt-websocket 服务器
     async with websocket_server:
+        # 启动消息路由器
+        await message_router.start()
+        logger.info("消息路由器已启动")
+
         # 启动后台任务
         await async_task_manager.start_all()
 
@@ -43,6 +49,7 @@ async def lifespan(_app: FastAPI):
         # 关闭时清理
         logger.info("服务器正在关闭")
         await async_task_manager.stop_all()
+        await message_router.stop()
 
 
 # 创建 FastAPI 应用
@@ -69,6 +76,9 @@ app.include_router(upload_router)  # upload_router 自带 /api/upload 前缀
 app.include_router(rooms_router, prefix="/api")
 app.include_router(igit_router, prefix="/api/rooms")
 app.include_router(settings_router, prefix="/api")
+
+
+app.include_router(config_router, prefix="/api")
 
 
 # 挂载 pycrdt-websocket 的 ASGI 服务器到 /ws 路径

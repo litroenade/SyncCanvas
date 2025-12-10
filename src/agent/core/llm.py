@@ -18,6 +18,7 @@ logger = get_logger(__name__)
 
 # ==================== 数据结构 ====================
 
+
 @dataclass
 class LLMConfig:
     """LLM 配置
@@ -28,6 +29,7 @@ class LLMConfig:
         base_url: API 基础 URL
         api_key: API 密钥
     """
+
     provider: str
     model: str
     base_url: str
@@ -44,6 +46,7 @@ class LLMResponse:
         finish_reason: 完成原因
         usage: Token 使用统计
     """
+
     content: Optional[str] = None
     tool_calls: Optional[List[Dict[str, Any]]] = None
     finish_reason: str = "stop"
@@ -51,6 +54,7 @@ class LLMResponse:
 
 
 # ==================== LLM 客户端 ====================
+
 
 class LLMClient:
     """OpenAI 兼容的 LLM 客户端
@@ -64,43 +68,62 @@ class LLMClient:
 
     def __init__(self):
         """初始化 LLM 客户端"""
-        # 主提供商配置
-        self._primary_config = LLMConfig(
-            provider=config.llm_provider,
-            model=config.llm_model,
-            base_url=config.llm_base_url,
-            api_key=config.llm_api_key,
-        )
+        self._clients: Dict[str, AsyncOpenAI] = {}
+        logger.info("LLM 客户端已初始化")
 
-        # 备用提供商配置
-        self._fallback_config = LLMConfig(
+    @property
+    def current_config(self) -> LLMConfig:
+        """获取当前主 LLM 配置 (公开 API)"""
+        primary, _ = self._get_config()
+        return primary
+
+    def _get_config(self) -> tuple[LLMConfig, LLMConfig]:
+        """获取当前配置 (主, 备)"""
+        # 1. 确定主配置
+        if (
+            config.ai.current_model_group
+            and config.ai.current_model_group in config.config.ai.model_groups
+        ):
+            group_name = config.ai.current_model_group
+            group_config = config.config.ai.model_groups[group_name]
+
+            primary = LLMConfig(
+                provider=group_config.provider,
+                model=group_config.model,
+                base_url=group_config.base_url,
+                api_key=group_config.api_key,
+            )
+        else:
+            primary = LLMConfig(
+                provider=config.llm_provider,
+                model=config.llm_model,
+                base_url=config.llm_base_url,
+                api_key=config.llm_api_key,
+            )
+
+        # 2. 备用配置 (目前暂不支持备用配置动态化，仍使用全局配置)
+        fallback = LLMConfig(
             provider=config.llm_fallback_provider,
             model=config.llm_fallback_model,
             base_url=config.llm_fallback_base_url,
             api_key=config.llm_fallback_api_key,
         )
 
-        # 初始化客户端
-        self._primary_client = self._create_client(self._primary_config)
-        self._fallback_client = self._create_client(self._fallback_config)
+        return primary, fallback
 
-        logger.info(
-            f"LLM 客户端已初始化: {self._primary_config.provider}/{self._primary_config.model}"
-        )
+    def _get_client(self, cfg: LLMConfig) -> AsyncOpenAI:
+        """获取或创建 client 实例 (带有简单的缓存)"""
+        # 使用 base_url + api_key 作为缓存键
+        cache_key = f"{cfg.base_url}:{cfg.api_key[-6:] if len(cfg.api_key) > 6 else cfg.api_key}"
 
-    def _create_client(self, cfg: LLMConfig) -> AsyncOpenAI:
-        """创建 OpenAI 客户端
+        if cache_key not in self._clients:
+            logger.debug(f"创建新的 OpenAI Client: {cfg.base_url}")
+            self._clients[cache_key] = AsyncOpenAI(
+                api_key=cfg.api_key,
+                base_url=cfg.base_url,
+            )
 
-        Args:
-            cfg: LLM 配置
-
-        Returns:
-            AsyncOpenAI: 异步 OpenAI 客户端
-        """
-        return AsyncOpenAI(
-            api_key=cfg.api_key,
-            base_url=cfg.base_url,
-        )
+        return self._clients[cache_key]
 
     async def chat_completion(
         self,
@@ -110,23 +133,15 @@ class LLMClient:
         temperature: float = 0.3,
         max_tokens: int = 4096,
     ) -> LLMResponse:
-        """发送聊天请求
+        """发送聊天请求"""
+        primary_conf, fallback_conf = self._get_config()
 
-        Args:
-            messages: 消息列表
-            tools: 工具定义列表
-            tool_choice: 工具选择策略
-            temperature: 温度参数
-            max_tokens: 最大生成 token 数
-
-        Returns:
-            LLMResponse: LLM 响应
-        """
         # 尝试主提供商
         try:
+            client = self._get_client(primary_conf)
             return await self._call_completion(
-                self._primary_client,
-                self._primary_config,
+                client,
+                primary_conf,
                 messages,
                 tools,
                 tool_choice,
@@ -134,23 +149,24 @@ class LLMClient:
                 max_tokens,
             )
         except Exception as e:
-            logger.warning(
-                f"主提供商调用失败: {self._primary_config.provider}, 错误: {e}"
-            )
+            logger.warning(f"主提供商调用失败: {primary_conf.provider}, 错误: {e}")
 
             # 尝试备用提供商
-            if self._fallback_config.api_key:
-                logger.info(f"切换到备用提供商: {self._fallback_config.provider}")
+            logger.info("尝试使用备用提供商...")
+            try:
+                client = self._get_client(fallback_conf)
                 return await self._call_completion(
-                    self._fallback_client,
-                    self._fallback_config,
+                    client,
+                    fallback_conf,
                     messages,
                     tools,
                     tool_choice,
                     temperature,
                     max_tokens,
                 )
-            raise
+            except Exception as e2:
+                logger.error(f"备用提供商调用失败: {e2}")
+                raise e
 
     async def _call_completion(
         self,
@@ -211,7 +227,9 @@ class LLMClient:
             finish_reason=response.choices[0].finish_reason or "stop",
             usage={
                 "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
-                "completion_tokens": response.usage.completion_tokens if response.usage else 0,
+                "completion_tokens": response.usage.completion_tokens
+                if response.usage
+                else 0,
                 "total_tokens": response.usage.total_tokens if response.usage else 0,
             },
         )

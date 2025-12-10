@@ -6,7 +6,7 @@ from pathlib import Path
 
 from sqlmodel import SQLModel, create_engine, Session
 
-from src.models.user import User  # noqa: F401  # pylint: disable=unused-import
+from src.db.user import User  # noqa: F401  # pylint: disable=unused-import
 from src.db.models import (  # noqa: F401  # pylint: disable=unused-import
     Room,
     RoomMember,
@@ -25,9 +25,7 @@ _db_dir.mkdir(parents=True, exist_ok=True)
 
 engine = create_engine(
     _db_url,
-    connect_args={"check_same_thread": False}
-    if _db_url.startswith("sqlite")
-    else {},
+    connect_args={"check_same_thread": False} if _db_url.startswith("sqlite") else {},
     echo=config.db_echo,
 )
 
@@ -58,9 +56,9 @@ from contextlib import contextmanager
 @contextmanager
 def get_sync_session():
     """获取同步数据库会话上下文管理器
-    
+
     用于非 FastAPI Depends 场景的同步数据库操作。
-    
+
     Yields:
         Session: SQLModel 数据库会话对象
     """

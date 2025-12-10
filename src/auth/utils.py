@@ -13,7 +13,7 @@ from sqlmodel import Session, select
 
 from src.config import config
 from src.db.database import get_session
-from src.models.user import User
+from src.db.user import User
 
 # 密码哈希上下文
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -25,6 +25,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 小时
 # OAuth2 scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="auth/token", auto_error=False)
+
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """验证密码
@@ -70,6 +71,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     encoded_jwt = jwt.encode(to_encode, config.secret_key, algorithm=ALGORITHM)
     return encoded_jwt
 
+
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     session: Session = Depends(get_session),
@@ -104,6 +106,7 @@ async def get_current_user(
     if user is None:
         raise credentials_exception
     return user
+
 
 async def get_current_user_optional(
     token: Annotated[Optional[str], Depends(oauth2_scheme_optional)],

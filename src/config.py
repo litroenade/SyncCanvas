@@ -6,7 +6,8 @@ from __future__ import annotations
 
 import secrets
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict
+
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -108,6 +109,31 @@ class DatabaseConfig(BaseModel):
     )
 
 
+class ModelConfig(BaseModel):
+    """单个模型配置"""
+
+    provider: str = Field(..., title="提供商")
+    model: str = Field(..., title="模型名称")
+    base_url: str = Field(..., title="Base URL")
+    api_key: str = Field(
+        ..., title="API Key", json_schema_extra=ExtraField(is_secret=True).model_dump()
+    )
+
+    # 高级参数
+    model_type: str = Field("chat", title="模型类型")
+    temperature: Optional[float] = Field(None, title="Temperature")
+    top_p: Optional[float] = Field(None, title="Top P")
+    presence_penalty: Optional[float] = Field(None, title="Presence Penalty")
+    frequency_penalty: Optional[float] = Field(None, title="Frequency Penalty")
+    extra_body: Optional[str] = Field(
+        None,
+        title="额外参数",
+        json_schema_extra=ExtraField(is_textarea=True).model_dump(),
+    )
+    enable_vision: bool = Field(True, title="视觉支持")
+    enable_cot: bool = Field(False, title="外置思维链")
+
+
 class AIProviderConfig(BaseModel):
     """AI 提供商配置"""
 
@@ -148,6 +174,21 @@ class AIProviderConfig(BaseModel):
         title="备用 API 密钥",
         description="备用模型服务 API Key",
         json_schema_extra=ExtraField(is_secret=True, placeholder="sk-xxx").model_dump(),
+    )
+
+    # 模型组管理
+    model_groups: Dict[str, ModelConfig] = Field(
+        default_factory=dict,
+        title="模型组列表",
+        description="自定义模型组配置",
+    )
+
+    # 当前使用的模型组
+    current_model_group: str = Field(
+        default="",
+        title="当前模型组",
+        description="选择要使用的预定义模型组",
+        json_schema_extra=ExtraField(ref_model_groups=True).model_dump(),
     )
 
     # 工具调用配置
@@ -268,7 +309,29 @@ class ConfigManager:
             self._load()
         return self._config  # type: ignore
 
-    # ==================== 便捷属性 ====================
+    # ==================== 配置节访问 ====================
+
+    @property
+    def security(self) -> SecurityConfig:
+        return self.config.security
+
+    @property
+    def server(self) -> ServerConfig:
+        return self.config.server
+
+    @property
+    def database(self) -> DatabaseConfig:
+        return self.config.database
+
+    @property
+    def ai(self) -> AIProviderConfig:
+        return self.config.ai
+
+    @property
+    def logging(self) -> LoggingConfig:
+        return self.config.logging
+
+    # ==================== 便捷属性 (兼容旧代码) ====================
 
     @property
     def version(self) -> str:

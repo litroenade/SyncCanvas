@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 from src.config import config
 from src.db.database import get_session
-from src.models.user import User
+from src.db.user import User
 from .utils import (
     create_access_token,
     ACCESS_TOKEN_EXPIRE_MINUTES,
