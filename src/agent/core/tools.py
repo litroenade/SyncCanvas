@@ -14,7 +14,7 @@ import inspect
 import re
 from enum import Enum
 from functools import wraps
-from typing import Any, Callable, Dict, List, Optional, Set, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Set, Type
 
 from pydantic import BaseModel, ValidationError
 
@@ -41,7 +41,7 @@ class ToolMetadata:
     
     存储工具的额外信息，用于权限控制和文档生成。
     """
-    
+
     def __init__(
         self,
         name: str,
@@ -69,7 +69,7 @@ class ToolMetadata:
 
 class ToolValidator:
     """工具参数验证器"""
-    
+
     # 危险字符串模式 (防止注入)
     DANGEROUS_PATTERNS = [
         r"__\w+__",          # Python 双下划线
@@ -81,12 +81,12 @@ class ToolValidator:
         r"subprocess",       # subprocess 模块
         r"open\s*\(",        # 文件操作
     ]
-    
+
     # URL 白名单模式
     URL_WHITELIST = [
         r"^https?://",       # HTTP/HTTPS
     ]
-    
+
     # URL 黑名单模式
     URL_BLACKLIST = [
         r"localhost",
@@ -96,7 +96,7 @@ class ToolValidator:
         r"10\.",
         r"172\.(1[6-9]|2[0-9]|3[0-1])\.",
     ]
-    
+
     @classmethod
     def validate_string(cls, value: str, field_name: str = "value") -> None:
         """验证字符串是否安全
@@ -111,7 +111,7 @@ class ToolValidator:
         for pattern in cls.DANGEROUS_PATTERNS:
             if re.search(pattern, value, re.IGNORECASE):
                 raise ValueError(f"参数 {field_name} 包含不允许的内容")
-    
+
     @classmethod
     def validate_url(cls, url: str) -> None:
         """验证 URL 是否安全
@@ -125,12 +125,12 @@ class ToolValidator:
         # 检查白名单
         if not any(re.match(p, url) for p in cls.URL_WHITELIST):
             raise ValueError("URL 必须以 http:// 或 https:// 开头")
-        
+
         # 检查黑名单
         for pattern in cls.URL_BLACKLIST:
             if re.search(pattern, url, re.IGNORECASE):
                 raise ValueError("不允许访问内网地址")
-    
+
     @classmethod
     def validate_args(
         cls,
@@ -160,13 +160,13 @@ class ToolValidator:
                 errors = e.errors()
                 msg = "; ".join(f"{err['loc'][0]}: {err['msg']}" for err in errors[:3])
                 raise ValueError(f"参数验证失败: {msg}")
-        
+
         # 字符串安全检查
         if check_strings:
             for key, value in args.items():
                 if isinstance(value, str):
                     cls.validate_string(value, key)
-        
+
         return args
 
 
@@ -181,13 +181,13 @@ class ToolRegistry:
     - Schema 生成
     - 分类管理
     """
-    
+
     def __init__(self):
         self._tools: Dict[str, Callable] = {}
         self._schemas: Dict[str, Dict[str, Any]] = {}
         self._metadata: Dict[str, ToolMetadata] = {}
         self._disabled_tools: Set[str] = set()
-    
+
     def register(
         self,
         name: str,
@@ -226,7 +226,7 @@ class ToolRegistry:
                 dangerous=dangerous,
             )
             self._metadata[name] = meta
-            
+
             # 包装函数添加验证
             @wraps(func)
             async def wrapper(*args, **kwargs):
@@ -238,20 +238,20 @@ class ToolRegistry:
                         ToolValidator.validate_args(tool_kwargs, args_schema)
                     except ValueError as e:
                         return {"status": "error", "message": str(e)}
-                
+
                 return await func(*args, **kwargs)
-            
+
             self._tools[name] = wrapper
-            
+
             # 生成 Schema
             schema = self._generate_schema(name, description, args_schema, func)
             self._schemas[name] = schema
-            
+
             logger.debug(f"注册工具: {name} ({category.value})")
             return wrapper
-        
+
         return decorator
-    
+
     def _generate_schema(
         self,
         name: str,
@@ -272,20 +272,20 @@ class ToolRegistry:
                 }
             }
         }
-        
+
         if args_schema:
             model_schema = args_schema.model_json_schema()
             # 处理 $defs 引用
             defs = model_schema.pop("$defs", {})
             props = model_schema.get("properties", {})
-            
+
             # 展开引用
             for prop_name, prop_value in props.items():
                 if "$ref" in prop_value:
                     ref_name = prop_value["$ref"].split("/")[-1]
                     if ref_name in defs:
                         props[prop_name] = defs[ref_name]
-            
+
             schema["function"]["parameters"] = {
                 "type": "object",
                 "properties": props,
@@ -296,11 +296,11 @@ class ToolRegistry:
             sig = inspect.signature(func)
             props = {}
             required = []
-            
+
             for param_name, param in sig.parameters.items():
                 if param_name in ["self", "context"]:
                     continue
-                
+
                 # 推断类型
                 type_map = {
                     str: "string",
@@ -313,24 +313,27 @@ class ToolRegistry:
                 param_type = "string"
                 if param.annotation != inspect.Parameter.empty:
                     param_type = type_map.get(param.annotation, "string")
-                
+
                 props[param_name] = {"type": param_type}
-                
+
                 if param.default == inspect.Parameter.empty:
                     required.append(param_name)
-            
+
             schema["function"]["parameters"]["properties"] = props
             schema["function"]["parameters"]["required"] = required
-        
+
         return schema
-    
+
     def get_tool(self, name: str) -> Optional[Callable]:
         """获取工具函数"""
         if name in self._disabled_tools:
             return None
         return self._tools.get(name)
-    
-    def get_definitions(self, categories: Optional[List[ToolCategory]] = None) -> List[Dict[str, Any]]:
+
+    def get_definitions(
+        self,
+        categories: Optional[List[ToolCategory]] = None
+        ) -> List[Dict[str, Any]]:
         """获取工具定义列表
         
         Args:
@@ -345,13 +348,13 @@ class ToolRegistry:
                 for name in self._schemas
                 if name not in self._disabled_tools
             ]
-        
+
         return [
             self._schemas[name]
             for name, meta in self._metadata.items()
             if meta.category in categories and name not in self._disabled_tools
         ]
-    
+
     def get_all_tools(self) -> Dict[str, Callable]:
         """获取所有工具"""
         return {
@@ -359,21 +362,21 @@ class ToolRegistry:
             for name, func in self._tools.items()
             if name not in self._disabled_tools
         }
-    
+
     def get_metadata(self, name: str) -> Optional[ToolMetadata]:
         """获取工具元数据"""
         return self._metadata.get(name)
-    
+
     def disable_tool(self, name: str) -> None:
         """禁用工具"""
         self._disabled_tools.add(name)
         logger.info(f"禁用工具: {name}")
-    
+
     def enable_tool(self, name: str) -> None:
         """启用工具"""
         self._disabled_tools.discard(name)
         logger.info(f"启用工具: {name}")
-    
+
     def list_tools(self) -> List[Dict[str, Any]]:
         """列出所有工具信息"""
         return [

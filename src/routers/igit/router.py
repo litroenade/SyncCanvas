@@ -4,9 +4,11 @@
 
 from typing import Optional
 
+from fastapi import Response
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 
+from src.db.models import Commit
 from src.db.database import get_session
 from src.auth.utils import get_current_user_optional
 from src.db.user import User
@@ -245,8 +247,7 @@ async def get_commit_data(
     Returns:
         bytes: Yjs 更新数据
     """
-    from fastapi import Response
-    from src.db.models import Commit
+
 
     commit = session.get(Commit, commit_id)
     if not commit or commit.room_id != room_id:

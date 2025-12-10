@@ -54,9 +54,9 @@ def _is_start_end(text: str) -> str:
     """判断是否为开始/结束节点"""
     start_keywords = ["开始", "start", "begin", "初始化"]
     end_keywords = ["结束", "end", "finish", "完成", "done"]
-    
+
     lower_text = text.lower().strip()
-    
+
     if any(lower_text.startswith(kw) or lower_text == kw for kw in start_keywords):
         return "start"
     if any(lower_text.startswith(kw) or lower_text == kw for kw in end_keywords):
@@ -106,37 +106,37 @@ async def parse_flow_text(
         dict: 包含 nodes 和 edges 的流程图结构
     """
     lines = [line.strip() for line in text.strip().split("\n") if line.strip()]
-    
+
     if not lines:
         return {
             "status": "error",
             "message": "输入文本为空"
         }
-    
+
     nodes: List[Dict[str, Any]] = []
     edges: List[Dict[str, Any]] = []
     current_decision_id: Optional[str] = None
-    
+
     for i, line in enumerate(lines):
         clean_text = _clean_step_text(line)
         if not clean_text:
             continue
-        
+
         node_id = f"node_{i}"
-        
+
         # 检查是否为分支标签 (-> 是: xxx)
         branch_match = re.match(r"^[-=]>\s*(是|否|yes|no|true|false)[:\s]*(.+)$", line, re.IGNORECASE)
         if branch_match and current_decision_id:
             branch_label = branch_match.group(1)
             branch_text = branch_match.group(2).strip()
-            
+
             # 创建分支节点
             nodes.append({
                 "id": node_id,
                 "label": branch_text,
                 "type": "rectangle",
             })
-            
+
             # 从判断节点连接到分支
             edges.append({
                 "from": current_decision_id,
@@ -144,7 +144,7 @@ async def parse_flow_text(
                 "label": branch_label,
             })
             continue
-        
+
         # 判断节点类型
         start_end = _is_start_end(clean_text)
         if start_end:
@@ -155,13 +155,13 @@ async def parse_flow_text(
         else:
             node_type = "rectangle"
             current_decision_id = None
-        
+
         nodes.append({
             "id": node_id,
             "label": clean_text,
             "type": node_type,
         })
-        
+
         # 连接上一个节点 (如果不是分支)
         if len(nodes) > 1 and not branch_match:
             prev_node = nodes[-2]
@@ -171,9 +171,9 @@ async def parse_flow_text(
                     "from": prev_node["id"],
                     "to": node_id,
                 })
-    
+
     logger.info(f"解析流程文本: {len(nodes)} 个节点, {len(edges)} 条边")
-    
+
     return {
         "status": "success",
         "nodes": nodes,
@@ -205,7 +205,7 @@ async def parse_markdown_structure(
     """
     lines = markdown.split("\n")
     headings: List[Dict[str, Any]] = []
-    
+
     for line in lines:
         # 匹配 Markdown 标题
         match = re.match(r"^(#{1,6})\s+(.+)$", line.strip())
@@ -216,36 +216,36 @@ async def parse_markdown_structure(
                 "level": level,
                 "text": text,
             })
-    
+
     if not headings:
         return {
             "status": "info",
             "message": "未找到 Markdown 标题",
             "headings": []
         }
-    
+
     # 构建树形结构
     if extract_structure:
         root = {"text": "Document", "level": 0, "children": []}
         stack = [root]
-        
+
         for heading in headings:
             node = {"text": heading["text"], "level": heading["level"], "children": []}
-            
+
             # 找到合适的父节点
             while len(stack) > 1 and stack[-1]["level"] >= heading["level"]:
                 stack.pop()
-            
+
             stack[-1]["children"].append(node)
             stack.append(node)
-        
+
         return {
             "status": "success",
             "structure": root,
             "heading_count": len(headings),
             "message": f"解析到 {len(headings)} 个标题"
         }
-    
+
     return {
         "status": "success",
         "headings": headings,
@@ -281,10 +281,10 @@ async def analyze_code_structure(
             "classes": [],
             "functions": [],
         }
-    
+
     classes: List[Dict[str, Any]] = []
     functions: List[Dict[str, Any]] = []
-    
+
     # 简单的正则匹配 (生产环境应使用 AST)
     # 匹配类定义
     class_pattern = r"^class\s+(\w+)(?:\(([^)]*)\))?:"
@@ -295,7 +295,7 @@ async def analyze_code_structure(
             "name": class_name,
             "bases": [b.strip() for b in bases.split(",") if b.strip()],
         })
-    
+
     # 匹配函数定义
     func_pattern = r"^(?:async\s+)?def\s+(\w+)\s*\(([^)]*)\)"
     for match in re.finditer(func_pattern, code, re.MULTILINE):
@@ -305,7 +305,7 @@ async def analyze_code_structure(
             "name": func_name,
             "params": [p.strip().split(":")[0].strip() for p in params.split(",") if p.strip()],
         })
-    
+
     return {
         "status": "success",
         "language": language,
@@ -315,4 +315,3 @@ async def analyze_code_structure(
         "function_count": len(functions),
         "message": f"找到 {len(classes)} 个类, {len(functions)} 个函数"
     }
-

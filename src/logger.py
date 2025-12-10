@@ -23,7 +23,7 @@ class Colors:
     RESET = "\033[0m"
     BOLD = "\033[1m"
     DIM = "\033[2m"
-    
+
     # 前景色
     BLACK = "\033[30m"
     RED = "\033[31m"
@@ -33,7 +33,7 @@ class Colors:
     MAGENTA = "\033[35m"
     CYAN = "\033[36m"
     WHITE = "\033[37m"
-    
+
     # 亮色
     BRIGHT_RED = "\033[91m"
     BRIGHT_GREEN = "\033[92m"
@@ -66,7 +66,7 @@ MODULE_COLORS = {
 
 class ColoredFormatter(logging.Formatter):
     """带颜色的日志格式化器"""
-    
+
     def __init__(
         self,
         fmt: Optional[str] = None,
@@ -76,19 +76,19 @@ class ColoredFormatter(logging.Formatter):
     ):
         self.colorize = colorize and sys.stdout.isatty()
         self.show_time = show_time
-        
+
         # 构建格式字符串
         if fmt is None:
             if show_time:
                 fmt = "%(asctime)s %(levelname_colored)s %(name_colored)s %(message)s"
             else:
                 fmt = "%(levelname_colored)s %(name_colored)s %(message)s"
-        
+
         if datefmt is None:
             datefmt = "%H:%M:%S"
-        
+
         super().__init__(fmt, datefmt)
-    
+
     def format(self, record: logging.LogRecord) -> str:
         # 获取模块颜色
         module_color = Colors.WHITE
@@ -96,12 +96,12 @@ class ColoredFormatter(logging.Formatter):
             if record.name.startswith(prefix):
                 module_color = color
                 break
-        
+
         # 简化模块名
         name = record.name
         if name.startswith("src."):
             name = name[4:]  # 去掉 src. 前缀
-        
+
         # 截断过长的模块名
         if len(name) > 20:
             parts = name.split(".")
@@ -109,18 +109,18 @@ class ColoredFormatter(logging.Formatter):
                 name = f"{parts[0]}...{parts[-1]}"
             else:
                 name = name[:17] + "..."
-        
+
         if self.colorize:
             # 级别颜色
             level_color = LEVEL_COLORS.get(record.levelname, "")
             record.levelname_colored = f"{level_color}[{record.levelname[0]}]{Colors.RESET}"
-            
+
             # 模块颜色
             record.name_colored = f"{module_color}{name:<20}{Colors.RESET}"
         else:
             record.levelname_colored = f"[{record.levelname[0]}]"
             record.name_colored = f"{name:<20}"
-        
+
         return super().format(record)
 
 
@@ -142,20 +142,20 @@ def _load_settings() -> Dict[str, Any]:
         "max_bytes": 10_485_760,  # 10 MiB
         "backup_count": 5,
     }
-    
+
     config_path = Path(__file__).resolve().parents[1] / "config" / "config.toml"
-    
+
     if not config_path.exists():
         return defaults
-    
+
     try:
         with config_path.open("rb") as f:
             raw = tomllib.load(f)
-        
+
         logging_section = raw.get("logging", {})
         if isinstance(logging_section, dict):
             defaults.update(logging_section)
-        
+
         return defaults
     except Exception:
         return defaults
@@ -169,23 +169,23 @@ def setup_logging(force: bool = False) -> None:
     """
     if _state.configured and not force:
         return
-    
+
     settings = _load_settings()
-    
+
     level = settings.get("level", "INFO")
     colorize = settings.get("colorize", True)
     show_time = settings.get("show_time", True)
     log_file = settings.get("file")
     max_bytes = int(settings.get("max_bytes", 10_485_760))
     backup_count = int(settings.get("backup_count", 5))
-    
+
     # 创建根 logger
     root_logger = logging.getLogger()
     root_logger.setLevel(level)
-    
+
     # 清除现有 handlers
     root_logger.handlers.clear()
-    
+
     # 控制台 handler
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(level)
@@ -194,7 +194,7 @@ def setup_logging(force: bool = False) -> None:
         show_time=show_time,
     ))
     root_logger.addHandler(console_handler)
-    
+
     # 文件 handler (可选)
     if log_file:
         log_path = Path(log_file)
@@ -214,13 +214,13 @@ def setup_logging(force: bool = False) -> None:
             root_logger.addHandler(file_handler)
         except OSError as e:
             sys.stderr.write(f"无法创建日志文件 {log_path}: {e}\n")
-    
+
     # 降低第三方库的日志级别
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("openai").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
-    
+
     _state.configured = True
 
 

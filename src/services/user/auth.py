@@ -2,10 +2,6 @@
 主要功能: 用户认证服务
 
 提供用户注册、登录、Token 生成和密码验证等功能。
-
-@Time: 2025-12-10
-@Author: Yang208115
-@File: auth.py
 """
 
 from datetime import datetime, timedelta
@@ -14,6 +10,7 @@ from typing import Optional
 from jose import jwt
 from passlib.context import CryptContext
 from sqlmodel import Session
+from sqlmodel import select
 
 from src.config import config
 from src.db.user import User
@@ -112,7 +109,6 @@ async def register_user(
         ValueError: 用户名已存在
     """
     # 检查用户名是否已存在
-    from sqlmodel import select
 
     statement = select(User).where(User.username == username)
     existing = session.exec(statement).first()
@@ -148,7 +144,6 @@ async def authenticate_user(
     Returns:
         User: 验证成功返回用户；失败返回 None
     """
-    from sqlmodel import select
 
     statement = select(User).where(User.username == username)
     user = session.exec(statement).first()

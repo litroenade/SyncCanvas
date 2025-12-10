@@ -3,6 +3,9 @@
 
 提供非绘图场景下的通用工具支持。
 """
+import ast
+import math
+import operator
 
 from typing import Dict, Any
 from datetime import datetime
@@ -63,12 +66,12 @@ async def get_current_time(
         dict: 包含当前时间的结果
     """
     now = datetime.now()
-    
+
     try:
         formatted = now.strftime(format)
     except ValueError:
         formatted = now.strftime("%Y-%m-%d %H:%M:%S")
-    
+
     return {
         "status": "success",
         "time": formatted,
@@ -95,13 +98,10 @@ async def calculate(
     Returns:
         dict: 计算结果
     """
-    import ast
-    import math
-    import operator
-    
+
     # 清理表达式
     expr = expression.strip()
-    
+
     # 安全检查
     forbidden = ["import", "exec", "eval", "__", "open", "file", "os", "sys", "lambda"]
     for word in forbidden:
@@ -110,7 +110,7 @@ async def calculate(
                 "status": "error",
                 "message": f"表达式包含不允许的关键词: {word}"
             }
-    
+
     # 支持的操作符
     operators = {
         ast.Add: operator.add,
@@ -123,7 +123,7 @@ async def calculate(
         ast.USub: operator.neg,
         ast.UAdd: operator.pos,
     }
-    
+
     # 支持的函数
     functions = {
         "abs": abs,
@@ -139,13 +139,13 @@ async def calculate(
         "log10": math.log10,
         "exp": math.exp,
     }
-    
+
     # 支持的常量
     constants = {
         "pi": math.pi,
         "e": math.e,
     }
-    
+
     def safe_eval(node):
         """递归安全求值 AST 节点"""
         if isinstance(node, ast.Constant):
@@ -180,13 +180,13 @@ async def calculate(
             return functions[func_name](*args)
         else:
             raise ValueError(f"不支持的表达式类型: {type(node).__name__}")
-    
+
     try:
         tree = ast.parse(expr, mode='eval')
         result = safe_eval(tree.body)
-        
+
         logger.info(f"计算: {expr} = {result}")
-        
+
         return {
             "status": "success",
             "expression": expr,
@@ -243,7 +243,7 @@ async def create_outline(
     """
     depth = max(1, min(3, depth))
     items_per_level = max(2, min(5, items_per_level))
-    
+
     return {
         "status": "info",
         "topic": topic,
@@ -253,7 +253,7 @@ async def create_outline(
         "template": {
             "title": topic,
             "children": [
-                {"title": f"子主题 {i+1}", "children": []} 
+                {"title": f"子主题 {i+1}", "children": []}
                 for i in range(items_per_level)
             ]
         }

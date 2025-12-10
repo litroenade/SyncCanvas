@@ -107,7 +107,7 @@ async def update_ai_config(update: AIConfigUpdate) -> AIConfigResponse:
     更新后配置会保存到 config.toml。
     """
     ai_config = config_manager.config.ai
-    
+
     # 更新提供的字段
     if update.provider is not None:
         ai_config.provider = update.provider
@@ -129,15 +129,15 @@ async def update_ai_config(update: AIConfigUpdate) -> AIConfigResponse:
         ai_config.fallback_base_url = update.fallback_base_url
     if update.fallback_api_key is not None:
         ai_config.fallback_api_key = update.fallback_api_key
-    
+
     # 保存配置
     config_manager._save()
-    
+
     logger.info("AI 配置已更新", extra={
         "provider": ai_config.provider,
         "model": ai_config.model,
     })
-    
+
     return await get_ai_config()
 
 
@@ -164,15 +164,15 @@ async def get_available_models(
     # 使用提供的参数或默认配置
     url = base_url or config_manager.llm_base_url
     key = api_key or config_manager.llm_api_key
-    
+
     if not url:
         raise HTTPException(400, "未配置 API 地址")
     if not key:
         raise HTTPException(400, "未配置 API Key")
-    
+
     # 构建 models 端点 URL
     models_url = url.rstrip("/") + "/models"
-    
+
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(
@@ -184,11 +184,11 @@ async def get_available_models(
             )
             response.raise_for_status()
             data = response.json()
-            
+
             # 解析模型列表 (支持 OpenAI 格式)
             models = []
             raw_models = data.get("data", []) or data.get("models", [])
-            
+
             for m in raw_models:
                 if isinstance(m, str):
                     models.append(ModelInfo(id=m))
@@ -198,16 +198,16 @@ async def get_available_models(
                         object=m.get("object", "model"),
                         owned_by=m.get("owned_by"),
                     ))
-            
+
             # 按 ID 排序
             models.sort(key=lambda x: x.id)
-            
+
             logger.info(f"获取到 {len(models)} 个可用模型", extra={
                 "base_url": url,
             })
-            
+
             return ModelsResponse(models=models, total=len(models))
-            
+
     except httpx.HTTPStatusError as e:
         logger.error(f"获取模型列表失败: HTTP {e.response.status_code}")
         raise HTTPException(e.response.status_code, f"获取模型失败: {e.response.text[:200]}")

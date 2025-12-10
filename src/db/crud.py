@@ -387,5 +387,9 @@ def create_agent_action(session: Session, action: AgentAction) -> AgentAction:
 def list_agent_actions(session: Session, run_id: int) -> List[AgentAction]:
     """列出指定运行的所有工具调用"""
 
-    statement = select(AgentAction).where(AgentAction.run_id == run_id).order_by(AgentAction.created_at)
+    statement = (
+        select(AgentAction)
+        .where(AgentAction.run_id == run_id)
+        .order_by(AgentAction.created_at)
+    )
     return list(session.exec(statement))

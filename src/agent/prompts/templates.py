@@ -3,7 +3,7 @@
 
 提供类型安全的模板类，每个类通过 register_template 装饰器关联模板文件和宏名称。
 """
-
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from src.agent.prompts.base import PromptTemplate, register_template
@@ -172,7 +172,6 @@ def render_history_context(
     current_time: str = "",
 ) -> str:
     """渲染历史上下文"""
-    from datetime import datetime
 
     if not current_time:
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

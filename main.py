@@ -1,4 +1,6 @@
 import os
+import uvicorn
+import subprocess
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -99,7 +101,6 @@ FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "frontend")
 
 def build_frontend():
     """自动构建前端"""
-    import subprocess
 
     logger.info("检测到前端构建目录不存在，开始自动构建...")
 
@@ -175,6 +176,5 @@ else:
 
 
 if __name__ == "__main__":
-    import uvicorn
 
     uvicorn.run(app, host=config.host, port=config.port)

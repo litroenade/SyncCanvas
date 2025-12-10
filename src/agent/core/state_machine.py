@@ -5,9 +5,6 @@
 - 状态定义和转换规则
 - 状态转换钩子
 - 状态历史记录
-
-@Time: 2025-12-10
-@File: state_machine.py
 """
 
 from __future__ import annotations

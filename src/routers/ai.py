@@ -202,9 +202,9 @@ async def get_tool_info(tool_name: str):
     meta = registry.get_metadata(tool_name)
     if not meta:
         raise HTTPException(status_code=404, detail=f"工具 {tool_name} 不存在")
-    
+
     schema = registry._schemas.get(tool_name, {})
-    
+
     return {
         "status": "success",
         "tool": {
@@ -231,17 +231,17 @@ async def get_agent_status():
     """
     # 获取活跃房间列表
     active_rooms = list(RoomLockManager._active_rooms)
-    
+
     # 统计工具
     tools = registry.list_tools()
     enabled_tools = [t for t in tools if t.get("enabled")]
-    
+
     # 按分类统计
     category_counts = {}
     for tool in tools:
         cat = tool.get("category", "unknown")
         category_counts[cat] = category_counts.get(cat, 0) + 1
-    
+
     return {
         "status": "success",
         "agent": {
@@ -267,7 +267,7 @@ async def get_room_agent_status(room_id: str):
         dict: 房间 Agent 状态
     """
     is_busy = RoomLockManager.is_room_busy(room_id)
-    
+
     return {
         "status": "success",
         "room_id": room_id,
@@ -358,7 +358,7 @@ async def get_template(template_name: str):
     source = prompt_manager.get_template_source(template_name)
     if source is None:
         raise HTTPException(status_code=404, detail=f"模板 {template_name} 不存在")
-    
+
     return {
         "status": "success",
         "name": template_name,
@@ -381,11 +381,11 @@ class AIWebSocketManager:
     
     管理每个房间的 WebSocket 连接，支持向多个连接广播消息。
     """
-    
+
     def __init__(self):
         # room_id -> list of active websockets
         self._connections: dict[str, list[WebSocket]] = {}
-    
+
     async def connect(self, websocket: WebSocket, room_id: str) -> None:
         """接受 WebSocket 连接"""
         await websocket.accept()
@@ -393,7 +393,7 @@ class AIWebSocketManager:
             self._connections[room_id] = []
         self._connections[room_id].append(websocket)
         logger.info(f"AI WebSocket 连接: room={room_id}")
-    
+
     def disconnect(self, websocket: WebSocket, room_id: str) -> None:
         """断开连接"""
         if room_id in self._connections:
@@ -402,19 +402,19 @@ class AIWebSocketManager:
             if not self._connections[room_id]:
                 del self._connections[room_id]
         logger.info(f"AI WebSocket 断开: room={room_id}")
-    
+
     async def broadcast_to_room(self, room_id: str, message: dict) -> None:
         """向房间所有连接广播消息"""
         if room_id not in self._connections:
             return
-        
+
         disconnected = []
         for ws in self._connections[room_id]:
             try:
                 await ws.send_json(message)
             except Exception:
                 disconnected.append(ws)
-        
+
         # 清理断开的连接
         for ws in disconnected:
             self._connections[room_id].remove(ws)
@@ -441,19 +441,19 @@ async def ai_stream_websocket(
     {"type": "error", "message": "..."}
     """
     await ai_ws_manager.connect(websocket, room_id)
-    
+
     try:
         while True:
             # 接收请求
             data = await websocket.receive_json()
-            
+
             if data.get("type") != "request":
                 await websocket.send_json({
                     "type": "error",
                     "message": "无效消息类型，请发送 {type: 'request', prompt: '...'}"
                 })
                 continue
-            
+
             prompt = data.get("prompt", "")
             if not prompt:
                 await websocket.send_json({
@@ -461,14 +461,14 @@ async def ai_stream_websocket(
                     "message": "prompt 不能为空"
                 })
                 continue
-            
+
             # 发送开始消息
             await websocket.send_json({
                 "type": "started",
                 "room_id": room_id,
                 "prompt": prompt[:100] + "..." if len(prompt) > 100 else prompt,
             })
-            
+
             # 处理请求
             try:
                 result = await ai_service.process_request_with_stream(
@@ -476,7 +476,7 @@ async def ai_stream_websocket(
                     session_id=room_id,
                     step_callback=lambda step: _broadcast_step(websocket, room_id, step),
                 )
-                
+
                 # 发送完成消息
                 await websocket.send_json({
                     "type": "complete",
@@ -487,14 +487,14 @@ async def ai_stream_websocket(
                     "tools_used": result.get("tools_used", []),
                     "metrics": result.get("metrics", {}),
                 })
-                
+
             except Exception as e:
                 logger.error(f"AI WebSocket 处理错误: {e}")
                 await websocket.send_json({
                     "type": "error",
                     "message": str(e)
                 })
-                
+
     except WebSocketDisconnect:
         ai_ws_manager.disconnect(websocket, room_id)
     except Exception as e:
@@ -511,7 +511,12 @@ async def _broadcast_step(websocket: WebSocket, room_id: str, step: ReActStep) -
             "thought": step.thought,
             "action": step.action,
             "action_input": step.action_input,
-            "observation": step.observation[:500] if step.observation and len(step.observation) > 500 else step.observation,
+            "observation": (
+                step.observation[:500] if (
+                    step.observation and len(step.observation) > 500
+                    )
+                else step.observation
+                ),
             "success": step.success,
             "latency_ms": round(step.latency_ms, 2),
         }

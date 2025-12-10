@@ -81,6 +81,8 @@ class WebSocketMessageRouter:
         self._queue: asyncio.Queue[MessageEnvelope] = asyncio.Queue()
         # 后台任务
         self._worker_task: Optional[asyncio.Task] = None
+        # 订阅存储: room_id -> {websocket -> set of topics}
+        self._subscriptions: Dict[str, Dict[WebSocket, Set[str]]] = {}
 
     async def start(self) -> None:
         """启动消息处理器"""
@@ -158,7 +160,110 @@ class WebSocketMessageRouter:
             if not self._connections[room_id]:
                 del self._connections[room_id]
 
+        # 清理订阅
+        if room_id in self._subscriptions:
+            if websocket in self._subscriptions[room_id]:
+                del self._subscriptions[room_id][websocket]
+            if not self._subscriptions[room_id]:
+                del self._subscriptions[room_id]
+
         logger.info(f"WebSocket 断开: room={room_id}")
+
+    def subscribe(self, websocket: WebSocket, room_id: str, topics: List[str]) -> Set[str]:
+        """订阅指定主题
+
+        Args:
+            websocket: WebSocket 连接
+            room_id: 房间 ID
+            topics: 要订阅的主题列表
+
+        Returns:
+            当前订阅的所有主题
+        """
+        if room_id not in self._subscriptions:
+            self._subscriptions[room_id] = {}
+        if websocket not in self._subscriptions[room_id]:
+            self._subscriptions[room_id][websocket] = set()
+
+        self._subscriptions[room_id][websocket].update(topics)
+        logger.debug(f"订阅主题: room={room_id}, topics={topics}")
+        return self._subscriptions[room_id][websocket]
+
+    def unsubscribe(self, websocket: WebSocket, room_id: str, topics: List[str]) -> Set[str]:
+        """取消订阅指定主题
+
+        Args:
+            websocket: WebSocket 连接
+            room_id: 房间 ID
+            topics: 要取消的主题列表
+
+        Returns:
+            剩余订阅的主题
+        """
+        if room_id in self._subscriptions and websocket in self._subscriptions[room_id]:
+            self._subscriptions[room_id][websocket] -= set(topics)
+            logger.debug(f"取消订阅: room={room_id}, topics={topics}")
+            return self._subscriptions[room_id][websocket]
+        return set()
+
+    def get_subscriptions(self, websocket: WebSocket, room_id: str) -> Set[str]:
+        """获取连接的订阅主题
+
+        Args:
+            websocket: WebSocket 连接
+            room_id: 房间 ID
+
+        Returns:
+            订阅的主题集合
+        """
+        if room_id in self._subscriptions and websocket in self._subscriptions[room_id]:
+            return self._subscriptions[room_id][websocket]
+        return set()
+
+    async def broadcast_to_topic(
+        self,
+        room_id: str,
+        topic: str,
+        message_type: str,
+        data: Dict[str, Any],
+        exclude: Optional[WebSocket] = None,
+    ) -> int:
+        """向订阅了指定主题的连接广播消息
+
+        Args:
+            room_id: 房间 ID
+            topic: 主题名称
+            message_type: 消息类型
+            data: 消息数据
+            exclude: 排除的 WebSocket
+
+        Returns:
+            成功发送的连接数
+        """
+        if room_id not in self._subscriptions:
+            return 0
+
+        message = {"type": message_type, "topic": topic, "data": data}
+        sent_count = 0
+        disconnected = []
+
+        for ws, topics in self._subscriptions[room_id].items():
+            if ws is exclude:
+                continue
+            if topic not in topics:
+                continue
+            try:
+                await ws.send_json(message)
+                sent_count += 1
+            except Exception:
+                disconnected.append(ws)
+
+        # 清理断开的连接
+        for ws in disconnected:
+            if ws in self._subscriptions[room_id]:
+                del self._subscriptions[room_id][ws]
+
+        return sent_count
 
     def get_connection_count(self, room_id: str) -> int:
         """获取房间连接数
@@ -338,5 +443,13 @@ async def handle_ping(room_id: str, data: Dict[str, Any], ws: WebSocket) -> None
 async def handle_subscribe(room_id: str, data: Dict[str, Any], ws: WebSocket) -> None:
     """处理订阅消息"""
     topics = data.get("topics", [])
-    logger.debug(f"订阅: room={room_id}, topics={topics}")
-    await ws.send_json({"type": "subscribed", "data": {"topics": topics}})
+    current_topics = message_router.subscribe(ws, room_id, topics)
+    await ws.send_json({"type": "subscribed", "data": {"topics": list(current_topics)}})
+
+
+@message_router.handler("unsubscribe")
+async def handle_unsubscribe(room_id: str, data: Dict[str, Any], ws: WebSocket) -> None:
+    """处理取消订阅消息"""
+    topics = data.get("topics", [])
+    remaining = message_router.unsubscribe(ws, room_id, topics)
+    await ws.send_json({"type": "unsubscribed", "data": {"removed": topics, "remaining": list(remaining)}})

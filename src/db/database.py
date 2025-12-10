@@ -4,6 +4,7 @@
 
 from pathlib import Path
 
+from contextlib import contextmanager
 from sqlmodel import SQLModel, create_engine, Session
 
 from src.db.user import User  # noqa: F401  # pylint: disable=unused-import
@@ -48,9 +49,6 @@ def get_session():
     """
     with Session(engine) as session:
         yield session
-
-
-from contextlib import contextmanager
 
 
 @contextmanager

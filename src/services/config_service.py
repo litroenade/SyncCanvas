@@ -8,7 +8,7 @@
 """
 
 from __future__ import annotations
-
+import json
 from typing import Any, Dict, List, Optional, Literal, get_args, get_origin
 
 from pydantic import BaseModel
@@ -191,14 +191,12 @@ class ConfigService:
             elif isinstance(current_value, str):
                 setattr(config_obj, key, value)
             elif isinstance(current_value, list):
-                import json
 
                 parsed = json.loads(value)
                 if not isinstance(parsed, list):
                     return False, "输入必须是有效的列表格式"
                 setattr(config_obj, key, parsed)
             elif isinstance(current_value, dict):
-                import json
 
                 parsed = json.loads(value)
                 if not isinstance(parsed, dict):

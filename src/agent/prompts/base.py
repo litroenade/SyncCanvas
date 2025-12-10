@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Type, TypeVar
+import json as json_module
+from datetime import datetime
 
 from jinja2 import Environment, FileSystemLoader
 from pydantic import BaseModel, PrivateAttr
@@ -148,7 +150,6 @@ class PromptTemplate(BaseModel):
 # 注册自定义过滤器
 def _register_filters() -> None:
     """注册自定义 Jinja2 过滤器"""
-    import json as json_module
 
     def format_list(items, style: str = "bullet") -> str:
         """格式化列表"""
@@ -183,7 +184,6 @@ def _register_filters() -> None:
 # 注册全局变量
 def _register_globals() -> None:
     """注册全局变量和函数"""
-    from datetime import datetime
 
     env.globals["now"] = datetime.now
     env.globals["version"] = "1.1.0"

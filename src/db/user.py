@@ -2,10 +2,6 @@
 主要功能: 用户数据模型
 
 提供用户模型和相关属性方法。
-
-@Time: 2025-12-10
-@Author: Yang208115
-@File: user.py
 """
 
 from datetime import datetime

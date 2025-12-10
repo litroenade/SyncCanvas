@@ -19,7 +19,9 @@ logger = get_logger(__name__)
 # HTTP 客户端配置
 DEFAULT_TIMEOUT = 15.0
 DEFAULT_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
 }
@@ -54,13 +56,13 @@ def _extract_text_from_html(html: str) -> str:
     # 移除 script 和 style 标签及其内容
     html = re.sub(r"<script[^>]*>[\s\S]*?</script>", "", html, flags=re.IGNORECASE)
     html = re.sub(r"<style[^>]*>[\s\S]*?</style>", "", html, flags=re.IGNORECASE)
-    
+
     # 移除 HTML 注释
     html = re.sub(r"<!--[\s\S]*?-->", "", html)
-    
+
     # 移除所有 HTML 标签
     text = re.sub(r"<[^>]+>", " ", html)
-    
+
     # 解码 HTML 实体
     text = text.replace("&nbsp;", " ")
     text = text.replace("&lt;", "<")
@@ -68,11 +70,11 @@ def _extract_text_from_html(html: str) -> str:
     text = text.replace("&amp;", "&")
     text = text.replace("&quot;", '"')
     text = text.replace("&#39;", "'")
-    
+
     # 清理多余空白
     text = re.sub(r"\s+", " ", text)
     text = text.strip()
-    
+
     return text
 
 
@@ -136,7 +138,7 @@ async def fetch_webpage(
             "status": "error",
             "message": f"无效的 URL: {url}"
         }
-    
+
     try:
         async with httpx.AsyncClient(
             timeout=DEFAULT_TIMEOUT,
@@ -145,30 +147,30 @@ async def fetch_webpage(
         ) as client:
             response = await client.get(url)
             response.raise_for_status()
-            
+
             content_type = response.headers.get("content-type", "")
-            
+
             # 检查是否为 HTML 内容
             if "text/html" not in content_type and "text/plain" not in content_type:
                 return {
                     "status": "error",
                     "message": f"不支持的内容类型: {content_type}"
                 }
-            
+
             html = response.text
             title = _extract_title(html)
-            
+
             if extract_text:
                 content = _extract_text_from_html(html)
             else:
                 content = html
-            
+
             # 截断过长的内容
             if len(content) > max_length:
                 content = content[:max_length] + "...(内容已截断)"
-            
+
             logger.info(f"获取网页成功: {url}", extra={"length": len(content)})
-            
+
             return {
                 "status": "success",
                 "url": url,
@@ -177,7 +179,7 @@ async def fetch_webpage(
                 "content_length": len(content),
                 "message": f"成功获取网页内容 ({len(content)} 字符)"
             }
-            
+
     except httpx.TimeoutException:
         logger.warning(f"获取网页超时: {url}")
         return {
@@ -219,7 +221,7 @@ async def search_web(
         dict: 搜索结果
     """
     logger.info(f"搜索请求: {query}")
-    
+
     # 占位实现 - 实际需要接入搜索 API
     return {
         "status": "info",
@@ -227,4 +229,3 @@ async def search_web(
         "results": [],
         "message": "搜索功能需要配置搜索 API (如 Bing Search API)。当前为占位实现。"
     }
-

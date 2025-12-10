@@ -2,10 +2,6 @@
 主要功能: 数据库模型基类
 
 提供通用的模型方法和时间处理工具。
-
-@Time: 2025-12-10
-@Author: Yang208115
-@File: base.py
 """
 
 from datetime import datetime

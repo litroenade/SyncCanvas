@@ -16,13 +16,11 @@ from src.agent.tools.helpers import (
     require_room_id,
     generate_element_id,
     base_excalidraw_element,
-    get_elements_array,
     find_element_by_id,
     element_to_ymap,
     get_room_and_doc,
 )
 from src.logger import get_logger
-from src.ws.sync import websocket_server
 
 logger = get_logger(__name__)
 

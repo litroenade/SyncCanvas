@@ -12,6 +12,8 @@
 - general_tools: 通用工具
 - web_tools: 网络工具
 - text_tools: 文本工具
+- auto_layout: 自动布局
+- sequence: 时序图工具
 """
 
 # 导入工具模块以触发 @registry.register 装饰器
@@ -23,6 +25,8 @@ from src.agent.tools import presets  # noqa: F401
 from src.agent.tools import general_tools  # noqa: F401
 from src.agent.tools import web_tools  # noqa: F401
 from src.agent.tools import text_tools  # noqa: F401
+from src.agent.tools import auto_layout  # noqa: F401
+from src.agent.tools import sequence  # noqa: F401
 
 # 导出预设
 from src.agent.tools.presets import ELEMENT_PRESETS
@@ -36,5 +40,8 @@ __all__ = [
     "general_tools",
     "web_tools",
     "text_tools",
+    "auto_layout",
+    "sequence",
     "ELEMENT_PRESETS",
 ]
+

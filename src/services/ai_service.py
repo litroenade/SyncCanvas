@@ -8,7 +8,7 @@
 from typing import Optional, Dict, Any, List, Callable
 from dataclasses import dataclass, field
 import asyncio
-
+import time
 from sqlmodel import Session
 
 from src.agent.agents.planner import PlannerAgent
@@ -18,6 +18,8 @@ from src.agent.core.tools import registry
 from src.services.agent_runs import AgentRunService
 from src.logger import get_logger
 
+from src.db.database import get_sync_session
+from src.db.database import engine
 logger = get_logger(__name__)
 
 
@@ -120,7 +122,7 @@ class AIService:
         Returns:
             dict: 包含 response, run_id, status, metrics 的结果
         """
-        import time
+
 
         start_time = time.time()
 
@@ -253,8 +255,7 @@ class AIService:
         Returns:
             dict: 包含 response, run_id, status, metrics 的结果
         """
-        import time
-        from src.db.database import get_sync_session
+
 
         start_time = time.time()
 
@@ -276,7 +277,6 @@ class AIService:
 
         # 创建持久的 run_service 用于记录工具调用
         # 注：使用新的会话实例确保线程安全
-        from src.db.database import engine
 
         stream_session = Session(engine)
         stream_run_service = AgentRunService(stream_session)

@@ -47,7 +47,7 @@ def parse_yjs_elements(data: bytes) -> dict:
         ydoc.apply_update(data)
 
         result = {}
-        
+
         # 优先尝试 Excalidraw elements Array 格式
         try:
             elements_array = ydoc.get("elements", type=Array)
@@ -64,7 +64,7 @@ def parse_yjs_elements(data: bytes) -> dict:
                     el_id = el_dict.get("id")
                     if el_id:
                         result[el_id] = el_dict
-                
+
                 if result:
                     return result
         except Exception as e:
@@ -160,17 +160,26 @@ def _element_changed(old: dict, new: dict) -> bool:
     """检查元素是否有实质性变化"""
     if not isinstance(old, dict) or not isinstance(new, dict):
         return str(old) != str(new)
-    
+
     # 检查关键字段
-    key_fields = ["x", "y", "width", "height", "text", "strokeColor", "backgroundColor", "isDeleted"]
+    key_fields = [
+        "x",
+        "y",
+        "width",
+        "height",
+        "text",
+        "strokeColor",
+        "backgroundColor",
+        "isDeleted"
+        ]
     for field in key_fields:
         if old.get(field) != new.get(field):
             return True
-    
+
     # 检查版本号（如果存在）
     if old.get("version") != new.get("version"):
         return True
-    
+
     return False
 
 

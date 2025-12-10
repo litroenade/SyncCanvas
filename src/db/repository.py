@@ -2,18 +2,15 @@
 主要功能: 数据仓库抽象层
 
 提供类型安全的数据库操作抽象，将 CRUD 操作封装为 Repository 模式。
-
-@Time: 2025-12-10
-@Author: Yang208115
-@File: repository.py
 """
 
-from typing import Any, Dict, Generic, List, Optional, Type, TypeVar
+from typing import Any, Generic, List, Optional, Type, TypeVar
 
 from sqlalchemy import desc
 from sqlmodel import Session, SQLModel, select
 
 from src.logger import get_logger
+from src.db.models import Room, RoomMember, Commit, Update, AgentRun, AgentAction
 
 logger = get_logger(__name__)
 
@@ -216,7 +213,6 @@ class BaseRepository(Generic[T]):
 # ==================== 具体仓库实现 ====================
 
 
-from src.db.models import Room, RoomMember, Commit, Update, AgentRun, AgentAction
 
 
 class RoomRepository(BaseRepository[Room]):

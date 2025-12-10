@@ -31,7 +31,7 @@ class IGitService:
 
     def __init__(self, session: Session):
         self.session = session
-    
+
     def _get_contributor_ids(self, room_id: str) -> set:
         """获取房间的所有贡献者 ID"""
         commits = crud.get_commits_by_room(self.session, room_id, limit=1000)
@@ -127,17 +127,17 @@ class IGitService:
         # 更新房间的 HEAD 和统计信息
         room.head_commit_id = commit.id
         room.last_active_at = int(time.time())
-        
+
         # 解析元素并更新统计
         elements = parse_yjs_elements(doc_data)
-        valid_elements = [el for el in elements.values() 
+        valid_elements = [el for el in elements.values()
                         if isinstance(el, dict) and not el.get("isDeleted")]
         room.elements_count = len(valid_elements)
-        
+
         # 更新贡献者数量（简化逻辑：每次提交检查是否是新贡献者）
         if author_id and author_id not in self._get_contributor_ids(room_id):
             room.total_contributors = (room.total_contributors or 0) + 1
-        
+
         self.session.add(room)
 
         # 清理 Update 表 (已经合并到 Commit 中了)
@@ -344,7 +344,7 @@ class IGitService:
 
         # 计算有效元素数量（排除已删除的）
         valid_elements_count = sum(
-            1 for el in elements.values() 
+            1 for el in elements.values()
             if isinstance(el, dict) and not el.get("isDeleted")
         )
 
@@ -360,8 +360,8 @@ class IGitService:
         )
 
         return CommitDetailResponse(
-            commit=commit_info, 
-            elements_count=valid_elements_count, 
+            commit=commit_info,
+            elements_count=valid_elements_count,
             element_types=element_types
         )
 

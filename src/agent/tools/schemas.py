@@ -236,7 +236,8 @@ class CreatePresetElementArgs(BaseModel):
 
     preset: str = Field(
         ...,
-        description="预设名称: flowchart_start, flowchart_end, flowchart_process, flowchart_decision, flowchart_io",
+        description=
+        "预设名称: flowchart_start, flowchart_end, flowchart_process, flowchart_decision, flowchart_io",
     )
     label: str = Field(..., description="元素标签文字")
     x: float = Field(..., description="X 坐标")

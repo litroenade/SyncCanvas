@@ -12,7 +12,7 @@ from typing import Dict, List, Any, Optional, TYPE_CHECKING
 
 from src.agent.core.agent import PlanningAgent, AgentContext, AgentConfig
 from src.agent.core.llm import LLMClient
-from src.agent.core.tools import registry, ToolCategory
+from src.agent.core.tools import registry
 from src.agent.prompts import prompt_manager
 from src.logger import get_logger
 
