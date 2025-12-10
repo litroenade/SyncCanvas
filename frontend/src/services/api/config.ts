@@ -68,9 +68,22 @@ export async function getAgentConfigList(): Promise<ConfigItem[]> {
     return response.data.data;
 }
 
+/**
+ * 更新单个配置项
+ */
+export async function updateConfigItem(
+    group: string,
+    key: string,
+    value: unknown
+): Promise<void> {
+    await apiClient.put(`/config/${group}/${key}`, { value });
+}
+
 // 导出 configApi 对象
 export const configApi = {
     getAllConfigs,
     getAIConfigList,
     getAgentConfigList,
+    updateConfigItem,
 };
+

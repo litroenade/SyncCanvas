@@ -7,6 +7,8 @@
 - tools: 工具注册表
 - errors: 异常定义
 - json_parser: JSON 解析和修复
+- error_recovery: 错误恢复和重试策略
+- state_machine: Agent 状态机
 """
 
 from src.agent.core.agent import BaseAgent, PlanningAgent, AgentContext, AgentConfig
@@ -29,6 +31,21 @@ from src.agent.core.json_parser import (
     parse_llm_response,
     parse_tool_call_args,
     extract_json_from_text,
+)
+from src.agent.core.error_recovery import (
+    ErrorCategory,
+    ErrorClassifier,
+    ErrorContext,
+    ErrorRecoveryManager,
+    RetryPolicy,
+    error_recovery,
+    with_retry,
+)
+from src.agent.core.state_machine import (
+    AgentState,
+    AgentStateMachine,
+    StateTransition,
+    VALID_TRANSITIONS,
 )
 
 __all__ = [
@@ -60,4 +77,17 @@ __all__ = [
     "parse_llm_response",
     "parse_tool_call_args",
     "extract_json_from_text",
+    # Error Recovery
+    "ErrorCategory",
+    "ErrorClassifier",
+    "ErrorContext",
+    "ErrorRecoveryManager",
+    "RetryPolicy",
+    "error_recovery",
+    "with_retry",
+    # State Machine
+    "AgentState",
+    "AgentStateMachine",
+    "StateTransition",
+    "VALID_TRANSITIONS",
 ]
