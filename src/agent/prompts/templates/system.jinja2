@@ -38,26 +38,25 @@
 
 
 {% macro response_format() %}
-## 响应格式
+**可选的 action**
 
-当你需要返回结构化结果时，请使用以下 JSON 格式：
+next_tool
+动作描述：调用工具执行下一步操作
+{{"action":"next_tool", "tool_name":"工具名称", "tool_args":{参数对象}, "thinking":"思考过程"}}
 
+complete
+动作描述：任务完成，向用户报告结果
+{{"action":"complete", "message":"完成消息", "thinking":"思考过程"}}
+
+error
+动作描述：遇到错误，无法继续执行
+{{"action":"error", "message":"错误原因", "thinking":"思考过程"}}
+
+先输出简短的思考理由，再输出你选择的 action。
+动作用 json 格式输出，用 ```json 包裹：
 ```json
-{
-    "thinking": "你的思考过程（分析需求、规划步骤）",
-    "action": "next_tool | complete | error",
-    "tool_name": "要调用的工具名称",
-    "tool_args": { "参数名": "参数值" },
-    "message": "给用户的消息"
-}
+{{"action":"动作名", "tool_name":"...", "tool_args":{{...}}, "thinking":"..."}}
 ```
-
-**字段说明**：
-- `thinking`: 思维链，记录你的推理过程
-- `action`: 下一步动作类型
-- `tool_name`: 当 action 为 next_tool 时必填
-- `tool_args`: 工具调用参数
-- `message`: 最终回复或中间状态说明
 {% endmacro %}
 
 
