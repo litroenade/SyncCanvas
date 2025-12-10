@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { apiClient } from './axios';
 import { config } from '../../config/env';
 
 /**
@@ -34,16 +34,16 @@ export interface AgentAction {
 }
 
 /**
- * 获取 Authorization 请求头
- */
-const getAuthHeaders = () => {
-    const token = localStorage.getItem('token');
-    return token ? { Authorization: `Bearer ${token}` } : {};
-};
-
-/**
  * 工具信息接口
  */
+export interface ToolInfo {
+    name: string;
+    description: string;
+    category: string;
+    requires_room: boolean;
+    dangerous: boolean;
+    enabled: boolean;
+}
 export interface ToolInfo {
     name: string;
     description: string;
@@ -79,11 +79,7 @@ export const aiApi = {
      * @returns 生成结果
      */
     generateShapes: async (prompt: string, roomId: string): Promise<AIGenerateResponse> => {
-        const response = await axios.post(
-            `${config.apiBaseUrl}/ai/generate`,
-            { prompt, room_id: roomId },
-            { headers: getAuthHeaders() }
-        );
+        const response = await apiClient.post('/ai/generate', { prompt, room_id: roomId });
         return response.data;
     },
 
@@ -93,10 +89,7 @@ export const aiApi = {
      * @returns Agent 运行详情
      */
     getRunDetail: async (runId: number): Promise<AgentRunDetail> => {
-        const response = await axios.get(
-            `${config.apiBaseUrl}/ai/runs/${runId}`,
-            { headers: getAuthHeaders() }
-        );
+        const response = await apiClient.get(`/ai/runs/${runId}`);
         return response.data.data;
     },
 
@@ -105,10 +98,7 @@ export const aiApi = {
      * @returns 工具列表
      */
     getTools: async (): Promise<ToolInfo[]> => {
-        const response = await axios.get(
-            `${config.apiBaseUrl}/ai/tools`,
-            { headers: getAuthHeaders() }
-        );
+        const response = await apiClient.get('/ai/tools');
         return response.data.tools;
     },
 
@@ -117,10 +107,7 @@ export const aiApi = {
      * @returns Agent 状态信息
      */
     getStatus: async (): Promise<AgentStatus> => {
-        const response = await axios.get(
-            `${config.apiBaseUrl}/ai/status`,
-            { headers: getAuthHeaders() }
-        );
+        const response = await apiClient.get('/ai/status');
         return response.data;
     },
 
@@ -130,10 +117,7 @@ export const aiApi = {
      * @returns 是否正忙
      */
     isRoomBusy: async (roomId: string): Promise<boolean> => {
-        const response = await axios.get(
-            `${config.apiBaseUrl}/ai/status/${roomId}`,
-            { headers: getAuthHeaders() }
-        );
+        const response = await apiClient.get(`/ai/status/${roomId}`);
         return response.data.is_busy;
     },
 };
@@ -231,7 +215,7 @@ export class AIStreamClient {
             const baseUrl = config.wsBaseUrl.replace('/ws', '');
             const wsUrl = `${baseUrl}/api/ai/stream/${this.roomId}`;
             console.log('[AI Stream] 连接:', wsUrl);
-            
+
             this.ws = new WebSocket(wsUrl);
 
             this.ws.onopen = () => {

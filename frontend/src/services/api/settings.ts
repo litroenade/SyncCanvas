@@ -1,5 +1,11 @@
-import axios from 'axios';
-import { config } from '../../config/env';
+/**
+ * 设置 API 服务
+ * 
+ * 模块名称: settings
+ * 主要功能: 提供 AI 配置相关的 API 调用
+ */
+
+import { apiClient } from './axios';
 
 /**
  * AI 配置响应
@@ -59,14 +65,6 @@ export interface ProviderInfo {
 }
 
 /**
- * 获取 Authorization 请求头
- */
-const getAuthHeaders = () => {
-    const token = localStorage.getItem('token');
-    return token ? { Authorization: `Bearer ${token}` } : {};
-};
-
-/**
  * 设置 API
  */
 export const settingsApi = {
@@ -74,10 +72,7 @@ export const settingsApi = {
      * 获取 AI 配置
      */
     async getAIConfig(): Promise<AIConfig> {
-        const response = await axios.get<AIConfig>(
-            `${config.apiBaseUrl}/settings/ai`,
-            { headers: getAuthHeaders() }
-        );
+        const response = await apiClient.get<AIConfig>('/settings/ai');
         return response.data;
     },
 
@@ -85,11 +80,7 @@ export const settingsApi = {
      * 更新 AI 配置
      */
     async updateAIConfig(update: AIConfigUpdate): Promise<AIConfig> {
-        const response = await axios.put<AIConfig>(
-            `${config.apiBaseUrl}/settings/ai`,
-            update,
-            { headers: getAuthHeaders() }
-        );
+        const response = await apiClient.put<AIConfig>('/settings/ai', update);
         return response.data;
     },
 
@@ -97,10 +88,7 @@ export const settingsApi = {
      * 获取常用供应商
      */
     async getProviders(): Promise<ProviderInfo[]> {
-        const response = await axios.get<ProviderInfo[]>(
-            `${config.apiBaseUrl}/settings/ai/providers`,
-            { headers: getAuthHeaders() }
-        );
+        const response = await apiClient.get<ProviderInfo[]>('/settings/ai/providers');
         return response.data;
     },
 
@@ -111,15 +99,12 @@ export const settingsApi = {
         const params = new URLSearchParams();
         if (baseUrl) params.append('base_url', baseUrl);
         if (apiKey) params.append('api_key', apiKey);
-        
+
         const url = params.toString()
-            ? `${config.apiBaseUrl}/settings/ai/models?${params}`
-            : `${config.apiBaseUrl}/settings/ai/models`;
-            
-        const response = await axios.get<ModelsResponse>(
-            url,
-            { headers: getAuthHeaders() }
-        );
+            ? `/settings/ai/models?${params}`
+            : '/settings/ai/models';
+
+        const response = await apiClient.get<ModelsResponse>(url);
         return response.data;
     },
 };

@@ -5,8 +5,7 @@
  * 主要功能: 提供房间管理相关的 API 调用
  */
 
-import axios from 'axios'
-import { config } from '../../config/env'
+import { apiClient } from './axios'
 
 /**
  * 房间信息接口
@@ -57,15 +56,6 @@ export interface CreateRoomRequest {
 }
 
 /**
- * 获取 Authorization 请求头
- * @returns 包含 Bearer Token 的请求头对象
- */
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('token')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
-
-/**
  * 房间 API 服务对象
  */
 export const roomsApi = {
@@ -76,10 +66,7 @@ export const roomsApi = {
    */
   async list(isPublic?: boolean): Promise<RoomListResponse> {
     const params = isPublic !== undefined ? { is_public: isPublic } : {}
-    const response = await axios.get(`${config.apiBaseUrl}/rooms`, {
-      params,
-      headers: getAuthHeaders(),
-    })
+    const response = await apiClient.get('/rooms', { params })
     return response.data
   },
 
@@ -89,9 +76,7 @@ export const roomsApi = {
    * @returns 创建的房间信息
    */
   async create(data: CreateRoomRequest): Promise<Room> {
-    const response = await axios.post(`${config.apiBaseUrl}/rooms`, data, {
-      headers: getAuthHeaders(),
-    })
+    const response = await apiClient.post('/rooms', data)
     return response.data
   },
 
@@ -101,9 +86,7 @@ export const roomsApi = {
    * @returns 房间详情
    */
   async get(roomId: string): Promise<Room> {
-    const response = await axios.get(`${config.apiBaseUrl}/rooms/${roomId}`, {
-      headers: getAuthHeaders(),
-    })
+    const response = await apiClient.get(`/rooms/${roomId}`)
     return response.data
   },
 
@@ -114,11 +97,7 @@ export const roomsApi = {
    * @returns 加入结果
    */
   async join(roomId: string, password?: string): Promise<{ status: string; room_id: string }> {
-    const response = await axios.post(
-      `${config.apiBaseUrl}/rooms/${roomId}/join`,
-      { password },
-      { headers: getAuthHeaders() }
-    )
+    const response = await apiClient.post(`/rooms/${roomId}/join`, { password })
     return response.data
   },
 
@@ -128,11 +107,7 @@ export const roomsApi = {
    * @returns 离开结果
    */
   async leave(roomId: string): Promise<{ status: string; room_id: string }> {
-    const response = await axios.post(
-      `${config.apiBaseUrl}/rooms/${roomId}/leave`,
-      {},
-      { headers: getAuthHeaders() }
-    )
+    const response = await apiClient.post(`/rooms/${roomId}/leave`, {})
     return response.data
   },
 
@@ -142,8 +117,7 @@ export const roomsApi = {
    * @returns 删除结果
    */
   async delete(roomId: string, password?: string): Promise<{ status: string; room_id: string }> {
-    const response = await axios.delete(`${config.apiBaseUrl}/rooms/${roomId}`, {
-      headers: getAuthHeaders(),
+    const response = await apiClient.delete(`/rooms/${roomId}`, {
       data: password ? { password } : undefined,
     })
     return response.data
@@ -155,9 +129,7 @@ export const roomsApi = {
    * @returns 邀请链接信息
    */
   async getInviteLink(roomId: string): Promise<{ room_id: string; invite_url: string }> {
-    const response = await axios.get(`${config.apiBaseUrl}/rooms/${roomId}/invite`, {
-      headers: getAuthHeaders(),
-    })
+    const response = await apiClient.get(`/rooms/${roomId}/invite`)
     return response.data
   },
 
@@ -166,9 +138,7 @@ export const roomsApi = {
    * @returns 房间列表响应
    */
   async getMyRooms(): Promise<RoomListResponse> {
-    const response = await axios.get(`${config.apiBaseUrl}/rooms/my/rooms`, {
-      headers: getAuthHeaders(),
-    })
+    const response = await apiClient.get('/rooms/my/rooms')
     return response.data
   },
 
@@ -178,9 +148,7 @@ export const roomsApi = {
    * @returns 历史信息
    */
   async getHistory(roomId: string): Promise<HistoryResponse> {
-    const response = await axios.get(`${config.apiBaseUrl}/rooms/${roomId}/history`, {
-      headers: getAuthHeaders(),
-    })
+    const response = await apiClient.get(`/rooms/${roomId}/history`)
     return response.data
   },
 
@@ -191,11 +159,7 @@ export const roomsApi = {
    * @returns 创建的提交信息
    */
   async createCommit(roomId: string, data: CreateCommitRequest): Promise<CreateCommitResponse> {
-    const response = await axios.post(
-      `${config.apiBaseUrl}/rooms/${roomId}/commit`,
-      data,
-      { headers: getAuthHeaders() }
-    )
+    const response = await apiClient.post(`/rooms/${roomId}/commit`, data)
     return response.data
   },
 
@@ -206,11 +170,7 @@ export const roomsApi = {
    * @returns 检出结果
    */
   async checkoutCommit(roomId: string, commitId: number): Promise<{ status: string; commit_id: number; commit_hash: string; message: string }> {
-    const response = await axios.post(
-      `${config.apiBaseUrl}/rooms/${roomId}/checkout/${commitId}`,
-      {},
-      { headers: getAuthHeaders() }
-    )
+    const response = await apiClient.post(`/rooms/${roomId}/checkout/${commitId}`, {})
     return response.data
   },
 
@@ -221,11 +181,7 @@ export const roomsApi = {
    * @returns 回滚结果
    */
   async revertToCommit(roomId: string, commitId: number): Promise<{ status: string; new_commit: CommitInfo; reverted_to: { id: number; hash: string } }> {
-    const response = await axios.post(
-      `${config.apiBaseUrl}/rooms/${roomId}/revert/${commitId}`,
-      {},
-      { headers: getAuthHeaders() }
-    )
+    const response = await apiClient.post(`/rooms/${roomId}/revert/${commitId}`, {})
     return response.data
   },
 
@@ -236,10 +192,7 @@ export const roomsApi = {
    * @returns 提交详情
    */
   async getCommitDetail(roomId: string, commitId: number): Promise<CommitDetailResponse> {
-    const response = await axios.get(
-      `${config.apiBaseUrl}/rooms/${roomId}/commits/${commitId}`,
-      { headers: getAuthHeaders() }
-    )
+    const response = await apiClient.get(`/rooms/${roomId}/commits/${commitId}`)
     return response.data
   },
 
@@ -252,10 +205,7 @@ export const roomsApi = {
    */
   async getCommitDiff(roomId: string, commitId: number, baseCommitId?: number): Promise<CommitDiffResponse> {
     const params = baseCommitId !== undefined ? { base_commit_id: baseCommitId } : {}
-    const response = await axios.get(
-      `${config.apiBaseUrl}/rooms/${roomId}/diff/${commitId}`,
-      { params, headers: getAuthHeaders() }
-    )
+    const response = await apiClient.get(`/rooms/${roomId}/diff/${commitId}`, { params })
     return response.data
   },
 
@@ -266,13 +216,9 @@ export const roomsApi = {
    * @returns 二进制数据
    */
   async getCommitData(roomId: string, commitId: number): Promise<ArrayBuffer> {
-    const response = await axios.get(
-      `${config.apiBaseUrl}/rooms/${roomId}/commits/${commitId}/data`,
-      {
-        headers: getAuthHeaders(),
-        responseType: 'arraybuffer'
-      }
-    )
+    const response = await apiClient.get(`/rooms/${roomId}/commits/${commitId}/data`, {
+      responseType: 'arraybuffer'
+    })
     return response.data
   },
 }

@@ -1,12 +1,11 @@
 /**
  * 配置 API 服务
  * 
- * 提供通用配置管理接口，支持读取和更新各类配置
+ * 模块名称: config
+ * 主要功能: 提供通用配置管理接口，支持读取和更新各类配置
  */
 
-import { config } from '../../config/env';
-
-const API_BASE = config.apiBaseUrl;
+import { apiClient } from './axios';
 
 // ==================== 类型定义 ====================
 
@@ -49,36 +48,24 @@ export interface ConfigListResponse {
  * 获取所有配置列表
  */
 export async function getAllConfigs(): Promise<AllConfigsResponse['data']> {
-    const response = await fetch(`${API_BASE}/config/list`);
-    if (!response.ok) {
-        throw new Error(`获取配置失败: ${response.statusText}`);
-    }
-    const result: AllConfigsResponse = await response.json();
-    return result.data;
+    const response = await apiClient.get<AllConfigsResponse>('/config/list');
+    return response.data.data;
 }
 
 /**
  * 获取 AI 配置列表
  */
 export async function getAIConfigList(): Promise<ConfigItem[]> {
-    const response = await fetch(`${API_BASE}/config/ai`);
-    if (!response.ok) {
-        throw new Error(`获取 AI 配置失败: ${response.statusText}`);
-    }
-    const result: ConfigListResponse = await response.json();
-    return result.data;
+    const response = await apiClient.get<ConfigListResponse>('/config/ai');
+    return response.data.data;
 }
 
 /**
  * 获取 Agent 配置列表
  */
 export async function getAgentConfigList(): Promise<ConfigItem[]> {
-    const response = await fetch(`${API_BASE}/config/agent`);
-    if (!response.ok) {
-        throw new Error(`获取 Agent 配置失败: ${response.statusText}`);
-    }
-    const result: ConfigListResponse = await response.json();
-    return result.data;
+    const response = await apiClient.get<ConfigListResponse>('/config/agent');
+    return response.data.data;
 }
 
 // 导出 configApi 对象
