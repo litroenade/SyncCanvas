@@ -1,0 +1,312 @@
+"""模块名称: flowchart
+主要功能: 流程图工具
+
+提供流程图节点创建和连接功能:
+- create_flowchart_node: 创建流程图节点
+- connect_nodes: 用箭头连接节点
+"""
+
+import random
+from typing import Optional, Dict, Any
+
+from src.agent.core.agent import AgentContext
+from src.agent.core.tools import registry, ToolCategory
+from src.agent.tools.schemas import CreateFlowchartNodeArgs, ConnectNodesArgs
+from src.agent.tools.helpers import (
+    require_room_id,
+    generate_element_id,
+    base_excalidraw_element,
+    get_elements_array,
+    find_element_by_id,
+    element_to_ymap,
+    get_room_and_doc,
+)
+from src.logger import get_logger
+from src.ws.sync import websocket_server
+
+logger = get_logger(__name__)
+
+
+@registry.register(
+    "create_flowchart_node",
+    "创建流程图节点 (自动绑定文本标签)，返回 element_id 用于后续连接",
+    CreateFlowchartNodeArgs,
+    category=ToolCategory.CANVAS,
+)
+async def create_flowchart_node(
+    label: str,
+    node_type: str = "rectangle",
+    x: float = 400,
+    y: float = 50,
+    width: float = 160,
+    height: float = 70,
+    stroke_color: str = "#1e1e1e",
+    bg_color: str = "#ffffff",
+    context: AgentContext = None,
+) -> Dict[str, Any]:
+    """创建流程图节点，包含形状和绑定的文本
+
+    Args:
+        label: 节点标签文字
+        node_type: 节点类型 (rectangle/diamond/ellipse)
+        x: X 坐标
+        y: Y 坐标
+        width: 宽度
+        height: 高度
+        stroke_color: 描边颜色
+        bg_color: 背景颜色
+        context: Agent 上下文
+
+    Returns:
+        dict: 包含 status, element_id, text_id 的结果
+    """
+    room_id = require_room_id(context)
+    _, doc, elements_array = await get_room_and_doc(room_id)
+
+    # 根据节点类型调整尺寸
+    if node_type == "diamond":
+        width = max(width, 120)
+        height = max(height, 120)
+    elif node_type == "ellipse":
+        width = max(width, 120)
+        height = max(height, 50)
+
+    # 创建形状元素
+    shape_id = generate_element_id(node_type)
+    shape = base_excalidraw_element(
+        node_type, x, y, width, height, stroke_color, bg_color
+    )
+    shape["id"] = shape_id
+
+    # 矩形添加圆角
+    if node_type == "rectangle":
+        shape["roundness"] = {"type": 3}
+
+    # 创建绑定的文本元素
+    text_id = generate_element_id("text")
+    text_x = x + width / 2
+    text_y = y + height / 2
+
+    text_element = {
+        "id": text_id,
+        "type": "text",
+        "x": text_x,
+        "y": text_y,
+        "width": width - 20,
+        "height": 20,
+        "strokeColor": stroke_color,
+        "backgroundColor": "transparent",
+        "fillStyle": "solid",
+        "strokeWidth": 1,
+        "strokeStyle": "solid",
+        "roughness": 0,
+        "opacity": 100,
+        "groupIds": [],
+        "seed": random.randint(1, 100000),
+        "version": 1,
+        "versionNonce": random.randint(1, 1000000000),
+        "isDeleted": False,
+        "boundElements": None,
+        "updated": 1,
+        "link": None,
+        "locked": False,
+        "text": label,
+        "fontSize": 18,
+        "fontFamily": 1,
+        "textAlign": "center",
+        "verticalAlign": "middle",
+        "containerId": shape_id,
+        "originalText": label,
+        "autoResize": True,
+    }
+
+    # 更新形状的 boundElements
+    shape["boundElements"] = [{"id": text_id, "type": "text"}]
+
+    with doc.transaction(origin="ai-engine/create_flowchart_node"):
+        elements_array.append(element_to_ymap(shape))
+        elements_array.append(element_to_ymap(text_element))
+
+    logger.info(
+        f"创建流程图节点: {shape_id}",
+        extra={"room": room_id, "type": node_type, "label": label},
+    )
+
+    return {
+        "status": "success",
+        "message": f"已创建 {node_type} 节点: {label}",
+        "element_id": shape_id,
+        "text_id": text_id,
+        "position": {"x": x, "y": y},
+        "size": {"width": width, "height": height},
+    }
+
+
+@registry.register(
+    "connect_nodes",
+    "用箭头连接两个流程图节点 (使用 create_flowchart_node 返回的 element_id)",
+    ConnectNodesArgs,
+    category=ToolCategory.CANVAS,
+)
+async def connect_nodes(
+    from_id: str,
+    to_id: str,
+    label: Optional[str] = None,
+    stroke_color: str = "#1e1e1e",
+    context: AgentContext = None,
+) -> Dict[str, Any]:
+    """用绑定箭头连接两个节点
+
+    Args:
+        from_id: 起始节点 ID
+        to_id: 目标节点 ID
+        label: 连线标签 (可选)
+        stroke_color: 连线颜色
+        context: Agent 上下文
+
+    Returns:
+        dict: 包含 status, arrow_id, label_id 的结果
+    """
+    room_id = require_room_id(context)
+    _, doc, elements_array = await get_room_and_doc(room_id)
+
+    # 查找起始和结束节点
+    _, start_node = find_element_by_id(elements_array, from_id)
+    _, end_node = find_element_by_id(elements_array, to_id)
+
+    if not start_node:
+        return {
+            "status": "error",
+            "message": f"找不到起始节点: {from_id}",
+            "from_id": from_id,
+            "to_id": to_id,
+        }
+
+    if not end_node:
+        return {
+            "status": "error",
+            "message": f"找不到目标节点: {to_id}",
+            "from_id": from_id,
+            "to_id": to_id,
+        }
+
+    # 计算节点边缘连接点
+    start_x = start_node.get("x", 0)
+    start_y = start_node.get("y", 0)
+    start_w = start_node.get("width", 100)
+    start_h = start_node.get("height", 100)
+
+    end_x = end_node.get("x", 0)
+    end_y = end_node.get("y", 0)
+    end_w = end_node.get("width", 100)
+    end_h = end_node.get("height", 100)
+
+    # 计算中心点
+    start_cx = start_x + start_w / 2
+    start_cy = start_y + start_h / 2
+    end_cx = end_x + end_w / 2
+    end_cy = end_y + end_h / 2
+
+    # 确定连接点
+    if end_cy > start_cy:
+        arrow_start_y = start_y + start_h
+        arrow_end_y = end_y
+    else:
+        arrow_start_y = start_y
+        arrow_end_y = end_y + end_h
+
+    # 处理水平方向
+    if abs(end_cx - start_cx) > 50:
+        if end_cx > start_cx:
+            arrow_start_x = start_x + start_w
+            arrow_end_x = end_x
+        else:
+            arrow_start_x = start_x
+            arrow_end_x = end_x + end_w
+    else:
+        arrow_start_x = start_cx
+        arrow_end_x = end_cx
+
+    # 创建箭头
+    arrow_id = generate_element_id("arrow")
+    arrow = base_excalidraw_element(
+        "arrow",
+        arrow_start_x,
+        arrow_start_y,
+        abs(arrow_end_x - arrow_start_x),
+        abs(arrow_end_y - arrow_start_y),
+        stroke_color,
+        "transparent",
+    )
+    arrow.update(
+        {
+            "id": arrow_id,
+            "points": [
+                [0, 0],
+                [arrow_end_x - arrow_start_x, arrow_end_y - arrow_start_y],
+            ],
+            "startBinding": {"elementId": from_id, "focus": 0, "gap": 4},
+            "endBinding": {"elementId": to_id, "focus": 0, "gap": 4},
+            "startArrowhead": None,
+            "endArrowhead": "arrow",
+            "strokeWidth": 2,
+        }
+    )
+
+    created_elements = [arrow]
+    label_id = None
+
+    # 如果有标签，创建标签文本
+    if label:
+        label_id = generate_element_id("label")
+        mid_x = (arrow_start_x + arrow_end_x) / 2
+        mid_y = (arrow_start_y + arrow_end_y) / 2
+
+        label_element = {
+            "id": label_id,
+            "type": "text",
+            "x": mid_x - 15,
+            "y": mid_y - 10,
+            "width": 30,
+            "height": 20,
+            "strokeColor": stroke_color,
+            "backgroundColor": "#ffffff",
+            "fillStyle": "solid",
+            "strokeWidth": 1,
+            "strokeStyle": "solid",
+            "roughness": 0,
+            "opacity": 100,
+            "groupIds": [],
+            "seed": random.randint(1, 100000),
+            "version": 1,
+            "versionNonce": random.randint(1, 1000000000),
+            "isDeleted": False,
+            "boundElements": None,
+            "updated": 1,
+            "link": None,
+            "locked": False,
+            "text": label,
+            "fontSize": 14,
+            "fontFamily": 1,
+            "textAlign": "center",
+            "verticalAlign": "middle",
+            "originalText": label,
+        }
+        created_elements.append(label_element)
+
+    with doc.transaction(origin="ai-engine/connect_nodes"):
+        for el in created_elements:
+            elements_array.append(element_to_ymap(el))
+
+    logger.info(
+        f"创建连接: {arrow_id}",
+        extra={"room": room_id, "from": from_id, "to": to_id, "label": label},
+    )
+
+    return {
+        "status": "success",
+        "message": f"已连接节点 {from_id} -> {to_id}"
+        + (f" (标签: {label})" if label else ""),
+        "arrow_id": arrow_id,
+        "label_id": label_id,
+    }

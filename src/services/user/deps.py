@@ -1,8 +1,7 @@
 """模块名称: deps
 主要功能: FastAPI 依赖注入
 
-参考 Nekro-Agent 的 deps.py 设计，提供用户认证相关的依赖注入函数。
-支持从 Header 和 Query 参数获取 Token。
+提供用户认证相关的依赖注入函数，支持从 Header 和 Query 参数获取 Token。
 """
 
 from typing import Optional

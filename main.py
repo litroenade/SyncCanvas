@@ -14,6 +14,7 @@ from src.routers.ai import router as ai_router
 from src.routers.upload import router as upload_router
 from src.routers.rooms import router as rooms_router
 from src.routers.igit import igit_router
+from src.routers.settings import router as settings_router
 
 setup_logging()
 logger = get_logger(__name__)
@@ -67,6 +68,7 @@ app.include_router(ai_router, prefix="/api")
 app.include_router(upload_router)  # upload_router 自带 /api/upload 前缀
 app.include_router(rooms_router, prefix="/api")
 app.include_router(igit_router, prefix="/api/rooms")
+app.include_router(settings_router, prefix="/api")
 
 
 # 挂载 pycrdt-websocket 的 ASGI 服务器到 /ws 路径
