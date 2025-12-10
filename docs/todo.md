@@ -9,10 +9,10 @@
 - [ ] 将 `state_machine.py` 集成到 Agent 执行流程
 - [ ] 统一错误处理和重试逻辑
 
-### 2. 前端组件集成
-- [ ] 在 Canvas 页面集成 `ConnectionStatus` 组件显示连接状态
-- [ ] 在 AI 对话面板集成 `ToolProgress` 组件显示工具执行进度
-- [ ] 集成 `useTypingEffect` 实现 AI 回复打字机效果
+### 2. 前端组件集成 ✓
+- [x] 在 Canvas 页面集成 `ConnectionStatus` 组件显示连接状态 (通过 renderTopRightUI)
+- [x] 在 AI 对话面板集成 `ToolProgress` 组件显示工具执行进度
+- [x] 集成 `useTypingEffect` 实现 AI 回复打字机效果
 
 ### 3. 后端 WebSocket 升级
 - [ ] 将 `message_router` 集成到 AI WebSocket 端点

@@ -27,6 +27,7 @@ import { roomsApi, Room, CreateRoomRequest } from '../services/api/rooms'
 import { useThemeStore } from '../stores/useThemeStore'
 import { cn } from '../lib/utils'
 import { useModal } from '../components/common/Modal'
+import { RoomListSkeleton } from '../components/common/Skeleton'
 
 /**
  * 房间列表页面组件
@@ -193,11 +194,9 @@ export const Rooms: React.FC = () => {
           )}
         </div>
 
-        {/* 加载状态 */}
+        {/* 加载状态 - 骨架屏 */}
         {loading && (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-          </div>
+          <RoomListSkeleton count={6} isDark={theme === 'dark'} />
         )}
 
         {/* 错误提示 */}

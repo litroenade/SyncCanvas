@@ -2,11 +2,17 @@
  * AI 助手组件
  * 
  * 提供与 LLM Agent 的交互界面，支持智能绘图命令和实时步骤反馈
+ * 
+ * 集成功能:
+ * - ToolProgress: 显示 AI 工具执行进度
+ * - useTypingEffect: AI 回复打字机效果
  */
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../lib/utils';
 import { useAIStream } from '../../hooks/useAIStream';
+import { useTypingEffect } from '../../hooks/useTypingEffect';
+import { ToolProgress, ToolStep } from '../ai/ToolProgress';
 import {
     Sparkles,
     Send,
@@ -86,6 +92,28 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
         reset,
     } = useAIStream({ roomId, autoConnect: isOpen });
 
+    // 将 AI 步骤转换为 ToolProgress 格式
+    const toolSteps: ToolStep[] = useMemo(() => {
+        return steps.map((step, index) => ({
+            stepNumber: index + 1,
+            thought: step.thought,
+            action: step.action || undefined,
+            actionInput: step.action_input ?? undefined,  // null 转 undefined
+            observation: step.observation ?? undefined,
+            success: step.success,
+            latencyMs: step.latency_ms,
+            status: step.success === false ? 'error' as const :
+                step.observation ? 'done' as const :
+                    step.action ? 'running' as const : 'pending' as const,
+        }));
+    }, [steps]);
+
+    // 打字机效果 - 用于 AI 回复
+    const { displayText: typedResponse, isTyping, skip: skipTyping } = useTypingEffect(
+        response || '',
+        { speed: 20 }
+    );
+
     // 滚动到底部
     const scrollToBottom = useCallback(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -93,7 +121,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
 
     useEffect(() => {
         scrollToBottom();
-    }, [messages, steps, scrollToBottom]);
+    }, [messages, steps, typedResponse, scrollToBottom]);
 
     // 自动聚焦输入框
     useEffect(() => {
@@ -200,8 +228,9 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                 exit={{ opacity: 0, y: 20, scale: 0.95 }}
                 transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                 className={cn(
-                    'fixed z-[150] shadow-2xl rounded-2xl overflow-hidden',
+                    'fixed z-[150] rounded-2xl overflow-hidden',
                     'border backdrop-blur-xl',
+                    'shadow-2xl shadow-black/20 dark:shadow-black/40',
                     isDark
                         ? 'bg-zinc-900/95 border-zinc-700/50'
                         : 'bg-white/95 border-zinc-200/50'
@@ -213,7 +242,6 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                     maxHeight: 'min(500px, calc(100vh - 160px))',
                 }}
             >
-                {/* 头部 */}
                 {/* 头部 */}
                 <div className={cn(
                     'flex items-center justify-between px-4 py-3 border-b',
@@ -318,12 +346,12 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                                             )}
                                         >
                                             <div className={cn(
-                                                'max-w-[85%] px-3 py-2 rounded-2xl text-sm',
+                                                'max-w-[85%] px-3 py-2 rounded-2xl text-sm transition-shadow',
                                                 msg.role === 'user'
-                                                    ? 'bg-gradient-to-r from-violet-500 to-purple-500 text-white'
+                                                    ? 'bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow-lg shadow-violet-500/25'
                                                     : isDark
-                                                        ? 'bg-zinc-800 text-zinc-200'
-                                                        : 'bg-zinc-100 text-zinc-700'
+                                                        ? 'bg-zinc-800 text-zinc-200 shadow-md shadow-black/10'
+                                                        : 'bg-zinc-100 text-zinc-700 shadow-md shadow-black/5'
                                             )}>
                                                 <div className="flex items-start gap-2">
                                                     {msg.role === 'assistant' && msg.status === 'pending' && (
@@ -335,12 +363,34 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                                                     {msg.role === 'assistant' && msg.status === 'error' && (
                                                         <AlertCircle size={14} className="mt-0.5 text-red-500" />
                                                     )}
-                                                    <span>{msg.content}</span>
+                                                    {/* 使用打字机效果显示 AI 回复 */}
+                                                    <span>
+                                                        {msg.role === 'assistant' && msg.status === 'success' && isTyping
+                                                            ? typedResponse
+                                                            : msg.content}
+                                                        {msg.role === 'assistant' && msg.status === 'success' && isTyping && (
+                                                            <span
+                                                                className="inline-block w-1 h-4 ml-0.5 bg-current animate-pulse cursor-pointer"
+                                                                onClick={skipTyping}
+                                                                title="点击跳过"
+                                                            />
+                                                        )}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
                                     ))
                                 )}
+
+                                {/* 工具执行进度 */}
+                                {toolSteps.length > 0 && (
+                                    <ToolProgress
+                                        steps={toolSteps}
+                                        isRunning={isLoading}
+                                        className="mt-2"
+                                    />
+                                )}
+
                                 <div ref={messagesEndRef} />
                             </div>
 
