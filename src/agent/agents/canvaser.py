@@ -1,5 +1,5 @@
-"""模块名称: painter
-主要功能: Painter Agent - 专业的图形绘制 Agent
+"""模块名称: canvaser
+主要功能: Canvaser Agent - 专业的图形绘制 Agent
 
 负责将用户的绘图需求转换为 Excalidraw 元素操作。
 支持流程图、数据流图、架构图等多种图表类型。
@@ -49,7 +49,7 @@ class LayoutConfig:
 
 # ==================== 系统提示词 ====================
 
-PAINTER_SYSTEM_PROMPT = """你是一个专业的图形绘制助手 (Painter Agent)，专门负责在 Excalidraw 白板上绘制流程图、数据流图、架构图等技术图表。
+CANVASER_SYSTEM_PROMPT = """你是一个专业的图形绘制助手 (Canvaser Agent)，专门负责在 Excalidraw 白板上绘制流程图、数据流图、架构图等技术图表。
 
 ## 核心职责
 根据用户描述，准确绘制技术图表。你需要:
@@ -174,8 +174,8 @@ PAINTER_SYSTEM_PROMPT = """你是一个专业的图形绘制助手 (Painter Agen
 """
 
 
-class PainterAgent(PlanningAgent):
-    """Painter Agent - 专业图形绘制
+class CanvaserAgent(PlanningAgent):
+    """Canvaser Agent - 专业图形绘制
 
     专门用于绘制流程图、数据流图、架构图等技术图表。
     继承自 PlanningAgent，具备任务规划能力。
@@ -186,8 +186,8 @@ class PainterAgent(PlanningAgent):
         node_registry: 已创建节点的 ID 映射
     """
 
-    # Painter 专用配置
-    PAINTER_CONFIG = AgentConfig(
+    # Canvaser 专用配置
+    CANVASER_CONFIG = AgentConfig(
         max_iterations=25,  # 绘图需要更多迭代
         llm_timeout=90.0,  # LLM 调用超时
         tool_timeout=30.0,  # 工具执行超时
@@ -201,7 +201,7 @@ class PainterAgent(PlanningAgent):
         run_service: Optional["AgentRunService"] = None,
         config: Optional[AgentConfig] = None,
     ):
-        """初始化 Painter Agent
+        """初始化 Canvaser Agent
 
         Args:
             llm_client: LLM 客户端实例
@@ -214,11 +214,11 @@ class PainterAgent(PlanningAgent):
         system_prompt = self._build_prompt_from_template()
 
         super().__init__(
-            name="Painter",
+            name="Canvaser",
             role="图形绘制专家",
             llm_client=llm_client,
             system_prompt=system_prompt,
-            config=config or self.PAINTER_CONFIG,
+            config=config or self.CANVASER_CONFIG,
             run_service=run_service,
             enable_planning=True,
         )
@@ -295,7 +295,7 @@ class PainterAgent(PlanningAgent):
             )
         except Exception as e:
             logger.warning(f"Jinja2 模板渲染失败，使用静态 prompt: {e}")
-            return PAINTER_SYSTEM_PROMPT
+            return CANVASER_SYSTEM_PROMPT
 
     def _register_tools(self) -> None:
         """注册绘图相关工具
@@ -326,7 +326,7 @@ class PainterAgent(PlanningAgent):
                 retries=retries,
             )
 
-        logger.info(f"Painter Agent 已注册 {len(self.tools)} 个工具")
+        logger.info(f"Canvaser Agent 已注册 {len(self.tools)} 个工具")
 
     def _build_system_prompt(self) -> str:
         """构建系统提示词
