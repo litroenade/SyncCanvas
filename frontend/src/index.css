@@ -9,11 +9,11 @@
     --safe-area-bottom: env(safe-area-inset-bottom, 0px);
     --safe-area-left: env(safe-area-inset-left, 0px);
     --safe-area-right: env(safe-area-inset-right, 0px);
-    
+
     /* 画布 UI 区域 */
     --canvas-header-height: 48px;
     --canvas-status-height: 32px;
-    
+
     /* 颜色系统 */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
@@ -35,7 +35,7 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 222.2 84% 4.9%;
     --radius: 0.5rem;
-    
+
     /* 玻璃态效果 */
     --glass-bg: rgba(255, 255, 255, 0.8);
     --glass-border: rgba(255, 255, 255, 0.3);
@@ -62,7 +62,7 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
-    
+
     /* 深色玻璃态 */
     --glass-bg: rgba(24, 24, 27, 0.85);
     --glass-border: rgba(63, 63, 70, 0.4);
@@ -76,13 +76,13 @@
     @apply border-border;
     box-sizing: border-box;
   }
-  
+
   html {
     /* 使用动态视口高度，解决移动端地址栏问题 */
     height: 100%;
     height: 100dvh;
   }
-  
+
   body {
     @apply bg-background text-foreground;
     margin: 0;
@@ -94,7 +94,7 @@
     overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
   }
-  
+
   #root {
     width: 100%;
     height: 100%;
@@ -137,13 +137,27 @@
 
 /* ==================== 状态指示器动画 ==================== */
 @keyframes pulse-ring {
-  0% { transform: scale(1); opacity: 1; }
-  100% { transform: scale(1.8); opacity: 0; }
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
 }
 
 @keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-4px); }
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-4px);
+  }
 }
 
 .status-pulse::before {
@@ -191,35 +205,37 @@
 }
 
 /* ==================== 移动端适配 ==================== */
-@media (max-width: 768px), (hover: none) and (pointer: coarse) {
+@media (max-width: 768px),
+(hover: none) and (pointer: coarse) {
+
   /* 移动端工具栏缩放和间距 */
   .excalidraw .layer-ui__wrapper {
     --ui-scale: 0.85;
     /* 为 FAB 按钮留出空间 */
     padding-bottom: calc(var(--safe-area-bottom) + 16px) !important;
   }
-  
+
   /* 增大触摸目标 */
   .excalidraw .ToolIcon {
     min-width: 44px !important;
     min-height: 44px !important;
   }
-  
+
   /* 左侧工具栏位置调整，避免被 FAB 遮挡 */
   .excalidraw .App-toolbar {
     padding-left: var(--safe-area-left) !important;
   }
-  
+
   /* 顶部菜单位置调整 */
   .excalidraw .App-menu {
     padding-top: max(8px, var(--safe-area-top)) !important;
   }
-  
+
   /* 隐藏 PC 端才需要的帮助按钮 */
   .excalidraw .HelpButton {
     display: none !important;
   }
-  
+
   /* 底部缩放控件位置调整 */
   .excalidraw .zoom-actions {
     bottom: calc(var(--safe-area-bottom) + 60px) !important;
@@ -243,12 +259,15 @@
 
 /* ==================== iOS Safari 特殊处理 ==================== */
 @supports (-webkit-touch-callout: none) {
+
   .excalidraw-wrapper,
   .canvas-container,
-  html, body, #root {
+  html,
+  body,
+  #root {
     height: -webkit-fill-available !important;
   }
-  
+
   /* iOS 底部安全区域额外处理 */
   .mobile-bottom-sheet {
     padding-bottom: max(24px, var(--safe-area-bottom)) !important;
@@ -260,14 +279,24 @@
   .excalidraw .layer-ui__wrapper {
     --ui-scale: 0.8;
   }
-  
+
   /* 横屏时隐藏一些不必要的 UI */
   .canvas-room-info {
     display: none !important;
   }
 }
 
-/* ==================== 工具提示和弹窗层级修正 ==================== */
+/* ==================== Z-Index 层级系统 ====================
+ * 层级分配规则（从低到高）：
+ * 10   - Excalidraw 工具栏
+ * 100  - Excalidraw 下拉菜单
+ * 150  - AI 助手面板
+ * 200  - MobileFAB 遮罩
+ * 201  - MobileFAB 底部抽屉
+ * 202  - MobileFAB 浮动按钮
+ * 1000 - Tooltip 提示框
+ * 9999 - 模态框/对话框
+ */
 .excalidraw .excalidraw-tooltip {
   z-index: 1000 !important;
 }
@@ -284,6 +313,7 @@
 
 /* ==================== 高对比度模式支持 ==================== */
 @media (prefers-contrast: high) {
+
   .glass-panel,
   .glass-pill {
     backdrop-filter: none;
@@ -298,7 +328,7 @@
   .status-pulse::before {
     animation: none;
   }
-  
+
   * {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;

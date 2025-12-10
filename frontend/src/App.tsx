@@ -6,6 +6,8 @@ import { Rooms } from './pages/Rooms';
 import { Welcome } from './pages/Welcome';
 import Settings from './pages/Settings';
 import { Loader2 } from 'lucide-react';
+import { ThemeProvider } from './components/common/ThemeProvider';
+import { NotificationProvider } from './components/common/NotificationProvider';
 
 // ==================== 错误边界组件 ====================
 interface ErrorBoundaryProps {
@@ -111,48 +113,52 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 // ==================== 主应用 ====================
 function App() {
   return (
-    <ErrorBoundary>
-      <GlobalErrorHandler />
-      <BrowserRouter>
-        <Routes>
-          {/* 欢迎页 - 应用入口 */}
-          <Route path="/" element={<Welcome />} />
-          
-          {/* 登录页 */}
-          <Route path="/login" element={<Login />} />
-          
-          {/* 房间列表 */}
-          <Route
-            path="/rooms"
-            element={
-              <ProtectedRoute>
-                <Rooms />
-              </ProtectedRoute>
-            }
-          />
-          
-          {/* AI 设置页面 */}
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute>
-                <Settings />
-              </ProtectedRoute>
-            }
-          />
-          
-          {/* 画布房间 */}
-          <Route
-            path="/room/:roomId"
-            element={
-              <ProtectedRoute>
-                <Board />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
-      </BrowserRouter>
-    </ErrorBoundary>
+    <ThemeProvider>
+      <NotificationProvider>
+        <ErrorBoundary>
+          <GlobalErrorHandler />
+          <BrowserRouter>
+            <Routes>
+              {/* 欢迎页 - 应用入口 */}
+              <Route path="/" element={<Welcome />} />
+
+              {/* 登录页 */}
+              <Route path="/login" element={<Login />} />
+
+              {/* 房间列表 */}
+              <Route
+                path="/rooms"
+                element={
+                  <ProtectedRoute>
+                    <Rooms />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* AI 设置页面 */}
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedRoute>
+                    <Settings />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* 画布房间 */}
+              <Route
+                path="/room/:roomId"
+                element={
+                  <ProtectedRoute>
+                    <Board />
+                  </ProtectedRoute>
+                }
+              />
+            </Routes>
+          </BrowserRouter>
+        </ErrorBoundary>
+      </NotificationProvider>
+    </ThemeProvider>
   );
 }
 

@@ -117,12 +117,12 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                     }
                 }
                 if (lastAssistantIndex === -1) return prev;
-                
-                return prev.map((msg, i) => 
+
+                return prev.map((msg, i) =>
                     i === lastAssistantIndex
                         ? {
                             ...msg,
-                            content: latestStep.action 
+                            content: latestStep.action
                                 ? `正在执行: ${latestStep.action}...`
                                 : latestStep.thought || '思考中...',
                         }
@@ -135,7 +135,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
     // 监听完成响应
     useEffect(() => {
         if (response) {
-            setMessages(prev => prev.map(msg => 
+            setMessages(prev => prev.map(msg =>
                 msg.role === 'assistant' && msg.status === 'pending'
                     ? { ...msg, content: response, status: 'success' as const }
                     : msg
@@ -146,7 +146,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
     // 监听错误
     useEffect(() => {
         if (error) {
-            setMessages(prev => prev.map(msg => 
+            setMessages(prev => prev.map(msg =>
                 msg.role === 'assistant' && msg.status === 'pending'
                     ? { ...msg, content: error, status: 'error' as const }
                     : msg
@@ -200,7 +200,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                 exit={{ opacity: 0, y: 20, scale: 0.95 }}
                 transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                 className={cn(
-                    'fixed z-[100] shadow-2xl rounded-2xl overflow-hidden',
+                    'fixed z-[150] shadow-2xl rounded-2xl overflow-hidden',
                     'border backdrop-blur-xl',
                     isDark
                         ? 'bg-zinc-900/95 border-zinc-700/50'
