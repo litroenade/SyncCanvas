@@ -1,51 +1,70 @@
 # SyncCanvas TODO
 
+> 更新时间: 2025-12-10
 
-- [x] 基础绘图工具 (矩形、圆形、菱形、箭头、线条、画笔、文本)
-- [x] 实时协作同步 (Yjs + pycrdt-websocket)
-- [x] 用户认证 (JWT)
-- [x] 游客模式
-- [x] 图层管理
-- [x] 导出 PNG
-- [x] 暗色/亮色主题
-- [x] sqlite数据库存储
-- [x] Git 式存储 (Snapshot + Update)
-- [x] 房间 CRUD API
-- [x] 房间列表页面
-- [x] 创建以及删除房间
-- [x] 数据库模型 (User, Room, RoomMember, Stroke, Snapshot, Update)
+## 优先级 P0 - 必须完成
 
+### 1. 集成新增的 Agent 模块
+- [ ] 将 `error_recovery.py` 集成到 `PlannerAgent` 和 `CanvaserAgent`
+- [ ] 将 `state_machine.py` 集成到 Agent 执行流程
+- [ ] 统一错误处理和重试逻辑
 
-- [ ] 在线用户显示 (Awareness)
-- [ ] 房间成员管理 UI
-- [ ] 邀请链接生成
-- [ ] 组合/取消组合图形 (Ctrl+G / Ctrl+Shift+G)
-- [ ] 复制/粘贴 (Ctrl+C/V/D)
-- [ ] 智能连接线 (图形间自动吸附)
-- [ ] 对齐工具 (左对齐、居中、分布)
-- [ ] 锁定图层
+### 2. 前端组件集成
+- [ ] 在 Canvas 页面集成 `ConnectionStatus` 组件显示连接状态
+- [ ] 在 AI 对话面板集成 `ToolProgress` 组件显示工具执行进度
+- [ ] 集成 `useTypingEffect` 实现 AI 回复打字机效果
 
-- [ ] 评论/批注功能
-- [ ] @提及用户
-- [ ] 评论通知
-- [ ] MCP Server 实现
-- [ ] Resources: 读取白板内容
-- [ ] Tools: 操作白板 (添加/更新/删除图形)
-- [ ] Prompts: 预设模板 (流程图、思维导图)
-- [ ] AI Agent 集成测试
-- [ ] 导出 SVG
-- [ ] 导出 PDF
-- [ ] 导入 Excalidraw 格式
-- [ ] 导入图片 OCR 提取文字
-- [ ] 历史版本回溯
-- [ ] 模板库 (流程图、思维导图、ER图)
-- [ ] 插件系统
-- [ ] 移动端适配
-- [ ] 统一文件命名规范 (useCanvasStore.ts vs use_websocket.ts)
-- [ ] 补充单元测试
-- [ ] 补充 E2E 测试
-- [ ] 性能优化 (大量图形时的渲染)
-- [ ] 错误处理优化
-- [ ] 文本编辑时快捷键冲突
-- [ ] 移动端触摸事件优化
-- [ ] 缩放时网格线条粗细不一致
+### 3. 后端 WebSocket 升级
+- [ ] 将 `message_router` 集成到 AI WebSocket 端点
+- [ ] 实现消息订阅/取消订阅功能
+
+---
+
+## 优先级 P1 - 重要
+
+### 4. 配置系统完善
+- [ ] 后端实现 `PUT /config/{group}/{key}` 接口
+- [ ] 前端 ConfigEditor 对接后端保存 API
+- [ ] 添加配置变更验证
+
+### 5. AI Agent 优化
+- [ ] 优化 CanvaserAgent 的坐标计算逻辑
+- [ ] 增加流程图自动布局算法
+- [ ] 支持更多图表类型 (时序图、类图)
+
+### 6. 用户体验
+- [ ] 添加画布加载进度条
+- [ ] 优化移动端 FAB 交互
+- [ ] 添加键盘快捷键支持
+
+---
+
+## 优先级 P2 - 待定
+
+### 7. 历史和版本控制
+- [ ] 完善画布历史回退功能
+- [ ] 添加版本对比视图
+- [ ] 优化 commit 存储效率
+
+### 8. 协作功能
+- [ ] 实现用户光标同步
+- [ ] 添加在线用户头像显示
+- [ ] 支持评论和标注
+
+### 9. 导出和分享
+- [ ] 支持导出为 PNG/SVG
+- [ ] 支持导出为 PDF
+- [ ] 生成分享链接
+
+---
+
+## 已完成
+
+- [x] ConfigEditor 通用配置编辑器组件
+- [x] WebSocket 连接状态 UI (ConnectionStatus)
+- [x] 消息路由器 (message_router.py)
+- [x] 打字机效果 Hook (useTypingEffect)
+- [x] 工具进度组件 (ToolProgress)
+- [x] 错误恢复模块 (error_recovery.py)
+- [x] Agent 状态机 (state_machine.py)
+- [x] Agent 重命名 (Teacher→Planner, Painter→Canvaser)
