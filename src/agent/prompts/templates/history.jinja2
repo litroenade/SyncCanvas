@@ -1,0 +1,84 @@
+{# 模块名称: history.jinja2
+   主要功能: 历史消息和上下文模板
+
+   使用宏定义方式，句子分隔符使用分号(;)。
+#}
+
+{% macro history_context(tool_results, created_element_ids, current_time) %}
+## 当前上下文
+
+**时间**: {{ current_time }}
+
+{% if tool_results %}
+### 工具执行记录
+
+{% for result in tool_results %}
+- **{{ result.tool }}**: {% if result.result.status == 'success' %}✓ 成功{% else %}✗ 失败: {{ result.result.message | truncate(100) }}{% endif %}
+{% endfor %}
+{% endif %}
+
+{% if created_element_ids %}
+### 已创建的元素
+
+共 {{ created_element_ids | length }} 个元素:
+{% for id in created_element_ids %}
+- `{{ id }}`
+{% endfor %}
+
+**提示**: 使用这些 ID 创建箭头连接；需要指定 start_element_id 和 end_element_id。
+{% endif %}
+{% endmacro %}
+
+
+{% macro format_messages(messages, max_messages) %}
+{% if messages %}
+## 历史对话
+
+{% for msg in messages[-max_messages:] %}
+**[{{ msg.role | upper }}]**: {{ msg.content | truncate(500) }}
+{% endfor %}
+{% endif %}
+{% endmacro %}
+
+
+{% macro debug_prompt(error_type, error_message, code_output) %}
+执行中断；详情如下：
+
+- 错误类型: {{ error_type }}
+- 错误信息: {{ error_message }}
+{% if code_output %}
+- 输出内容: {{ code_output | truncate(300) }}
+{% endif %}
+
+请分析问题并直接采取修复措施；不要道歉或解释。
+{% endmacro %}
+
+
+{% macro continuation_prompt(previous_action, result_summary) %}
+上一步操作：{{ previous_action }}
+执行结果：{{ result_summary }}
+
+请继续执行下一步操作。
+{% endmacro %}
+
+
+{% macro element_summary(elements) %}
+{% if elements %}
+## 画布元素摘要
+
+| 类型 | 数量 | 示例内容 |
+|------|------|----------|
+{% set type_counts = {} %}
+{% for elem in elements %}
+{% set elem_type = elem.type | default("unknown") %}
+{% if elem_type in type_counts %}
+{% set _ = type_counts.update({elem_type: type_counts[elem_type] + 1}) %}
+{% else %}
+{% set _ = type_counts.update({elem_type: 1}) %}
+{% endif %}
+{% endfor %}
+{% for type_name, count in type_counts.items() %}
+| {{ type_name }} | {{ count }} | {{ elements | selectattr("type", "eq", type_name) | first | attr("text") | default("-") | truncate(30) }} |
+{% endfor %}
+{% endif %}
+{% endmacro %}
