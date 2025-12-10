@@ -14,9 +14,7 @@ from src.agent.agents.painter import PainterAgent
 from src.logger import get_logger
 
 # 导入工具以确保它们被注册
-import src.agent.tools.excalidraw_tools  # noqa: F401
-import src.agent.tools.web_tools  # noqa: F401
-import src.agent.tools.general_tools  # noqa: F401
+import src.agent.tools  # noqa: F401 - 导入工具包以触发注册
 
 if TYPE_CHECKING:
     from src.services.agent_runs import AgentRunService
@@ -99,10 +97,29 @@ class TeacherAgent(BaseAgent):
 
     # 绘图相关关键词
     DRAW_KEYWORDS = [
-        "draw", "diagram", "flowchart", "sketch", "layout", "uml", "erd",
-        "graph", "visualize", "paint", "illustrate", "chart",
-        "画", "绘制", "绘图", "流程图", "数据流图", "架构图", "示意图",
-        "思维导图", "关系图", "时序图", "类图"
+        "draw",
+        "diagram",
+        "flowchart",
+        "sketch",
+        "layout",
+        "uml",
+        "erd",
+        "graph",
+        "visualize",
+        "paint",
+        "illustrate",
+        "chart",
+        "画",
+        "绘制",
+        "绘图",
+        "流程图",
+        "数据流图",
+        "架构图",
+        "示意图",
+        "思维导图",
+        "关系图",
+        "时序图",
+        "类图",
     ]
 
     # Teacher 专用配置
@@ -129,7 +146,7 @@ class TeacherAgent(BaseAgent):
         """
         # 构建系统提示词
         system_prompt = self._build_prompt_from_template()
-        
+
         super().__init__(
             name="Teacher",
             role="Orchestrator",
@@ -141,10 +158,10 @@ class TeacherAgent(BaseAgent):
         # 初始化 Painter Agent
         self.painter = PainterAgent(llm_client, run_service)
         self._register_default_tools()
-    
+
     def _build_prompt_from_template(self) -> str:
         """从 Jinja2 模板构建系统提示词
-        
+
         Returns:
             str: 渲染后的系统提示词
         """
@@ -152,7 +169,10 @@ class TeacherAgent(BaseAgent):
             return prompt_manager.render(
                 "teacher.jinja2",
                 drawing_tools=[
-                    {"name": "get_canvas_bounds", "description": "获取画布边界和建议绘图位置"},
+                    {
+                        "name": "get_canvas_bounds",
+                        "description": "获取画布边界和建议绘图位置",
+                    },
                     {"name": "create_flowchart_node", "description": "创建流程图节点"},
                     {"name": "connect_nodes", "description": "用箭头连接两个节点"},
                     {"name": "create_element", "description": "创建基础图形"},
@@ -171,7 +191,7 @@ class TeacherAgent(BaseAgent):
                     "每次创建节点后记住 element_id，用于后续连接",
                     "保持回复简洁友好",
                     "遇到复杂绘图任务，会自动委托给专业绘图助手",
-                ]
+                ],
             )
         except Exception as e:
             logger.warning(f"Jinja2 模板渲染失败，使用静态 prompt: {e}")
@@ -179,26 +199,28 @@ class TeacherAgent(BaseAgent):
 
     def _register_default_tools(self) -> None:
         """注册默认工具
-        
+
         注册所有非危险工具。
         """
         for name, func in registry.get_all_tools().items():
             schema = registry._schemas.get(name)
             meta = registry.get_metadata(name)
-            
+
             if not schema:
                 continue
-            
+
             # 跳过危险工具
             if meta and meta.dangerous:
                 continue
-            
+
             # 获取工具配置
             timeout = meta.timeout if meta else 30.0
             retries = meta.retries if meta else 2
-            
+
             self.register_tool(
-                name, func, schema,
+                name,
+                func,
+                schema,
                 timeout=timeout,
                 retries=retries,
             )
@@ -237,17 +259,17 @@ class TeacherAgent(BaseAgent):
         """
         # 如果是绘图相关请求，委托给 Painter
         if self._should_delegate_to_painter(user_input):
-            logger.info("检测到绘图请求，委托给 Painter Agent", extra={
-                "run_id": context.run_id,
-                "session_id": context.session_id
-            })
+            logger.info(
+                "检测到绘图请求，委托给 Painter Agent",
+                extra={"run_id": context.run_id, "session_id": context.session_id},
+            )
 
             # 记录委托行为
             await self._log_action(
                 context,
                 "delegate",
                 {"target": "painter", "reason": "drawing_request"},
-                {"status": "delegated"}
+                {"status": "delegated"},
             )
 
             return await self.painter.run(context, user_input, temperature=0.2)

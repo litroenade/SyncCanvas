@@ -9,8 +9,9 @@
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, Optional
 
+from sqlalchemy import Column, JSON
 from sqlmodel import Field, SQLModel
 
 
@@ -35,6 +36,8 @@ class User(SQLModel, table=True):
         last_login_at (int): 最后登录时间戳 (秒)
     """
 
+    __tablename__ = "users"
+
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(max_length=64, unique=True, index=True)
     password_hash: str = Field(max_length=255)
@@ -46,7 +49,9 @@ class User(SQLModel, table=True):
     perm_level: int = Field(default=0)
 
     ban_until: Optional[int] = Field(default=None)
-    ext_data: dict = Field(default_factory=dict, sa_column_kwargs={"default": "{}"})
+    ext_data: Dict[str, Any] = Field(
+        default_factory=dict, sa_column=Column(JSON, default={})
+    )
 
     created_at: int = Field(default_factory=lambda: int(datetime.utcnow().timestamp()))
     updated_at: int = Field(default_factory=lambda: int(datetime.utcnow().timestamp()))

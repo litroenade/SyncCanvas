@@ -17,7 +17,7 @@ from src.agent.prompts import prompt_manager
 from src.logger import get_logger
 
 # 确保工具被加载
-import src.agent.tools.excalidraw_tools  # noqa: F401
+import src.agent.tools  # noqa: F401
 
 if TYPE_CHECKING:
     from src.services.agent_runs import AgentRunService
@@ -27,9 +27,11 @@ logger = get_logger(__name__)
 
 # ==================== 布局常量 ====================
 
+
 @dataclass
 class LayoutConfig:
     """流程图布局配置"""
+
     node_width: int = 160
     node_height: int = 70
     decision_size: int = 120
@@ -39,7 +41,7 @@ class LayoutConfig:
     horizontal_gap: int = 220
     start_x: int = 400
     start_y: int = 50
-    
+
     def to_dict(self) -> Dict[str, int]:
         """转换为字典 (用于 Jinja2 模板)"""
         return asdict(self)
@@ -186,11 +188,11 @@ class PainterAgent(PlanningAgent):
 
     # Painter 专用配置
     PAINTER_CONFIG = AgentConfig(
-        max_iterations=25,       # 绘图需要更多迭代
-        llm_timeout=90.0,        # LLM 调用超时
-        tool_timeout=30.0,       # 工具执行超时
-        total_timeout=600.0,     # 总超时 10 分钟
-        enable_room_lock=True,   # 启用房间锁
+        max_iterations=25,  # 绘图需要更多迭代
+        llm_timeout=90.0,  # LLM 调用超时
+        tool_timeout=30.0,  # 工具执行超时
+        total_timeout=600.0,  # 总超时 10 分钟
+        enable_room_lock=True,  # 启用房间锁
     )
 
     def __init__(
@@ -207,10 +209,10 @@ class PainterAgent(PlanningAgent):
             config: 自定义配置 (可选)
         """
         self.layout_config = LayoutConfig()
-        
+
         # 尝试使用 Jinja2 模板，失败则使用静态 prompt
         system_prompt = self._build_prompt_from_template()
-        
+
         super().__init__(
             name="Painter",
             role="图形绘制专家",
@@ -222,10 +224,10 @@ class PainterAgent(PlanningAgent):
         )
         self.node_registry: Dict[str, str] = {}  # 逻辑名称 -> element_id
         self._register_tools()
-    
+
     def _build_prompt_from_template(self) -> str:
         """从 Jinja2 模板构建系统提示词
-        
+
         Returns:
             str: 渲染后的系统提示词
         """
@@ -234,25 +236,45 @@ class PainterAgent(PlanningAgent):
                 "painter.jinja2",
                 layout=self.layout_config.to_dict(),
                 tools=[
-                    {"name": "get_canvas_bounds", "description": "获取画布边界和建议绘图位置", "params": []},
-                    {"name": "create_flowchart_node", "description": "创建流程图节点 (形状+绑定文本)", "params": [
-                        {"name": "label", "desc": "节点文字"},
-                        {"name": "node_type", "desc": "rectangle/diamond/ellipse"},
-                        {"name": "x, y", "desc": "坐标"},
-                    ]},
-                    {"name": "connect_nodes", "description": "用箭头连接两个节点", "params": [
-                        {"name": "from_id", "desc": "起始节点 ID"},
-                        {"name": "to_id", "desc": "目标节点 ID"},
-                        {"name": "label", "desc": "连线标签 (可选)"},
-                    ]},
-                    {"name": "list_elements", "description": "查看画布现有元素", "params": []},
-                    {"name": "delete_elements", "description": "删除指定元素", "params": []},
+                    {
+                        "name": "get_canvas_bounds",
+                        "description": "获取画布边界和建议绘图位置",
+                        "params": [],
+                    },
+                    {
+                        "name": "create_flowchart_node",
+                        "description": "创建流程图节点 (形状+绑定文本)",
+                        "params": [
+                            {"name": "label", "desc": "节点文字"},
+                            {"name": "node_type", "desc": "rectangle/diamond/ellipse"},
+                            {"name": "x, y", "desc": "坐标"},
+                        ],
+                    },
+                    {
+                        "name": "connect_nodes",
+                        "description": "用箭头连接两个节点",
+                        "params": [
+                            {"name": "from_id", "desc": "起始节点 ID"},
+                            {"name": "to_id", "desc": "目标节点 ID"},
+                            {"name": "label", "desc": "连线标签 (可选)"},
+                        ],
+                    },
+                    {
+                        "name": "list_elements",
+                        "description": "查看画布现有元素",
+                        "params": [],
+                    },
+                    {
+                        "name": "delete_elements",
+                        "description": "删除指定元素",
+                        "params": [],
+                    },
                     {"name": "clear_canvas", "description": "清空画布", "params": []},
                 ],
                 guidelines=[
                     "每次创建节点后，务必记住返回的 element_id",
                     "连接时使用正确的 from_id 和 to_id",
-                    "判断分支必须添加 label (如 \"是\"/\"否\")",
+                    '判断分支必须添加 label (如 "是"/"否")',
                     "保持图表简洁，布局整齐",
                 ],
                 examples=[
@@ -264,12 +286,12 @@ class PainterAgent(PlanningAgent):
                             'create_flowchart_node(label="开始", node_type="ellipse", x=400, y=50) → 记录 id1',
                             'create_flowchart_node(label="输入账号密码", node_type="rectangle", x=400, y=180) → 记录 id2',
                             'create_flowchart_node(label="验证", node_type="diamond", x=400, y=330) → 记录 id3',
-                            'connect_nodes(from_id=id1, to_id=id2)',
-                            'connect_nodes(from_id=id2, to_id=id3)',
-                            '...',
-                        ]
+                            "connect_nodes(from_id=id1, to_id=id2)",
+                            "connect_nodes(from_id=id2, to_id=id3)",
+                            "...",
+                        ],
                     }
-                ]
+                ],
             )
         except Exception as e:
             logger.warning(f"Jinja2 模板渲染失败，使用静态 prompt: {e}")
@@ -277,27 +299,29 @@ class PainterAgent(PlanningAgent):
 
     def _register_tools(self) -> None:
         """注册绘图相关工具
-        
+
         只注册画布相关和通用工具，不注册危险操作。
         """
         # 从全局注册表加载工具
         for name, func in registry.get_all_tools().items():
             schema = registry._schemas.get(name)
             meta = registry.get_metadata(name)
-            
+
             if not schema:
                 continue
-            
+
             # 跳过危险工具
             if meta and meta.dangerous:
                 continue
-            
+
             # 获取工具配置
             timeout = meta.timeout if meta else 30.0
             retries = meta.retries if meta else 2
-            
+
             self.register_tool(
-                name, func, schema,
+                name,
+                func,
+                schema,
                 timeout=timeout,
                 retries=retries,
             )
@@ -371,7 +395,11 @@ class PainterAgent(PlanningAgent):
             result_str = result.get("result", "{}")
 
             try:
-                result_data = json.loads(result_str) if isinstance(result_str, str) else result_str
+                result_data = (
+                    json.loads(result_str)
+                    if isinstance(result_str, str)
+                    else result_str
+                )
             except (json.JSONDecodeError, TypeError):
                 result_data = {}
 
@@ -383,7 +411,9 @@ class PainterAgent(PlanningAgent):
                 connection_count += 1
 
         if node_count > 0 or connection_count > 0:
-            summary = f"[绘制完成] 创建了 {node_count} 个节点，{connection_count} 条连接线。"
+            summary = (
+                f"[绘制完成] 创建了 {node_count} 个节点，{connection_count} 条连接线。"
+            )
             if element_ids:
                 summary += f"\n创建的元素 ID: {', '.join(element_ids[:5])}"
                 if len(element_ids) > 5:
@@ -394,6 +424,7 @@ class PainterAgent(PlanningAgent):
 
 
 # ==================== 布局辅助类 ====================
+
 
 class FlowchartLayout:
     """流程图布局计算器
@@ -493,14 +524,16 @@ class FlowchartLayout:
                 width = config.NODE_WIDTH
                 height = config.NODE_HEIGHT
 
-            plan.append({
-                "label": step,
-                "node_type": node_type,
-                "x": config.START_X,
-                "y": current_y,
-                "width": width,
-                "height": height,
-            })
+            plan.append(
+                {
+                    "label": step,
+                    "node_type": node_type,
+                    "x": config.START_X,
+                    "y": current_y,
+                    "width": width,
+                    "height": height,
+                }
+            )
 
             current_y += height + config.VERTICAL_GAP
 
