@@ -97,7 +97,7 @@ class PromptManager:
         # 注册全局变量
         self._register_globals()
 
-        logger.debug(f"Prompt 模板管理器已初始化，模板目录: {self._templates_dir}")
+        logger.debug("Prompt 模板管理器已初始化，模板目录: %s", self._templates_dir)
 
     def _register_filters(self) -> None:
         """注册自定义过滤器"""
@@ -146,7 +146,7 @@ class PromptManager:
             template_str: 模板字符串
         """
         self._string_loader.add_template(name, template_str)
-        logger.debug(f"注册字符串模板: {name}")
+        logger.debug("注册字符串模板: %s", name)
 
     def render(self, template_name: str, **kwargs) -> str:
         """渲染模板
@@ -174,10 +174,10 @@ class PromptManager:
             return template.render(**kwargs)
 
         except TemplateNotFound:
-            logger.error(f"模板不存在: {template_name}")
+            logger.error("模板不存在: %s", template_name)
             raise
         except Exception as e:
-            logger.error(f"渲染模板失败: {template_name}, 错误: {e}")
+            logger.error("渲染模板失败: %s, 错误: %s", template_name, e)
             raise
 
     def render_string(self, template_str: str, **kwargs) -> str:

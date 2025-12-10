@@ -261,7 +261,7 @@ class ConfigManager:
             # 创建默认配置
             self._config = AppConfig()
             self._save()
-            logger.info(f"已创建默认配置文件: {self._config_file}")
+            logger.info("已创建默认配置文件: %s", self._config_file)
             return
 
         try:
@@ -278,10 +278,10 @@ class ConfigManager:
 
             self._config = AppConfig(**raw)
             self._last_mtime = mtime
-            logger.info(f"配置已加载 (v{self._config.version})")
+            logger.info("配置已加载 (v%s)", self._config.version)
 
-        except Exception as e:
-            logger.error(f"加载配置失败: {e}")
+        except Exception as e:  # pylint: disable=broad-except
+            logger.error("加载配置失败: %s", e)
             self._config = AppConfig()
 
     def _save(self) -> None:
@@ -294,8 +294,8 @@ class ConfigManager:
             with self._config_file.open("wb") as f:
                 tomli_w.dump(data, f)
             self._last_mtime = self._config_file.stat().st_mtime
-        except Exception as e:
-            logger.error(f"保存配置失败: {e}")
+        except Exception as e:  # pylint: disable=broad-except
+            logger.error("保存配置失败: %s", e)
 
     def reload(self) -> None:
         """重新加载配置"""

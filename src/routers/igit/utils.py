@@ -60,15 +60,15 @@ def parse_yjs_elements(data: bytes) -> dict:
                         el_dict = el
                     else:
                         continue
-                    
+
                     el_id = el_dict.get("id")
                     if el_id:
                         result[el_id] = el_dict
 
                 if result:
                     return result
-        except Exception as e:
-            logger.debug(f"解析 elements Array 失败: {e}")
+        except Exception as e:  # pylint: disable=broad-except
+            logger.debug("解析 elements Array 失败: %s", e)
 
         # 回退到旧的 shapes Map 格式
         try:
@@ -81,12 +81,12 @@ def parse_yjs_elements(data: bytes) -> dict:
                             result[shape_id] = stroke_data
                         else:
                             result[shape_id] = {"raw": str(stroke_data)}
-        except Exception as e:
-            logger.debug(f"解析 shapes Map 失败: {e}")
+        except Exception as e:  # pylint: disable=broad-except
+            logger.debug("解析 shapes Map 失败: %s", e)
 
         return result
-    except Exception as e:
-        logger.warning(f"解析 Yjs 数据失败: {e}")
+    except Exception as e:  # pylint: disable=broad-except
+        logger.warning("解析 Yjs 数据失败: %s", e)
         return {}
 
 

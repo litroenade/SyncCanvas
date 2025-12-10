@@ -83,7 +83,7 @@ def decode_token(token: str) -> Optional[dict]:
     try:
         payload = jwt.decode(token, config.secret_key, algorithms=[ALGORITHM])
         return payload
-    except Exception as e:
+    except Exception as e: # pylint: disable=broad-except
         logger.debug(f"Token 解码失败: {e}")
         return None
 

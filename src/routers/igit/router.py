@@ -51,7 +51,7 @@ async def get_room_history(
     try:
         return service.get_history(room_id, limit)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
 
 
 @router.post("/{room_id}/commit")
@@ -105,7 +105,7 @@ async def create_commit(
             },
         }
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
 @router.post("/{room_id}/checkout/{commit_id}")
@@ -113,7 +113,7 @@ async def checkout_commit(
     room_id: str,
     commit_id: int,
     session: Session = Depends(get_session),
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    _current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """检出指定提交
 
@@ -142,7 +142,7 @@ async def checkout_commit(
             "message": f"已检出到提交 {commit.hash}",
         }
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
 
 
 @router.post("/{room_id}/revert/{commit_id}")
@@ -189,7 +189,7 @@ async def revert_commit(
             "reverted_to": {"id": target_commit.id, "hash": target_commit.hash},
         }
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
 
 
 @router.get("/{room_id}/commits", response_model=HistoryResponse)
@@ -230,7 +230,7 @@ async def get_commit_detail(
     try:
         return service.get_commit_detail(room_id, commit_id)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
 
 
 @router.get("/{room_id}/commits/{commit_id}/data")
@@ -280,4 +280,4 @@ async def get_commit_diff(
     try:
         return service.get_commit_diff(room_id, commit_id, base_commit_id)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e

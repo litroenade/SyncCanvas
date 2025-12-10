@@ -148,7 +148,9 @@ class IGitService:
         self.session.commit()
         self.session.refresh(commit)
 
-        logger.info(f"创建提交: 房间 {room_id}, 哈希 {commit.hash}, 消息: {message}")
+        logger.info(
+            "创建提交: 房间 %s, 哈希 %s, 消息: %s", room_id, commit.hash, message
+        )
         return commit
 
     async def checkout_commit(
@@ -192,7 +194,7 @@ class IGitService:
         self.session.commit()
         self.session.refresh(commit)
 
-        logger.info(f"检出提交: 房间 {room_id}, 提交 {commit_id} ({commit.hash})")
+        logger.info("检出提交: 房间 %s, 提交 %d (%s)", room_id, commit_id, commit.hash)
 
         # 重要：在数据库事务提交之后再清理内存中的房间
         # 这样当客户端重连时，YStore 能读取到最新的数据
@@ -266,8 +268,8 @@ class IGitService:
         self.session.commit()
         self.session.refresh(new_commit)
 
-        logger.info(f"回滚提交: 房间 {room_id}, 回滚到 {target_commit.hash}")
-        logger.info(f"回滚数据大小: {len(target_commit.data)} bytes")
+        logger.info("回滚提交: 房间 %s, 回滚到 %s", room_id, target_commit.hash)
+        logger.info("回滚数据大小: %d bytes", len(target_commit.data))
 
         # 重要：在数据库事务提交之后再清理内存中的房间
         # 这样当客户端重连时，YStore 能读取到最新的回滚数据

@@ -17,7 +17,7 @@ from src.agent.prompts import prompt_manager
 from src.logger import get_logger
 
 # 确保工具被加载
-import src.agent.tools  # noqa: F401
+import src.agent.tools  # noqa: F401  # pylint: disable=unused-import
 
 if TYPE_CHECKING:
     from src.services.agent_runs import AgentRunService
@@ -293,8 +293,8 @@ class CanvaserAgent(PlanningAgent):
                     }
                 ],
             )
-        except Exception as e:
-            logger.warning(f"Jinja2 模板渲染失败，使用静态 prompt: {e}")
+        except Exception as e: # pylint: disable=broad-except
+            logger.warning("Jinja2 模板渲染失败，使用静态 prompt: %s", e)
             return CANVASER_SYSTEM_PROMPT
 
     def _register_tools(self) -> None:
@@ -326,7 +326,7 @@ class CanvaserAgent(PlanningAgent):
                 retries=retries,
             )
 
-        logger.info(f"Canvaser Agent 已注册 {len(self.tools)} 个工具")
+        logger.info("Canvaser Agent 已注册 %d 个工具", len(self.tools))
 
     def _build_system_prompt(self) -> str:
         """构建系统提示词
@@ -437,7 +437,7 @@ class FlowchartLayout:
 
     @staticmethod
     def calculate_node_position(
-        node_index: int,
+        _node_index: int,
         node_type: str,
         previous_nodes: List[Dict[str, Any]],
         branch_direction: Optional[str] = None,
@@ -457,26 +457,26 @@ class FlowchartLayout:
 
         # 确定节点尺寸
         if node_type == "diamond":
-            width = config.DECISION_SIZE
-            height = config.DECISION_SIZE
+            width = config.decision_size
+            height = config.decision_size
         elif node_type == "ellipse":
-            width = config.ELLIPSE_WIDTH
-            height = config.ELLIPSE_HEIGHT
+            width = config.ellipse_width
+            height = config.ellipse_height
         else:  # rectangle
-            width = config.NODE_WIDTH
-            height = config.NODE_HEIGHT
+            width = config.node_width
+            height = config.node_height
 
         # 计算 Y 坐标
-        y = config.START_Y
+        y = config.start_y
         for prev_node in previous_nodes:
-            y += prev_node.get("height", config.NODE_HEIGHT) + config.VERTICAL_GAP
+            y += prev_node.get("height", config.node_height) + config.vertical_gap
 
         # 计算 X 坐标
-        x = config.START_X
+        x = config.start_x
         if branch_direction == "left":
-            x -= config.HORIZONTAL_GAP
+            x -= config.horizontal_gap
         elif branch_direction == "right":
-            x += config.HORIZONTAL_GAP
+            x += config.horizontal_gap
 
         return {
             "x": x,
@@ -503,38 +503,38 @@ class FlowchartLayout:
         """
         config = LayoutConfig()
         plan = []
-        current_y = config.START_Y
+        current_y = config.start_y
 
         for i, step in enumerate(steps):
             # 确定节点类型
             if i == 0:
                 node_type = "ellipse"  # 开始
-                width = config.ELLIPSE_WIDTH
-                height = config.ELLIPSE_HEIGHT
+                width = config.ellipse_width
+                height = config.ellipse_height
             elif i == len(steps) - 1:
                 node_type = "ellipse"  # 结束
-                width = config.ELLIPSE_WIDTH
-                height = config.ELLIPSE_HEIGHT
+                width = config.ellipse_width
+                height = config.ellipse_height
             elif has_decision and i == decision_index:
                 node_type = "diamond"  # 判断
-                width = config.DECISION_SIZE
-                height = config.DECISION_SIZE
+                width = config.decision_size
+                height = config.decision_size
             else:
                 node_type = "rectangle"  # 普通步骤
-                width = config.NODE_WIDTH
-                height = config.NODE_HEIGHT
+                width = config.node_width
+                height = config.node_height
 
             plan.append(
                 {
                     "label": step,
                     "node_type": node_type,
-                    "x": config.START_X,
+                    "x": config.start_x,
                     "y": current_y,
                     "width": width,
                     "height": height,
                 }
             )
 
-            current_y += height + config.VERTICAL_GAP
+            current_y += height + config.vertical_gap
 
         return plan

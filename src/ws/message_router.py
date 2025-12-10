@@ -115,7 +115,7 @@ class WebSocketMessageRouter:
 
         def decorator(func: MessageHandler) -> MessageHandler:
             self._handlers[message_type] = func
-            logger.debug(f"注册消息处理器: {message_type}")
+            logger.debug("注册消息处理器: %s", message_type)
             return func
 
         return decorator
@@ -128,7 +128,7 @@ class WebSocketMessageRouter:
             handler: 处理函数
         """
         self._handlers[message_type] = handler
-        logger.debug(f"注册消息处理器: {message_type}")
+        logger.debug("注册消息处理器: %s", message_type)
 
     async def connect(self, websocket: WebSocket, room_id: str) -> None:
         """接受 WebSocket 连接
@@ -143,9 +143,7 @@ class WebSocketMessageRouter:
             self._connections[room_id] = []
         self._connections[room_id].append(websocket)
 
-        logger.info(
-            f"WebSocket 连接: room={room_id}, 当前连接数={len(self._connections[room_id])}"
-        )
+        logger.info("WebSocket 连接: room=%s, 当前连接数=%d", room_id, len(self._connections[room_id]))
 
     def disconnect(self, websocket: WebSocket, room_id: str) -> None:
         """断开 WebSocket 连接
@@ -167,7 +165,7 @@ class WebSocketMessageRouter:
             if not self._subscriptions[room_id]:
                 del self._subscriptions[room_id]
 
-        logger.info(f"WebSocket 断开: room={room_id}")
+        logger.info("WebSocket 断开: room=%s", room_id)
 
     def subscribe(self, websocket: WebSocket, room_id: str, topics: List[str]) -> Set[str]:
         """订阅指定主题
@@ -186,7 +184,7 @@ class WebSocketMessageRouter:
             self._subscriptions[room_id][websocket] = set()
 
         self._subscriptions[room_id][websocket].update(topics)
-        logger.debug(f"订阅主题: room={room_id}, topics={topics}")
+        logger.debug("订阅主题: room=%s, topics=%s", room_id, topics)
         return self._subscriptions[room_id][websocket]
 
     def unsubscribe(self, websocket: WebSocket, room_id: str, topics: List[str]) -> Set[str]:
@@ -202,7 +200,7 @@ class WebSocketMessageRouter:
         """
         if room_id in self._subscriptions and websocket in self._subscriptions[room_id]:
             self._subscriptions[room_id][websocket] -= set(topics)
-            logger.debug(f"取消订阅: room={room_id}, topics={topics}")
+            logger.debug("取消订阅: room=%s, topics=%s", room_id, topics)
             return self._subscriptions[room_id][websocket]
         return set()
 
@@ -255,7 +253,7 @@ class WebSocketMessageRouter:
             try:
                 await ws.send_json(message)
                 sent_count += 1
-            except Exception:
+            except Exception:  # pylint: disable=broad-except
                 disconnected.append(ws)
 
         # 清理断开的连接
@@ -294,19 +292,19 @@ class WebSocketMessageRouter:
         """
         message_type = message.get("type")
         if not message_type:
-            logger.warning(f"消息缺少 type 字段: {message}")
+            logger.warning("消息缺少 type 字段: %s", message)
             return False
 
         handler = self._handlers.get(message_type)
         if not handler:
-            logger.debug(f"未找到消息处理器: {message_type}")
+            logger.debug("未找到消息处理器: %s", message_type)
             return False
 
         try:
             await handler(room_id, message.get("data", {}), sender)
             return True
-        except Exception as e:
-            logger.error(f"消息处理失败: type={message_type}, error={e}")
+        except Exception as e:  # pylint: disable=broad-except
+            logger.error("消息处理失败: type=%s, error=%s", message_type, e)
             return False
 
     async def broadcast(
@@ -340,7 +338,7 @@ class WebSocketMessageRouter:
             try:
                 await ws.send_json(message)
                 sent_count += 1
-            except Exception:
+            except Exception: # pylint: disable=broad-except
                 disconnected.append(ws)
 
         # 清理断开的连接
@@ -368,8 +366,8 @@ class WebSocketMessageRouter:
         try:
             await websocket.send_json({"type": message_type, "data": data})
             return True
-        except Exception as e:
-            logger.warning(f"发送消息失败: {e}")
+        except Exception as e: # pylint: disable=broad-except
+            logger.warning("发送消息失败: %s", e)
             return False
 
     async def enqueue(
@@ -424,8 +422,8 @@ class WebSocketMessageRouter:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
-                logger.error(f"消息队列处理错误: {e}")
+            except Exception as e:  # pylint: disable=broad-except
+                logger.error("消息队列处理错误: %s", e)
 
 
 # 全局路由器实例
@@ -434,7 +432,7 @@ message_router = WebSocketMessageRouter()
 
 # 预置处理器
 @message_router.handler("ping")
-async def handle_ping(room_id: str, data: Dict[str, Any], ws: WebSocket) -> None:
+async def handle_ping(_room_id: str, _data: Dict[str, Any], ws: WebSocket) -> None:
     """处理 ping 消息"""
     await ws.send_json({"type": "pong", "data": {}})
 
@@ -452,4 +450,9 @@ async def handle_unsubscribe(room_id: str, data: Dict[str, Any], ws: WebSocket) 
     """处理取消订阅消息"""
     topics = data.get("topics", [])
     remaining = message_router.unsubscribe(ws, room_id, topics)
-    await ws.send_json({"type": "unsubscribed", "data": {"removed": topics, "remaining": list(remaining)}})
+    await ws.send_json(
+        {
+            "type": "unsubscribed",
+            "data": {"removed": topics, "remaining": list(remaining)},
+        }
+    )

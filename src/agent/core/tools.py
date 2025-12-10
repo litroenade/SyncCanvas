@@ -159,7 +159,7 @@ class ToolValidator:
             except ValidationError as e:
                 errors = e.errors()
                 msg = "; ".join(f"{err['loc'][0]}: {err['msg']}" for err in errors[:3])
-                raise ValueError(f"参数验证失败: {msg}")
+                raise ValueError(f"参数验证失败: {msg}") from e
 
         # 字符串安全检查
         if check_strings:
@@ -247,7 +247,7 @@ class ToolRegistry:
             schema = self._generate_schema(name, description, args_schema, func)
             self._schemas[name] = schema
 
-            logger.debug(f"注册工具: {name} ({category.value})")
+            logger.debug("注册工具: %s (%s)", name, category.value)
             return wrapper
 
         return decorator
@@ -370,12 +370,12 @@ class ToolRegistry:
     def disable_tool(self, name: str) -> None:
         """禁用工具"""
         self._disabled_tools.add(name)
-        logger.info(f"禁用工具: {name}")
+        logger.info("禁用工具: %s", name)
 
     def enable_tool(self, name: str) -> None:
         """启用工具"""
         self._disabled_tools.discard(name)
-        logger.info(f"启用工具: {name}")
+        logger.info("启用工具: %s", name)
 
     def list_tools(self) -> List[Dict[str, Any]]:
         """列出所有工具信息"""

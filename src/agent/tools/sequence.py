@@ -8,7 +8,7 @@
 """
 
 import random
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 from pydantic import BaseModel, Field
 
@@ -309,7 +309,7 @@ async def create_sequence_participant(
         for el in elements:
             elements_array.append(element_to_ymap(el))
 
-    logger.info(f"创建时序图参与者: {name}", extra={"room": room_id})
+    logger.info("创建时序图参与者: %s", name, extra={"room": room_id})
 
     return {
         "status": "success",
@@ -379,7 +379,9 @@ async def create_sequence_diagram(
             elements_array.append(element_to_ymap(el))
 
     logger.info(
-        f"创建时序图: {len(participants)} 个参与者, {len(messages)} 条消息",
+        "创建时序图: %d 个参与者, %d 条消息",
+        len(participants),
+        len(messages),
         extra={"room": room_id},
     )
 

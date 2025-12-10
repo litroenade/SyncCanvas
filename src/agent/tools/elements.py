@@ -93,7 +93,7 @@ async def create_element(
         elements_array.append(element_to_ymap(element))
 
     logger.info(
-        f"创建元素: {element['id']}", extra={"room": room_id, "type": element_type}
+        "创建元素: %s", element["id"], extra={"room": room_id, "type": element_type}
     )
 
     return {
@@ -272,7 +272,7 @@ async def update_element(
         return {"status": "noop", "message": "没有需要更新的字段"}
 
     logger.info(
-        f"更新元素: {element_id}", extra={"room": room_id, "fields": updated_fields}
+        "更新元素: %s", element_id, extra={"room": room_id, "fields": updated_fields}
     )
 
     return {
@@ -316,7 +316,7 @@ async def delete_elements(
                 elements_array.delete(i, 1)
                 removed.append(el_id)
 
-    logger.info(f"删除元素: {len(removed)} 个", extra={"room": room_id})
+    logger.info("删除元素: %d 个", len(removed), extra={"room": room_id})
 
     return {
         "status": "success",
@@ -356,6 +356,6 @@ async def clear_canvas(
     with doc.transaction(origin="ai-engine/clear_canvas"):
         elements_array.delete(0, count)
 
-    logger.info(f"清空画布: 删除了 {count} 个元素", extra={"room": room_id})
+    logger.info("清空画布: 删除了 %d 个元素", count, extra={"room": room_id})
 
     return {"status": "success", "message": f"已清空画布 (删除了 {count} 个元素)"}

@@ -22,6 +22,7 @@ from sqlmodel import Session, select
 from pycrdt import Doc
 from pycrdt.store.base import BaseYStore, YDocNotFound
 
+from src.db.models import Room
 from src.db.database import engine
 from src.db.models import Commit, Update
 
@@ -152,11 +153,9 @@ class SQLModelYStore(BaseYStore):
                     session.add(update)
                 session.commit()
                 # 使用 DEBUG 级别，避免刷屏
-                self.log.debug(
-                    f"房间 {self.room_id}: 写入 {len(buffer_data)} 个更新到缓冲"
-                )
-        except Exception as e:
-            self.log.error(f"房间 {self.room_id} 刷新缓冲区失败: {e}")
+                self.log.debug("房间 %s: 写入 %d 个更新到缓冲", self.room_id, len(buffer_data))
+        except Exception as e: # pylint: disable=broad-except
+            self.log.error("房间 %s 刷新缓冲区失败: %s", self.room_id, e)
 
     async def read(self) -> AsyncIterator[tuple[bytes, bytes, float]]:
         """读取房间的所有数据
@@ -164,16 +163,16 @@ class SQLModelYStore(BaseYStore):
         按顺序返回：最新 Commit → 后续 Update → 内存缓冲
         """
         found = False
-        self.log.info(f"[YStore.read] 开始读取房间 {self.room_id} 的数据")
+        self.log.info("[YStore.read] 开始读取房间 %s 的数据", self.room_id)
 
         async with self.lock:
             with Session(engine) as session:
                 # 0. 获取房间信息，查看 HEAD
-                from src.db.models import Room
-
                 room = session.get(Room, self.room_id)
                 self.log.info(
-                    f"[YStore.read] 房间信息: {room}, HEAD: {room.head_commit_id if room else 'N/A'}"
+                    "[YStore.read] 房间信息: %s, HEAD: %s",
+                    room,
+                    room.head_commit_id if room else "N/A",
                 )
 
                 commit = None
@@ -194,7 +193,10 @@ class SQLModelYStore(BaseYStore):
                 if commit:
                     found = True
                     self.log.info(
-                        f"[YStore.read] 找到 Commit: id={commit.id}, 数据大小={len(commit.data)} bytes, timestamp={commit.timestamp}"
+                        "[YStore.read] 找到 Commit: id=%s, 数据大小=%d bytes, timestamp=%d",
+                        commit.id,
+                        len(commit.data),
+                        commit.timestamp,
                     )
                     yield commit.data, b"", commit.timestamp / 1000.0
 
@@ -206,7 +208,7 @@ class SQLModelYStore(BaseYStore):
                         .order_by(Update.timestamp)
                     )
                 else:
-                    self.log.warning(f"[YStore.read] 未找到 Commit，将读取所有 Update")
+                    self.log.warning("[YStore.read] 未找到 Commit，将读取所有 Update")
                     # 没有 Commit，获取所有 Update
                     updates_stmt = (
                         select(Update)
@@ -215,26 +217,28 @@ class SQLModelYStore(BaseYStore):
                     )
 
                 updates = session.exec(updates_stmt).all()
-                self.log.info(f"[YStore.read] 找到 {len(updates)} 个 Update")
+                self.log.info("[YStore.read] 找到 %d 个 Update", len(updates))
                 for update in updates:
                     found = True
                     self.log.info(
-                        f"[YStore.read] 返回 Update: 数据大小={len(update.data)} bytes, timestamp={update.timestamp}"
+                        "[YStore.read] 返回 Update: 数据大小=%d bytes, timestamp=%d",
+                        len(update.data),
+                        update.timestamp,
                     )
                     yield update.data, b"", update.timestamp / 1000.0
 
         # 3. 返回内存缓冲区中的更新
         buffer_data = self._buffer.get_copy()
-        self.log.info(f"[YStore.read] 内存缓冲区: {len(buffer_data)} 个更新")
+        self.log.info("[YStore.read] 内存缓冲区: %d 个更新", len(buffer_data))
         for data, timestamp in buffer_data:
             found = True
             yield data, b"", timestamp / 1000.0
 
         if not found:
-            self.log.warning(f"[YStore.read] 房间 {self.room_id} 未找到任何数据")
+            self.log.warning("[YStore.read] 房间 %s 未找到任何数据", self.room_id)
             raise YDocNotFound
 
-        self.log.info(f"[YStore.read] 房间 {self.room_id} 数据读取完成")
+        self.log.info("[YStore.read] 房间 %s 数据读取完成", self.room_id)
 
     async def write(self, data: bytes) -> None:
         """写入一个新的更新到缓冲区"""
@@ -278,7 +282,6 @@ class SQLModelYStore(BaseYStore):
 
         with Session(engine) as session:
             # 0. 获取房间信息，查看 HEAD
-            from src.db.models import Room
 
             room = session.get(Room, self.room_id)
 

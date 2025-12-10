@@ -172,7 +172,7 @@ async def parse_flow_text(
                     "to": node_id,
                 })
 
-    logger.info(f"解析流程文本: {len(nodes)} 个节点, {len(edges)} 条边")
+    logger.info("解析流程文本: %d 个节点, %d 条边", len(nodes), len(edges))
 
     return {
         "status": "success",

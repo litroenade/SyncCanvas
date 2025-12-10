@@ -174,7 +174,7 @@ class AgentStateMachine:
             是否转换成功
         """
         if not force and not self.can_transition(to_state):
-            logger.warning(f"无效的状态转换: {self._state.name} -> {to_state.name}")
+            logger.warning("无效的状态转换: %s -> %s", self._state.name, to_state.name)
             return False
 
         from_state = self._state
@@ -202,12 +202,14 @@ class AgentStateMachine:
         for hook in self._any_hooks:
             try:
                 hook(from_state, to_state)
-            except Exception as e:
-                logger.error(f"状态转换钩子执行失败: {e}")
+            except Exception as e:  # pylint: disable=broad-except
+                logger.error("状态转换钩子执行失败: %s", e)
 
         logger.debug(
-            f"状态转换: {from_state.name} -> {to_state.name}"
-            f"{f' ({reason})' if reason else ''}"
+            "状态转换: %s -> %s%s",
+            from_state.name,
+            to_state.name,
+            f" ({reason})" if reason else "",
         )
 
         return True
@@ -250,16 +252,16 @@ class AgentStateMachine:
         for hook in self._enter_hooks.get(state, []):
             try:
                 hook()
-            except Exception as e:
-                logger.error(f"进入钩子执行失败: {e}")
+            except Exception as e:  # pylint: disable=broad-except
+                logger.error("进入钩子执行失败: %s", e)
 
     def _run_exit_hooks(self, state: AgentState) -> None:
         """执行退出钩子"""
         for hook in self._exit_hooks.get(state, []):
             try:
                 hook()
-            except Exception as e:
-                logger.error(f"退出钩子执行失败: {e}")
+            except Exception as e:  # pylint: disable=broad-except
+                logger.error("退出钩子执行失败: %s", e)
 
     def reset(self) -> None:
         """重置状态机"""

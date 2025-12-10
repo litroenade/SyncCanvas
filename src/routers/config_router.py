@@ -6,7 +6,7 @@
 
 from typing import Any, Dict
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 from src.config import config as config_manager
 from src.agent.core.agent import AgentConfig

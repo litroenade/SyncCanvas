@@ -1,7 +1,13 @@
+"""SyncCanvas 主应用模块
+
+提供 FastAPI 应用实例、WebSocket 集成和静态文件服务。
+"""
+
 import os
-import uvicorn
 import subprocess
 from contextlib import asynccontextmanager
+
+import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -112,6 +118,7 @@ def build_frontend():
             text=True,
             cwd=FRONTEND_DIR,
             shell=True,
+            check=False,
         )
         if result.returncode != 0:
             logger.warning("未找到 pnpm，尝试使用 npm")
@@ -120,7 +127,7 @@ def build_frontend():
             pkg_manager = "pnpm"
 
         # 安装依赖
-        logger.info(f"使用 {pkg_manager} 安装依赖...")
+        logger.info("使用 %s 安装依赖...", pkg_manager)
         subprocess.run(
             [pkg_manager, "install"],
             cwd=FRONTEND_DIR,
@@ -129,7 +136,7 @@ def build_frontend():
         )
 
         # 构建
-        logger.info(f"使用 {pkg_manager} 构建前端...")
+        logger.info("使用 %s 构建前端...", pkg_manager)
         subprocess.run(
             [pkg_manager, "run", "build"],
             cwd=FRONTEND_DIR,
@@ -140,10 +147,10 @@ def build_frontend():
         logger.info("前端构建完成！")
         return True
     except subprocess.CalledProcessError as e:
-        logger.error(f"前端构建失败: {e}")
+        logger.error("前端构建失败: %s", e)
         return False
     except FileNotFoundError as e:
-        logger.error(f"包管理器未找到: {e}")
+        logger.error("包管理器未找到: %s", e)
         return False
 
 
@@ -159,7 +166,7 @@ if os.path.exists(FRONTEND_DIST_DIR):
 
     # SPA fallback: 所有未匹配的路由返回 index.html
     @app.get("/{full_path:path}")
-    async def serve_spa(request: Request, full_path: str):
+    async def serve_spa(_request: Request, full_path: str):
         """处理 SPA 路由，返回 index.html"""
         # 如果是请求静态文件（有文件扩展名），尝试返回对应文件
         if "." in full_path:
@@ -171,7 +178,8 @@ if os.path.exists(FRONTEND_DIST_DIR):
         return FileResponse(index_path)
 else:
     logger.warning(
-        f"前端构建目录不存在: {FRONTEND_DIST_DIR}，无法提供静态文件服务。请先运行 'pnpm build'。"
+        "前端构建目录不存在: %s，无法提供静态文件服务。请先运行 'pnpm build'。",
+        FRONTEND_DIST_DIR,
     )
 
 

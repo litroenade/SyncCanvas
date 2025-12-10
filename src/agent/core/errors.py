@@ -18,7 +18,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import wraps
-from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union
+from typing import Any, Callable, Dict, List, Optional, Type, TypeVar
 
 from src.logger import get_logger
 
@@ -350,23 +350,23 @@ class ValidationError(AIEngineError):
     """
 
     def __init__(
-        self, message: str, field: Optional[str] = None, value: Any = None, **kwargs
+        self, message: str, field_name: Optional[str] = None, value: Any = None, **kwargs
     ):
         """初始化验证异常
 
         Args:
             message: 错误消息
-            field: 字段名
+            field_name: 字段名
             value: 字段值
             **kwargs: 传递给父类的其他参数
         """
         details = kwargs.pop("details", {})
-        if field:
-            details["field"] = field
+        if field_name:
+            details["field"] = field_name
         if value is not None:
             details["value"] = str(value)[:100]
         super().__init__(message, ErrorCode.VALIDATION_ERROR, details=details, **kwargs)
-        self.field = field
+        self.field = field_name
         self.value = value
 
 
@@ -468,7 +468,7 @@ def handle_agent_errors(
             except asyncio.TimeoutError as e:
                 error = LLMError("请求超时", code=ErrorCode.TIMEOUT, cause=e)
                 if log_errors:
-                    logger.error(f"Agent 超时: {error}")
+                    logger.error("Agent 超时: %s", error)
                 if reraise:
                     raise error from e
                 return None
@@ -479,9 +479,9 @@ def handle_agent_errors(
                     code=ErrorCode.CANCELLED,
                 )
                 if log_errors:
-                    logger.warning(f"Agent 取消: {error}")
+                    logger.warning("Agent 取消: %s", error)
                 raise
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
                 error = AgentError(
                     str(e),
                     agent_name=default_agent_name,
@@ -489,7 +489,7 @@ def handle_agent_errors(
                     cause=e,
                 )
                 if log_errors:
-                    logger.error(f"Agent 未知错误: {error}", exc_info=True)
+                    logger.error("Agent 未知错误: %s", error, exc_info=True)
                 if reraise:
                     raise error from e
                 return None
@@ -554,10 +554,10 @@ def create_room_not_found_error(room_id: str) -> RoomError:
 
 
 def create_validation_error(
-    field: str, message: str, value: Any = None
+    field_name: str, message: str, value: Any = None
 ) -> ValidationError:
     """创建参数验证异常"""
-    return ValidationError(message, field=field, value=value)
+    return ValidationError(message, field_name=field_name, value=value)
 
 
 def create_llm_timeout_error(provider: str, model: str, timeout: float) -> LLMError:

@@ -73,7 +73,7 @@ def get_field_enum(field_type: Any) -> Optional[List[str]]:
     try:
         if get_origin(field_type) is Literal:
             return list(get_args(field_type))
-    except Exception:
+    except Exception: # pylint: disable=broad-except
         pass
     return None
 
@@ -207,7 +207,7 @@ class ConfigService:
 
         except ValueError as e:
             return False, f"配置值类型错误: {e}"
-        except Exception as e:
+        except Exception as e: # pylint: disable=broad-except
             return False, f"设置配置值时发生错误: {e}"
 
         return True, ""

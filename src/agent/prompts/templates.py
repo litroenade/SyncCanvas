@@ -36,9 +36,7 @@ class ResponseFormat(PromptTemplate):
     """响应格式模板
 
     用于生成 JSON 响应格式说明。
-    """
-
-    pass
+    """  # 无具体实现，继承自 PromptTemplate
 
 
 @register_template("system.jinja2", "thinking_chain")

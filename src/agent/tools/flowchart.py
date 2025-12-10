@@ -126,7 +126,8 @@ async def create_flowchart_node(
         elements_array.append(element_to_ymap(text_element))
 
     logger.info(
-        f"创建流程图节点: {shape_id}",
+        "创建流程图节点: %s",
+        shape_id,
         extra={"room": room_id, "type": node_type, "label": label},
     )
 
@@ -297,7 +298,8 @@ async def connect_nodes(
             elements_array.append(element_to_ymap(el))
 
     logger.info(
-        f"创建连接: {arrow_id}",
+        "创建连接: %s",
+        arrow_id,
         extra={"room": room_id, "from": from_id, "to": to_id, "label": label},
     )
 

@@ -202,18 +202,22 @@ async def get_available_models(
             # 按 ID 排序
             models.sort(key=lambda x: x.id)
 
-            logger.info(f"获取到 {len(models)} 个可用模型", extra={
-                "base_url": url,
-            })
+            logger.info(
+                "获取到 %d 个可用模型",
+                len(models),
+                extra={"base_url": url},
+            )
 
             return ModelsResponse(models=models, total=len(models))
 
     except httpx.HTTPStatusError as e:
-        logger.error(f"获取模型列表失败: HTTP {e.response.status_code}")
-        raise HTTPException(e.response.status_code, f"获取模型失败: {e.response.text[:200]}")
+        logger.error("获取模型列表失败: HTTP %d", e.response.status_code)
+        raise HTTPException(
+            e.response.status_code, f"获取模型失败: {e.response.text[:200]}"
+        ) from e
     except httpx.RequestError as e:
-        logger.error(f"获取模型列表请求错误: {e}")
-        raise HTTPException(502, f"请求失败: {str(e)}")
-    except Exception as e:
-        logger.error(f"获取模型列表异常: {e}")
-        raise HTTPException(500, f"获取模型失败: {str(e)}")
+        logger.error("获取模型列表请求错误: %s", e)
+        raise HTTPException(502, f"请求失败: {str(e)}") from e
+    except Exception as e:  # pylint: disable=broad-except
+        logger.error("获取模型列表异常: %s", e)
+        raise HTTPException(500, f"获取模型失败: {str(e)}") from e

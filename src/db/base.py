@@ -7,7 +7,7 @@
 from datetime import datetime
 from typing import Any, Dict, Optional, Type, TypeVar
 
-from sqlmodel import Session, SQLModel, select
+from sqlmodel import Session, select
 
 T = TypeVar("T", bound="BaseDBMixin")
 

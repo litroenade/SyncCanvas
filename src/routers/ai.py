@@ -111,9 +111,9 @@ async def generate_shapes(
             tools_used=result.get("tools_used", [])
         )
 
-    except Exception as e:
-        logger.error(f"AI 生成失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:  # pylint: disable=broad-except
+        logger.error("AI 生成失败: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/runs/{room_id}")
@@ -392,7 +392,7 @@ class AIWebSocketManager:
         if room_id not in self._connections:
             self._connections[room_id] = []
         self._connections[room_id].append(websocket)
-        logger.info(f"AI WebSocket 连接: room={room_id}")
+        logger.info("AI WebSocket 连接: room=%s", room_id)
 
     def disconnect(self, websocket: WebSocket, room_id: str) -> None:
         """断开连接"""
@@ -401,7 +401,7 @@ class AIWebSocketManager:
                 self._connections[room_id].remove(websocket)
             if not self._connections[room_id]:
                 del self._connections[room_id]
-        logger.info(f"AI WebSocket 断开: room={room_id}")
+        logger.info("AI WebSocket 断开: room=%s", room_id)
 
     async def broadcast_to_room(self, room_id: str, message: dict) -> None:
         """向房间所有连接广播消息"""
@@ -412,7 +412,7 @@ class AIWebSocketManager:
         for ws in self._connections[room_id]:
             try:
                 await ws.send_json(message)
-            except Exception:
+            except Exception:  # pylint: disable=broad-except
                 disconnected.append(ws)
 
         # 清理断开的连接
@@ -488,8 +488,8 @@ async def ai_stream_websocket(
                     "metrics": result.get("metrics", {}),
                 })
 
-            except Exception as e:
-                logger.error(f"AI WebSocket 处理错误: {e}")
+            except Exception as e:  # pylint: disable=broad-except
+                logger.error("AI WebSocket 处理错误: %s", e)
                 await websocket.send_json({
                     "type": "error",
                     "message": str(e)
@@ -497,12 +497,12 @@ async def ai_stream_websocket(
 
     except WebSocketDisconnect:
         ai_ws_manager.disconnect(websocket, room_id)
-    except Exception as e:
-        logger.error(f"AI WebSocket 异常: {e}")
+    except Exception as e:  # pylint: disable=broad-except
+        logger.error("AI WebSocket 异常: %s", e)
         ai_ws_manager.disconnect(websocket, room_id)
 
 
-async def _broadcast_step(websocket: WebSocket, room_id: str, step: ReActStep) -> None:
+async def _broadcast_step(websocket: WebSocket, _room_id: str, step: ReActStep) -> None:
     """广播 Agent 步骤"""
     try:
         message = {
@@ -521,5 +521,5 @@ async def _broadcast_step(websocket: WebSocket, room_id: str, step: ReActStep) -
             "latency_ms": round(step.latency_ms, 2),
         }
         await websocket.send_json(message)
-    except Exception as e:
-        logger.warning(f"广播步骤失败: {e}")
+    except Exception as e:  # pylint: disable=broad-except
+        logger.warning("广播步骤失败: %s", e)

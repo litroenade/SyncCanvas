@@ -130,7 +130,7 @@ class BaseRepository(Generic[T]):
         session.add(obj)
         session.commit()
         session.refresh(obj)
-        logger.debug(f"创建 {self.model.__name__}: {obj}")
+        logger.debug("创建 %s: %s", self.model.__name__, obj)
         return obj
 
     def update(self, session: Session, obj: T, **kwargs) -> T:
@@ -149,7 +149,7 @@ class BaseRepository(Generic[T]):
         session.add(obj)
         session.commit()
         session.refresh(obj)
-        logger.debug(f"更新 {self.model.__name__}: {obj}")
+        logger.debug("更新 %s: %s", self.model.__name__, obj)
         return obj
 
     def delete(self, session: Session, obj: T) -> bool:
@@ -164,7 +164,7 @@ class BaseRepository(Generic[T]):
         """
         session.delete(obj)
         session.commit()
-        logger.debug(f"删除 {self.model.__name__}: {obj}")
+        logger.debug("删除 %s: %s", self.model.__name__, obj)
         return True
 
     def delete_by_id(self, session: Session, id: Any) -> bool:

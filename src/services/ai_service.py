@@ -186,7 +186,7 @@ class AIService:
                 },
             }
 
-        except Exception as e:
+        except Exception as e: # pylint: disable=broad-except
             error_msg = str(e)
             duration_ms = (time.time() - start_time) * 1000
 
@@ -292,7 +292,7 @@ class AIService:
                     result = step_callback(step)
                     if asyncio.iscoroutine(result):
                         await result
-                except Exception as e:
+                except Exception as e: # pylint: disable=broad-except
                     logger.warning(f"步骤回调失败: {e}")
 
             planner.set_step_callback(async_callback)
@@ -337,7 +337,7 @@ class AIService:
                 },
             }
 
-        except Exception as e:
+        except Exception as e: # pylint: disable=broad-except
             error_msg = str(e)
             duration_ms = (time.time() - start_time) * 1000
 
