@@ -67,4 +67,12 @@ export default {
     },
   },
   plugins: [],
+  // 触摸设备优化：仅在支持 hover 的设备上启用 hover 效果
+  future: {
+    hoverOnlyWhenSupported: true,
+  },
+  // 实验性优化
+  experimental: {
+    optimizeUniversalDefaults: true
+  }
 }

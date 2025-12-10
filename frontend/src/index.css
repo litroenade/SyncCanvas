@@ -208,22 +208,9 @@
 @media (max-width: 768px),
 (hover: none) and (pointer: coarse) {
 
-  /* 移动端工具栏缩放和间距 */
+  /* 移动端为 FAB 按钮留出空间 */
   .excalidraw .layer-ui__wrapper {
-    --ui-scale: 0.85;
-    /* 为 FAB 按钮留出空间 */
     padding-bottom: calc(var(--safe-area-bottom) + 16px) !important;
-  }
-
-  /* 增大触摸目标 */
-  .excalidraw .ToolIcon {
-    min-width: 44px !important;
-    min-height: 44px !important;
-  }
-
-  /* 左侧工具栏位置调整，避免被 FAB 遮挡 */
-  .excalidraw .App-toolbar {
-    padding-left: var(--safe-area-left) !important;
   }
 
   /* 顶部菜单位置调整 */

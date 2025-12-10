@@ -19,7 +19,7 @@ interface ThemeProviderProps {
  * 功能：
  * - 监听主题状态变化
  * - 自动为 document.documentElement 添加/移除 dark class
- * - 同步更新 Excalidraw 背景色配置
+ * - Excalidraw 会自动根据 theme prop 管理画布颜色
  * 
  * @example
  * ```tsx
@@ -29,19 +29,17 @@ interface ThemeProviderProps {
  * ```
  */
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-    const { theme, setExcalidrawConfig } = useThemeStore();
+    const { theme } = useThemeStore();
 
     useEffect(() => {
         const root = document.documentElement;
 
         if (theme === 'dark') {
             root.classList.add('dark');
-            setExcalidrawConfig({ viewBackgroundColor: '#1e1e1e' });
         } else {
             root.classList.remove('dark');
-            setExcalidrawConfig({ viewBackgroundColor: '#ffffff' });
         }
-    }, [theme, setExcalidrawConfig]);
+    }, [theme]);
 
     return <>{children}</>;
 };

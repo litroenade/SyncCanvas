@@ -3,8 +3,9 @@
  * 主要功能：Excalidraw 画布组件
  * 
  * 集成 Excalidraw 编辑器，支持 PC 端和移动端自适应。
+ * 使用 Excalidraw 官方 API 进行自定义扩展。
  */
-import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import {
     Excalidraw,
     MainMenu,
@@ -33,13 +34,13 @@ import {
 
 interface CanvasProps {
     roomId?: string;
+    roomName?: string;
 }
 
 const HISTORY_SIDEBAR_NAME = 'history-panel';
 
 /**
  * 改进的移动端检测 Hook
- * 使用多重判断：屏幕宽度 + 触摸能力 + 指针类型
  */
 const useDeviceType = () => {
     const [deviceInfo, setDeviceInfo] = useState(() => {
@@ -53,10 +54,10 @@ const useDeviceType = () => {
         const handleResize = () => {
             setDeviceInfo(getDeviceInfo());
         };
-        
+
         window.addEventListener('resize', handleResize);
         window.addEventListener('orientationchange', handleResize);
-        
+
         return () => {
             window.removeEventListener('resize', handleResize);
             window.removeEventListener('orientationchange', handleResize);
@@ -70,56 +71,17 @@ function getDeviceInfo() {
     const width = window.innerWidth;
     const height = window.innerHeight;
     const minDimension = Math.min(width, height);
-    
-    // 使用 CSS 媒体查询检测触摸设备
+
     const isTouchDevice = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
-    
-    // 小屏幕手机 (宽度 < 768px 或者触摸设备且宽度 < 1024px)
     const isMobile = minDimension < 768 || (isTouchDevice && width < 1024);
-    
-    // 平板 (768px - 1024px 且是触摸设备)
     const isTablet = isTouchDevice && minDimension >= 768 && minDimension < 1024;
-    
+
     return { isMobile, isTablet, isTouchDevice };
 }
 
-/**
- * 连接状态配置
- */
-const getStatusConfig = (isConnected: boolean, isSynced: boolean) => {
-    if (!isConnected) {
-        return {
-            color: 'text-red-400',
-            bgGradient: 'from-red-500/90 to-rose-500/90',
-            dotColor: 'bg-red-400',
-            icon: WifiOff,
-            text: '离线',
-            animate: false,
-        };
-    }
-    if (!isSynced) {
-        return {
-            color: 'text-amber-400',
-            bgGradient: 'from-amber-500/90 to-orange-500/90',
-            dotColor: 'bg-amber-400',
-            icon: Loader2,
-            text: '同步中',
-            animate: true,
-        };
-    }
-    return {
-        color: 'text-emerald-400',
-        bgGradient: 'from-emerald-500/90 to-teal-500/90',
-        dotColor: 'bg-emerald-400',
-        icon: Wifi,
-        text: '已连接',
-        animate: false,
-    };
-};
-
-export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
+export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
     const navigate = useNavigate();
-    const { theme, excalidrawConfig, setExcalidrawConfig, toggleTheme } = useThemeStore();
+    const { theme, toggleTheme } = useThemeStore();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [excalidrawAPI, setExcalidrawAPI] = useState<any>(null);
     const isRemoteUpdateRef = useRef(false);
@@ -141,13 +103,6 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
     const isDark = theme === 'dark';
     const isGuest = localStorage.getItem('isGuest') === 'true' && !localStorage.getItem('token');
 
-    // 状态配置
-    const statusConfig = useMemo(
-        () => getStatusConfig(isConnected, isSynced),
-        [isConnected, isSynced]
-    );
-    const StatusIcon = statusConfig.icon;
-
     // 同步远程元素更新
     useEffect(() => {
         if (excalidrawAPI && elements.length > 0) {
@@ -163,13 +118,9 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const onChangeHandler = useCallback((newElements: readonly ExcalidrawElement[], appState: any, newFiles: any) => {
         if (isRemoteUpdateRef.current) return;
-        // 游客模式不同步更改到服务器
         if (isGuest) return;
-        if (appState.viewBackgroundColor !== excalidrawConfig.viewBackgroundColor) {
-            setTimeout(() => setExcalidrawConfig({ viewBackgroundColor: appState.viewBackgroundColor }), 500);
-        }
         handleChange(newElements, appState, newFiles);
-    }, [handleChange, excalidrawConfig.viewBackgroundColor, setExcalidrawConfig, isGuest]);
+    }, [handleChange, isGuest]);
 
     const onPointerUpdate = useCallback((payload: { pointer: { x: number; y: number }; button: 'up' | 'down' }) => {
         updatePointer(payload.pointer);
@@ -188,52 +139,63 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
         excalidrawAPI?.resetScene();
     }, [excalidrawAPI]);
 
+    // 使用 Excalidraw 官方 renderTopRightUI 渲染右上角状态
+    const renderTopRightUI = useCallback(() => {
+        const StatusIcon = !isConnected ? WifiOff : (!isSynced ? Loader2 : Wifi);
+        const statusText = !isConnected ? '离线' : (!isSynced ? '同步中' : '已连接');
+        const statusBg = !isConnected
+            ? 'linear-gradient(135deg, #ef4444 0%, #f43f5e 100%)'
+            : (!isSynced
+                ? 'linear-gradient(135deg, #f59e0b 0%, #f97316 100%)'
+                : 'linear-gradient(135deg, #10b981 0%, #14b8a6 100%)');
+
+        return (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                {/* 在线人数 */}
+                {collaborators.size > 0 && (
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '6px 12px',
+                        borderRadius: '999px',
+                        background: 'linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%)',
+                        color: 'white',
+                        fontSize: '12px',
+                        fontWeight: 500,
+                        boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)',
+                    }}>
+                        <Users size={13} strokeWidth={2.5} />
+                        <span>{collaborators.size + 1}</span>
+                    </div>
+                )}
+
+                {/* 连接状态 */}
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    borderRadius: '999px',
+                    background: statusBg,
+                    color: 'white',
+                    fontSize: '12px',
+                    fontWeight: 500,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                }}>
+                    <StatusIcon
+                        size={13}
+                        strokeWidth={2.5}
+                        style={!isSynced && isConnected ? { animation: 'spin 1s linear infinite' } : undefined}
+                    />
+                    <span>{statusText}</span>
+                </div>
+            </div>
+        );
+    }, [isConnected, isSynced, collaborators.size]);
+
     return (
         <div className="canvas-container">
-            {/* ==================== PC 端状态栏 ==================== */}
-            {!isMobile && (
-                <div className="fixed z-[40] flex items-center gap-2 pointer-events-none"
-                     style={{
-                         top: 'max(12px, env(safe-area-inset-top, 12px))',
-                         right: 'max(12px, env(safe-area-inset-right, 12px))',
-                     }}>
-                    {/* 在线人数 */}
-                    {collaborators.size > 0 && (
-                        <div className={cn(
-                            'pointer-events-auto',
-                            'flex items-center gap-1.5 px-3 py-1.5 rounded-full',
-                            'bg-gradient-to-r from-violet-500/90 to-purple-500/90',
-                            'text-white text-xs font-medium',
-                            'shadow-lg shadow-violet-500/20',
-                            'backdrop-blur-sm',
-                            'transition-all duration-300 ease-out',
-                            'hover:shadow-violet-500/30 hover:scale-[1.02]'
-                        )}>
-                            <Users size={13} strokeWidth={2.5} />
-                            <span>{collaborators.size + 1}</span>
-                        </div>
-                    )}
-                    
-                    {/* 连接状态 */}
-                    <div className={cn(
-                        'pointer-events-auto relative',
-                        'flex items-center gap-1.5 px-3 py-1.5 rounded-full',
-                        'bg-gradient-to-r',
-                        statusConfig.bgGradient,
-                        'text-white text-xs font-medium',
-                        'shadow-lg backdrop-blur-sm',
-                        'transition-all duration-300 ease-out'
-                    )}>
-                        <StatusIcon 
-                            size={13} 
-                            strokeWidth={2.5}
-                            className={statusConfig.animate ? 'animate-spin' : ''} 
-                        />
-                        <span>{statusConfig.text}</span>
-                    </div>
-                </div>
-            )}
-
             {/* ==================== 移动端 FAB 菜单 ==================== */}
             {isMobile && (
                 <MobileFAB
@@ -252,7 +214,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
 
             {/* ==================== PC 端房间信息（左下角） ==================== */}
             {!isMobile && roomId && (
-                <div 
+                <div
                     className={cn(
                         'canvas-room-info',
                         'fixed z-[40] pointer-events-none',
@@ -264,12 +226,11 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
                     )}
                     style={{
                         left: 'max(12px, env(safe-area-inset-left, 12px))',
-                        bottom: 'max(12px, env(safe-area-inset-bottom, 12px))',
+                        bottom: 'max(60px, env(safe-area-inset-bottom, 12px))',
                     }}
                 >
                     <Sparkles size={12} className={isDark ? 'text-violet-400' : 'text-violet-500'} />
-                    <span className="opacity-60">房间</span>
-                    <span className="font-mono">{roomId.slice(0, 8)}</span>
+                    <span className="truncate max-w-[150px]">{roomName || `房间 ${roomId?.slice(0, 8)}`}</span>
                 </div>
             )}
 
@@ -315,8 +276,6 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     elements: [] as any,
                     appState: {
-                        theme: isDark ? 'dark' : 'light',
-                        viewBackgroundColor: excalidrawConfig?.viewBackgroundColor || (isDark ? '#121212' : '#ffffff'),
                         zenModeEnabled: false,
                         gridModeEnabled: false,
                     },
@@ -325,10 +284,10 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
                 onPointerUpdate={isTouchDevice ? undefined : onPointerUpdate}
                 theme={isDark ? 'dark' : 'light'}
                 langCode="zh-CN"
-                // 游客不使用 viewMode，允许使用激光笔
                 viewModeEnabled={false}
                 zenModeEnabled={false}
                 gridModeEnabled={false}
+                renderTopRightUI={renderTopRightUI}
                 UIOptions={{
                     canvasActions: {
                         loadScene: !isGuest,
@@ -336,7 +295,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
                         saveToActiveFile: !isGuest,
                         clearCanvas: !isGuest,
                         changeViewBackgroundColor: !isGuest,
-                        toggleTheme: !isMobile,
+                        toggleTheme: true,
                     },
                     welcomeScreen: false,
                 }}
