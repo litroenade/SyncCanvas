@@ -140,7 +140,11 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
     }, [excalidrawAPI]);
 
     // 使用 Excalidraw 官方 renderTopRightUI 渲染右上角状态
+    // 移动端不显示，由 MobileFAB 统一处理状态显示
     const renderTopRightUI = useCallback(() => {
+        // 移动端不显示，避免遮挡工具栏
+        if (isMobile) return null;
+
         const StatusIcon = !isConnected ? WifiOff : (!isSynced ? Loader2 : Wifi);
         const statusText = !isConnected ? '离线' : (!isSynced ? '同步中' : '已连接');
         const statusBg = !isConnected
@@ -192,7 +196,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
                 </div>
             </div>
         );
-    }, [isConnected, isSynced, collaborators.size]);
+    }, [isConnected, isSynced, collaborators.size, isMobile]);
 
     return (
         <div className="canvas-container">
