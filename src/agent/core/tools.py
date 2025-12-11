@@ -25,20 +25,23 @@ logger = get_logger(__name__)
 
 # ==================== 工具分类 ====================
 
+
 class ToolCategory(Enum):
     """工具分类"""
-    CANVAS = "canvas"       # 画布操作
-    WEB = "web"             # 网络请求
-    GENERAL = "general"     # 通用工具
-    SYSTEM = "system"       # 系统工具
-    DANGEROUS = "dangerous" # 危险操作 (需要确认)
+
+    CANVAS = "canvas"  # 画布操作
+    WEB = "web"  # 网络请求
+    GENERAL = "general"  # 通用工具
+    SYSTEM = "system"  # 系统工具
+    DANGEROUS = "dangerous"  # 危险操作 (需要确认)
 
 
 # ==================== 工具元数据 ====================
 
+
 class ToolMetadata:
     """工具元数据
-    
+
     存储工具的额外信息，用于权限控制和文档生成。
     """
 
@@ -67,24 +70,25 @@ class ToolMetadata:
 
 # ==================== 参数验证 ====================
 
+
 class ToolValidator:
     """工具参数验证器"""
 
     # 危险字符串模式 (防止注入)
     DANGEROUS_PATTERNS = [
-        r"__\w+__",          # Python 双下划线
-        r"import\s+",        # import 语句
-        r"exec\s*\(",        # exec 调用
-        r"eval\s*\(",        # eval 调用
-        r"os\.",             # os 模块
-        r"sys\.",            # sys 模块
-        r"subprocess",       # subprocess 模块
-        r"open\s*\(",        # 文件操作
+        r"__\w+__",  # Python 双下划线
+        r"import\s+",  # import 语句
+        r"exec\s*\(",  # exec 调用
+        r"eval\s*\(",  # eval 调用
+        r"os\.",  # os 模块
+        r"sys\.",  # sys 模块
+        r"subprocess",  # subprocess 模块
+        r"open\s*\(",  # 文件操作
     ]
 
     # URL 白名单模式
     URL_WHITELIST = [
-        r"^https?://",       # HTTP/HTTPS
+        r"^https?://",  # HTTP/HTTPS
     ]
 
     # URL 黑名单模式
@@ -100,11 +104,11 @@ class ToolValidator:
     @classmethod
     def validate_string(cls, value: str, field_name: str = "value") -> None:
         """验证字符串是否安全
-        
+
         Args:
             value: 要验证的字符串
             field_name: 字段名 (用于错误信息)
-            
+
         Raises:
             ValueError: 包含危险模式
         """
@@ -115,10 +119,10 @@ class ToolValidator:
     @classmethod
     def validate_url(cls, url: str) -> None:
         """验证 URL 是否安全
-        
+
         Args:
             url: 要验证的 URL
-            
+
         Raises:
             ValueError: URL 不安全
         """
@@ -139,15 +143,15 @@ class ToolValidator:
         check_strings: bool = True,
     ) -> Dict[str, Any]:
         """验证并清理工具参数
-        
+
         Args:
             args: 原始参数
             schema: Pydantic 模型 (可选)
             check_strings: 是否检查字符串安全性
-            
+
         Returns:
             验证后的参数
-            
+
         Raises:
             ValueError: 参数无效
         """
@@ -172,9 +176,10 @@ class ToolValidator:
 
 # ==================== 工具注册表 ====================
 
+
 class ToolRegistry:
     """工具注册表
-    
+
     管理所有注册的工具，支持:
     - 装饰器注册
     - 参数验证
@@ -201,7 +206,7 @@ class ToolRegistry:
         dangerous: bool = False,
     ):
         """装饰器: 注册工具函数
-        
+
         Args:
             name: 工具名称
             description: 工具描述
@@ -213,6 +218,7 @@ class ToolRegistry:
             validate_args: 是否验证参数
             dangerous: 是否为危险操作
         """
+
         def decorator(func: Callable) -> Callable:
             # 保存元数据
             meta = ToolMetadata(
@@ -265,12 +271,8 @@ class ToolRegistry:
             "function": {
                 "name": name,
                 "description": description,
-                "parameters": {
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }
-            }
+                "parameters": {"type": "object", "properties": {}, "required": []},
+            },
         }
 
         if args_schema:
@@ -289,7 +291,7 @@ class ToolRegistry:
             schema["function"]["parameters"] = {
                 "type": "object",
                 "properties": props,
-                "required": model_schema.get("required", [])
+                "required": model_schema.get("required", []),
             }
         else:
             # 从函数签名推断
@@ -331,14 +333,13 @@ class ToolRegistry:
         return self._tools.get(name)
 
     def get_definitions(
-        self,
-        categories: Optional[List[ToolCategory]] = None
-        ) -> List[Dict[str, Any]]:
+        self, categories: Optional[List[ToolCategory]] = None
+    ) -> List[Dict[str, Any]]:
         """获取工具定义列表
-        
+
         Args:
             categories: 过滤分类 (可选)
-            
+
         Returns:
             符合条件的工具定义列表
         """
@@ -366,6 +367,19 @@ class ToolRegistry:
     def get_metadata(self, name: str) -> Optional[ToolMetadata]:
         """获取工具元数据"""
         return self._metadata.get(name)
+
+    def get_schema(self, name: str) -> Optional[Dict[str, Any]]:
+        """获取工具 Schema
+
+        Args:
+            name: 工具名称
+
+        Returns:
+            工具的 OpenAI Function Calling Schema，如果工具不存在则返回 None
+        """
+        if name in self._disabled_tools:
+            return None
+        return self._schemas.get(name)
 
     def disable_tool(self, name: str) -> None:
         """禁用工具"""

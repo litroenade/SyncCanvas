@@ -289,7 +289,7 @@ class CanvaserAgent(PlanningAgent):
         """
         # 从全局注册表加载工具
         for name, func in registry.get_all_tools().items():
-            schema = registry._schemas.get(name)
+            schema = registry.get_schema(name)
             meta = registry.get_metadata(name)
 
             if not schema:

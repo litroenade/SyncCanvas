@@ -350,7 +350,11 @@ class ValidationError(AIEngineError):
     """
 
     def __init__(
-        self, message: str, field_name: Optional[str] = None, value: Any = None, **kwargs
+        self,
+        message: str,
+        field_name: Optional[str] = None,
+        value: Any = None,
+        **kwargs,
     ):
         """初始化验证异常
 
@@ -452,7 +456,7 @@ def handle_agent_errors(
         装饰后的函数
 
     Example:
-        @handle_agent_errors("TeacherAgent")
+        @handle_agent_errors("PlannerAgent")
         async def run_agent(context):
             ...
     """

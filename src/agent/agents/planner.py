@@ -135,7 +135,7 @@ class PlannerAgent(BaseAgent):
         run_service: Optional["AgentRunService"] = None,
         config: Optional[AgentConfig] = None,
     ):
-        """初始化 Teacher Agent
+        """初始化 Planner Agent
 
         Args:
             llm_client: LLM 客户端实例
@@ -146,7 +146,7 @@ class PlannerAgent(BaseAgent):
         system_prompt = self._build_prompt_from_template()
 
         super().__init__(
-            name="Teacher",
+            name="Planner",
             role="Orchestrator",
             llm_client=llm_client,
             system_prompt=system_prompt,
@@ -201,7 +201,7 @@ class PlannerAgent(BaseAgent):
         注册所有非危险工具。
         """
         for name, func in registry.get_all_tools().items():
-            schema = registry._schemas.get(name)
+            schema = registry.get_schema(name)
             meta = registry.get_metadata(name)
 
             if not schema:
@@ -245,7 +245,7 @@ class PlannerAgent(BaseAgent):
     ) -> str:
         """执行任务
 
-        根据用户输入判断是否委托给 Painter Agent。
+        根据用户输入判断是否委托给 Canvaser Agent。
 
         Args:
             context: Agent 上下文

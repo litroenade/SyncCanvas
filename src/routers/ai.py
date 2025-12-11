@@ -27,6 +27,7 @@ logger = get_logger(__name__)
 
 # ==================== 请求/响应模型 ====================
 
+
 class GenerateRequest(BaseModel):
     """AI 生成请求模型
 
@@ -34,7 +35,10 @@ class GenerateRequest(BaseModel):
         prompt: 用户输入的提示词
         room_id: 目标房间 ID
     """
-    prompt: str = Field(..., description="用户输入的提示词", min_length=1, max_length=2000)
+
+    prompt: str = Field(
+        ..., description="用户输入的提示词", min_length=1, max_length=2000
+    )
     room_id: str = Field(..., description="目标房间 ID")
 
 
@@ -48,6 +52,7 @@ class GenerateResponse(BaseModel):
         elements_created: 创建的元素 ID 列表
         tools_used: 使用的工具列表
     """
+
     status: str
     response: str
     run_id: int
@@ -62,16 +67,17 @@ class RunHistoryRequest(BaseModel):
         room_id: 房间 ID
         limit: 返回数量限制
     """
+
     room_id: str = Field(..., description="房间 ID")
     limit: int = Field(20, description="返回数量限制", ge=1, le=100)
 
 
 # ==================== API 路由 ====================
 
+
 @router.post("/generate", response_model=GenerateResponse)
 async def generate_shapes(
-    request: GenerateRequest,
-    session: Session = Depends(get_session)
+    request: GenerateRequest, session: Session = Depends(get_session)
 ):
     """使用 AI Agent 根据用户描述在白板上绘制图形
 
@@ -91,16 +97,14 @@ async def generate_shapes(
     Raises:
         HTTPException: 处理失败时抛出 500 错误
     """
-    logger.info("收到 AI 生成请求", extra={
-        "room_id": request.room_id,
-        "prompt_length": len(request.prompt)
-    })
+    logger.info(
+        "收到 AI 生成请求",
+        extra={"room_id": request.room_id, "prompt_length": len(request.prompt)},
+    )
 
     try:
         result = await ai_service.process_request(
-            user_input=request.prompt,
-            session_id=request.room_id,
-            db=session
+            user_input=request.prompt, session_id=request.room_id, db=session
         )
 
         return GenerateResponse(
@@ -108,7 +112,7 @@ async def generate_shapes(
             response=result.get("response", ""),
             run_id=result.get("run_id", 0),
             elements_created=result.get("elements_created", []),
-            tools_used=result.get("tools_used", [])
+            tools_used=result.get("tools_used", []),
         )
 
     except Exception as e:  # pylint: disable=broad-except
@@ -118,9 +122,7 @@ async def generate_shapes(
 
 @router.get("/runs/{room_id}")
 async def get_room_runs(
-    room_id: str,
-    limit: int = 20,
-    session: Session = Depends(get_session)
+    room_id: str, limit: int = 20, session: Session = Depends(get_session)
 ):
     """获取房间的 AI 运行历史
 
@@ -133,18 +135,13 @@ async def get_room_runs(
         dict: 运行历史列表
     """
     result = await ai_service.get_run_history(
-        session_id=room_id,
-        db=session,
-        limit=limit
+        session_id=room_id, db=session, limit=limit
     )
     return result
 
 
 @router.get("/run/{run_id}")
-async def get_run_detail(
-    run_id: int,
-    session: Session = Depends(get_session)
-):
+async def get_run_detail(run_id: int, session: Session = Depends(get_session)):
     """获取指定运行的详情
 
     包含运行的所有工具调用记录。
@@ -162,40 +159,39 @@ async def get_run_detail(
     result = await ai_service.get_run_detail(run_id, session)
 
     if result.get("status") == "error":
-        raise HTTPException(status_code=404, detail=result.get("message", "run_not_found"))
+        raise HTTPException(
+            status_code=404, detail=result.get("message", "run_not_found")
+        )
 
     return result
 
 
 # ==================== 管理 API ====================
 
+
 @router.get("/tools")
 async def list_tools():
     """获取所有可用工具列表
-    
+
     返回 AI Agent 可以使用的所有工具及其元数据。
-    
+
     Returns:
         dict: 工具列表
     """
     tools = registry.list_tools()
-    return {
-        "status": "success",
-        "count": len(tools),
-        "tools": tools
-    }
+    return {"status": "success", "count": len(tools), "tools": tools}
 
 
 @router.get("/tools/{tool_name}")
 async def get_tool_info(tool_name: str):
     """获取单个工具的详细信息
-    
+
     Args:
         tool_name: 工具名称
-        
+
     Returns:
         dict: 工具详情
-        
+
     Raises:
         HTTPException: 工具不存在时抛出 404 错误
     """
@@ -203,7 +199,7 @@ async def get_tool_info(tool_name: str):
     if not meta:
         raise HTTPException(status_code=404, detail=f"工具 {tool_name} 不存在")
 
-    schema = registry._schemas.get(tool_name, {})
+    schema = registry.get_schema(tool_name) or {}
 
     return {
         "status": "success",
@@ -216,16 +212,16 @@ async def get_tool_info(tool_name: str):
             "retries": meta.retries,
             "dangerous": meta.dangerous,
             "schema": schema.get("function", {}).get("parameters", {}),
-        }
+        },
     }
 
 
 @router.get("/status")
 async def get_agent_status():
     """获取 Agent 系统状态
-    
+
     返回当前活跃房间、工具数量等状态信息。
-    
+
     Returns:
         dict: 系统状态
     """
@@ -252,17 +248,17 @@ async def get_agent_status():
             "total": len(tools),
             "enabled": len(enabled_tools),
             "by_category": category_counts,
-        }
+        },
     }
 
 
 @router.get("/status/{room_id}")
 async def get_room_agent_status(room_id: str):
     """检查指定房间的 Agent 状态
-    
+
     Args:
         room_id: 房间 ID
-        
+
     Returns:
         dict: 房间 Agent 状态
     """
@@ -272,17 +268,17 @@ async def get_room_agent_status(room_id: str):
         "status": "success",
         "room_id": room_id,
         "is_busy": is_busy,
-        "message": "房间正在处理 AI 任务" if is_busy else "房间空闲"
+        "message": "房间正在处理 AI 任务" if is_busy else "房间空闲",
     }
 
 
 @router.post("/cancel/{run_id}")
 async def cancel_run(run_id: int):
     """取消正在进行的 AI 请求
-    
+
     Args:
         run_id: 运行记录 ID
-        
+
     Returns:
         dict: 操作结果
     """
@@ -293,9 +289,9 @@ async def cancel_run(run_id: int):
 @router.get("/stats")
 async def get_service_stats():
     """获取 AI 服务统计信息
-    
+
     返回请求总数、成功率、平均响应时间等统计数据。
-    
+
     Returns:
         dict: 服务统计信息
     """
@@ -305,10 +301,10 @@ async def get_service_stats():
 @router.post("/tools/{tool_name}/disable")
 async def disable_tool(tool_name: str):
     """禁用指定工具
-    
+
     Args:
         tool_name: 工具名称
-        
+
     Returns:
         dict: 操作结果
     """
@@ -318,10 +314,10 @@ async def disable_tool(tool_name: str):
 @router.post("/tools/{tool_name}/enable")
 async def enable_tool(tool_name: str):
     """启用指定工具
-    
+
     Args:
         tool_name: 工具名称
-        
+
     Returns:
         dict: 操作结果
     """
@@ -330,28 +326,25 @@ async def enable_tool(tool_name: str):
 
 # ==================== 模板 API ====================
 
+
 @router.get("/templates")
 async def list_templates():
     """列出所有可用的 Prompt 模板
-    
+
     Returns:
         dict: 模板列表
     """
     templates = prompt_manager.list_templates()
-    return {
-        "status": "success",
-        "count": len(templates),
-        "templates": templates
-    }
+    return {"status": "success", "count": len(templates), "templates": templates}
 
 
 @router.get("/templates/{template_name}")
 async def get_template(template_name: str):
     """获取模板源码
-    
+
     Args:
         template_name: 模板名称
-        
+
     Returns:
         dict: 模板源码
     """
@@ -363,12 +356,13 @@ async def get_template(template_name: str):
         "status": "success",
         "name": template_name,
         "source": source,
-        "length": len(source)
+        "length": len(source),
     }
 
 
 class RenderTemplateRequest(BaseModel):
     """渲染模板请求"""
+
     template_name: str = Field(..., description="模板名称")
     variables: dict = Field(default_factory=dict, description="模板变量")
 
@@ -378,7 +372,7 @@ class RenderTemplateRequest(BaseModel):
 
 class AIWebSocketManager:
     """AI WebSocket 连接管理器
-    
+
     管理每个房间的 WebSocket 连接，支持向多个连接广播消息。
     """
 
@@ -430,10 +424,10 @@ async def ai_stream_websocket(
     room_id: str,
 ):
     """WebSocket 流式 AI 响应
-    
+
     连接后发送 JSON 消息开始请求:
     {"type": "request", "prompt": "画一个流程图"}
-    
+
     接收实时步骤消息:
     {"type": "step", "step_number": 1, "thought": "...", "action": "create_flowchart_node", ...}
     {"type": "tool_result", "tool": "create_flowchart_node", "result": {...}}
@@ -448,52 +442,56 @@ async def ai_stream_websocket(
             data = await websocket.receive_json()
 
             if data.get("type") != "request":
-                await websocket.send_json({
-                    "type": "error",
-                    "message": "无效消息类型，请发送 {type: 'request', prompt: '...'}"
-                })
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "message": "无效消息类型，请发送 {type: 'request', prompt: '...'}",
+                    }
+                )
                 continue
 
             prompt = data.get("prompt", "")
             if not prompt:
-                await websocket.send_json({
-                    "type": "error",
-                    "message": "prompt 不能为空"
-                })
+                await websocket.send_json(
+                    {"type": "error", "message": "prompt 不能为空"}
+                )
                 continue
 
             # 发送开始消息
-            await websocket.send_json({
-                "type": "started",
-                "room_id": room_id,
-                "prompt": prompt[:100] + "..." if len(prompt) > 100 else prompt,
-            })
+            await websocket.send_json(
+                {
+                    "type": "started",
+                    "room_id": room_id,
+                    "prompt": prompt[:100] + "..." if len(prompt) > 100 else prompt,
+                }
+            )
 
             # 处理请求
             try:
                 result = await ai_service.process_request_with_stream(
                     user_input=prompt,
                     session_id=room_id,
-                    step_callback=lambda step: _broadcast_step(websocket, room_id, step),
+                    step_callback=lambda step: _broadcast_step(
+                        websocket, room_id, step
+                    ),
                 )
 
                 # 发送完成消息
-                await websocket.send_json({
-                    "type": "complete",
-                    "status": result.get("status", "success"),
-                    "response": result.get("response", ""),
-                    "run_id": result.get("run_id", 0),
-                    "elements_created": result.get("elements_created", []),
-                    "tools_used": result.get("tools_used", []),
-                    "metrics": result.get("metrics", {}),
-                })
+                await websocket.send_json(
+                    {
+                        "type": "complete",
+                        "status": result.get("status", "success"),
+                        "response": result.get("response", ""),
+                        "run_id": result.get("run_id", 0),
+                        "elements_created": result.get("elements_created", []),
+                        "tools_used": result.get("tools_used", []),
+                        "metrics": result.get("metrics", {}),
+                    }
+                )
 
             except Exception as e:  # pylint: disable=broad-except
                 logger.error("AI WebSocket 处理错误: %s", e)
-                await websocket.send_json({
-                    "type": "error",
-                    "message": str(e)
-                })
+                await websocket.send_json({"type": "error", "message": str(e)})
 
     except WebSocketDisconnect:
         ai_ws_manager.disconnect(websocket, room_id)
@@ -512,11 +510,10 @@ async def _broadcast_step(websocket: WebSocket, _room_id: str, step: ReActStep) 
             "action": step.action,
             "action_input": step.action_input,
             "observation": (
-                step.observation[:500] if (
-                    step.observation and len(step.observation) > 500
-                    )
+                step.observation[:500]
+                if (step.observation and len(step.observation) > 500)
                 else step.observation
-                ),
+            ),
             "success": step.success,
             "latency_ms": round(step.latency_ms, 2),
         }

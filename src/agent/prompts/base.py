@@ -86,7 +86,7 @@ class PromptTemplate(BaseModel):
             agent_name: str
             role: str
 
-        prompt = SystemPrompt(agent_name="Teacher", role="绘图助手")
+        prompt = SystemPrompt(agent_name="Planner", role="绘图助手")
         text = prompt.render(env)
         ```
     """
