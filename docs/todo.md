@@ -44,29 +44,29 @@
 
 ## 论文创新点
 
-### 1. Reactive Blackboard Architecture
+### 1. Reactive Blackboard & Event Sourcing
 
-黑板作为事件源，发布/订阅而非轮询。
+黑板作为事件源，结合 Event Sourcing 存储操作序列，支持时间旅行调试。
 
-### 2. Semantic Snapshot Isolation
+### 2. Enhanced Semantic Isolation
 
-AI 提交时检测语义冲突，自动修复或请求重推理。
+预测性冲突检测（基于历史模式）+ 多模态冲突识别 + 分级修复策略。
 
 ### 3. Incremental Graph Cognition
 
-增量维护图摘要，减少 Token 消耗 60%+。
+增量维护图摘要（Delta Update），延迟更新策略，减少 Token 消耗 70%+。
 
-### 4. Speculative Execution
+### 4. Speculative Execution & Rollback
 
-预测用户下一步，预生成响应，命中则零延迟。
+基于用户行为图预测下一步，并行预生成；支持原子化快速回滚。
 
-### 5. Spatial Partitioning
+### 5. Dynamic Spatial Partitioning
 
-画布分区，AI 自动选择空闲区域，避免冲突。
+基于热力图分析用户活跃区，动态避让 "冷区" 生成内容。
 
 ### 6. Multi-Model Ensemble
 
-多模型并行生成，投票融合结果。
+并行调用多模型（Tier 1/2），拓扑一致性投票融合，提升鲁棒性。
 
 ---
 
@@ -129,166 +129,141 @@ AI 提交时检测语义冲突，自动修复或请求重推理。
 
 ---
 
-### 阶段 2: LLM Router (P0)
+### 阶段 2: Dynamic LLM Router (P0)
 
-**目标**: 根据任务类型选择最优模型。
+**目标**: 根据任务类型和实时性能选择最优模型。
 
 - [ ] 创建 `src/agent/core/llm_router.py`
+  - [ ] 实现 `PerformanceMonitor`: 追踪延迟、错误率
+  - [ ] 实现动态路由逻辑: `select_model(task, constraints)`
+- [ ] 任务类型与分级定义
 
-  ```python
-  class LLMRouter:
-      def get_model_for_task(self, task: str) -> LLMConfig
-      async def chat_completion(self, task: str, messages, **kwargs) -> LLMResponse
-  ```
+  - `Tier 1`: Router / Mutator (Local/Small)
+  - `Tier 2`: Generator / Reasoner (Large)
 
-- [ ] 任务类型定义
+- [ ] 任务分发优化
 
-  - `router` → 意图分类 (gpt-4o-mini)
-  - `generator` → 结构生成 (deepseek-v3)
-  - `mutator` → 增量修改 (qwen-14b)
-  - `grounding` → 指代消解 (gpt-4o-mini)
-
-- [ ] 模型优先级列表 + 自动故障转移
+  - [ ] 实现任务拆分逻辑 (Sub-task Decomposition)
+  - [ ] 实现 DAG 依赖调度
 
 - [ ] 修改 `BaseAgent` 使用 `LLMRouter` 替代 `LLMClient`
 
 ---
 
-### 阶段 3: 状态注入 (P1)
+### 阶段 3: 增量状态注入 (P1)
 
-**目标**: 让 LLM 了解画布当前状态。
+**目标**: 高效让 LLM 了解画布当前状态。
 
 #### 3.1 图摘要生成 (新增)
 
 - [ ] 创建 `src/agent/core/graph_summary.py`
 
-  ```python
-  def summarize_graph(ydoc) -> str:
-      """生成轻量拓扑描述 (无坐标)"""
-      # 输出: "Nodes: [A(start), B(process)], Edges: [A→B]"
-  ```
+  - [ ] `summarize_graph(ydoc)`: 全量摘要
+  - [ ] `get_delta_summary(prev, curr)`: 差分摘要 **(Enhanced)**
 
-- [ ] 修改 Prompt 模板注入 `{{graph_summary}}`
+- [ ] 修改 Prompt 模板注入 `{{delta_summary}}`
 
 #### 3.2 增量图认知 (创新点 3)
 
 - [ ] 创建 `src/agent/core/graph_cognition.py`
-  - 监听 Yjs 变更事件
-  - 增量更新摘要缓存
-  - 缓存失效策略
+  - [ ] 监听 Yjs 变更事件
+  - [ ] 实现 **延迟更新 (Lazy Update)** 策略
+  - [ ] 实现 **增量推送 (Incremental Push)** 到前端
 
 ---
 
-### 阶段 4: 拓扑与几何解耦 (P1)
+### 阶段 4: 拓扑与几何解耦 & 布局增强 (P1)
 
-**目标**: LLM 只输出逻辑，算法计算坐标。
+**目标**: LLM 只输出逻辑，算法计算坐标，保证布局稳定。
 
 #### 4.1 逻辑操作工具 (新增)
 
 - [ ] 创建 `src/agent/tools/logical_ops.py`
-  ```python
-  def add_node(label, type, parent_id) -> Op
-  def delete_node(node_id) -> Op
-  def add_edge(from_id, to_id) -> Op
-  def delete_edge(from_id, to_id) -> Op
-  ```
   - 输出操作序列 `List[Op]`，无坐标
+  - 支持 `add_node`, `delete_edge` 等原子操作
 
 #### 4.2 LayoutEngine (新增)
 
 - [ ] 创建 `src/agent/core/layout_engine.py`
+  - [ ] 集成 **Force-directed** (力导向) 算法
+  - [ ] 实现 **Cognitive Map Preservation** (认知地图保持): 最小化节点移动
+  - [ ] 实现 **Dynamic Spatial Partitioning**:
+    - 集成热力图分析 (User Heatmap)
+    - 动态计算 "冷区" (Cold Zone)
 
-  ```python
-  class LayoutEngine:
-      def apply_operations(self, ops, graph) -> Graph
-      def identify_affected_subgraph(self, ops) -> Set[str]
-      def compute_layout(self, graph, affected) -> Graph
-  ```
+#### 4.3 多模型集成 (Enhanced)
 
-- [ ] 集成布局算法
-  - Dagre (层级布局)
-  - Force-directed (力导向)
-
-#### 4.3 保留兼容
-
-- [ ] 原有工具 (`create_flowchart_node` 等) 作为降级路径
-- [ ] 简单任务走旧路径，复杂任务走新管道
+- [ ] 创建 `src/agent/core/ensemble.py`
+  - [ ] 实现 **Parallel Execution**: 并行调用生成与逻辑模型
+  - [ ] 实现 **Voting Mechanism**: 拓扑一致性检查与融合
 
 ---
 
-### 阶段 5: 流式响应 (P2)
+### 阶段 5: 流式响应 & 异步处理 (P2)
 
-**目标**: 边生成边渲染，提升体验。
+**目标**: 边生成边渲染，提升大规模并发性能。
 
 - [ ] LLM 调用启用 `stream=True`
 - [ ] 流式 JSON 解析 (识别完整 Op 后立即执行)
+- [ ] **Async Task Queue**:
+
+  - [ ] 引入 `asyncio.Queue` (或 Celery) 处理耗时任务 (布局/生图)
+  - [ ] 实现任务优先级调度
+
 - [ ] WebSocket 实时推送
   - `element:preview` (乐观更新)
   - `element:confirm` (后端确认)
-- [ ] 前端乐观更新 + 修正动画
 
 ---
 
-### 阶段 6: 语义冲突检测 (P2)
+### 阶段 6: 增强语义冲突检测 (P2)
 
-**目标**: 防止 AI 输出基于过时状态。
+**目标**: 智能防止冲突，多模态检测。
 
 - [ ] 创建 `src/agent/core/semantic_transaction.py`
-
-  ```python
-  class SemanticTransaction:
-      def __init__(self, snapshot_version)
-      def commit(self, current_state) -> CommitResult
-      def detect_semantic_conflicts(self, state) -> List[Conflict]
-      def auto_repair(self, conflicts) -> Optional[List[Op]]
-  ```
-
-- [ ] 冲突类型: 引用失效、空间冲突、语义矛盾
-- [ ] 修复策略: 自动修复 → LLM 重推理 → 用户裁决
+  - [ ] 实现 **Predictive Conflict Detection**: 基于历史模式预测
+  - [ ] 实现 **Multi-modal Detection**: 语义 + 空间 + 属性
+- [ ] 冲突解决策略
+  - [ ] Auto-fix (力导向弹开)
+  - [ ] Re-reason (重推理)
+  - [ ] Rollback (回滚)
 
 ---
 
-### 阶段 7: 投机执行 (P3)
+### 阶段 7: 投机执行 & 回滚 (P3)
 
 **目标**: 预测用户下一步，降低感知延迟。
 
 - [ ] 创建 `src/agent/core/speculative.py`
-- [ ] 预测策略 (基于操作序列/图结构)
-- [ ] 并行预生成候选响应
-- [ ] 命中/回滚机制
+  - [ ] 建立 `UserActionGraph` 进行行为预测
+  - [ ] 实现 `pending` 状态管理 (前端虚线显示)
+- [ ] 回滚机制
+  - [ ] 实现 **Fast Rollback**: 原子化撤销未确认的 speculation
 
 ---
 
-### 阶段 8: 空间分区 (P3)
+### 阶段 8: 数据存储优化 (P3)
 
-**目标**: 避免 AI 与用户操作冲突。
+**目标**: 提升数据查询与同步效率。
 
-- [ ] 画布 9 宫格分区
-- [ ] AI 自动选择空闲区域
-- [ ] 用户进入 AI 区域 → AI 暂停/迁移
-- [ ] 跨区连接协调协议
+- [ ] **Event Sourcing**:
 
----
+  - [ ] 设计操作日志存储 (`LogStore`)
+  - [ ] 支持基于日志的时间旅行恢复
 
-### 阶段 9: 多模型投票 (P3)
-
-**目标**: 提升输出质量和一致性。
-
-- [ ] 并行调用多模型
-- [ ] 结果相似度比对
-- [ ] 投票/置信度融合
-- [ ] 冲突展示给用户选择
+- [ ] 增量数据库优化
+  - [ ] 优化 `Commit`/`Update` 存储结构
 
 ---
 
-### 阶段 10: 验证与测试
+### 阶段 9: 验证与测试
 
 - [ ] 配置系统单元测试
-- [ ] LLMRouter 集成测试
-- [ ] 图摘要准确性测试
-- [ ] 布局算法效果测试
-- [ ] 语义冲突场景测试
-- [ ] 端到端性能基准
+- [ ] LLMRouter 动态路由测试
+- [ ] 增量摘要准确性测试
+- [ ] 布局稳定性测试 (偏移量指标)
+- [ ] 冲突预测准确率测试
+- [ ] 端到端性能基准 (E2E Latency)
 
 ---
 
