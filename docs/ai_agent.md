@@ -1,517 +1,201 @@
-# AI Agent 系统文档
+# AI Agent 架构文档
 
-> 版本: 1.2.0 | 更新时间: 2025-12
+> 更新时间: 2025-12-11
 
-## 概述
+## 一、系统概述
 
-SyncCanvas AI Agent 是一个基于 ReAct 架构的智能白板助手，支持：
+SyncCanvas 采用 **State-Aware Neuro-Symbolic Pipeline**（状态感知的神经符号流水线）架构，实现 AI 辅助的协作白板编辑。
 
-- 🎨 **智能绘图** - 流程图、架构图、数据流图等
-- 💬 **自然对话** - 理解上下文，多轮交互
-- 🌐 **信息获取** - 网页爬取、文本分析
-- 📐 **画布感知** - 自动获取边界，避免覆盖
-- 🔒 **鲁棒架构** - 重试、超时、并发控制
-- 📡 **实时流式** - WebSocket 推送执行步骤
+**核心设计理念：**
+1. **拓扑与几何解耦** - LLM 负责逻辑正确性，布局算法负责视觉正确性
+2. **状态注入** - 实时图摘要作为上下文，解决多用户协作下的指代模糊
+3. **黑板模式** - Yjs/CRDT 作为共享状态，Agent 和用户都是"专家"
 
-## 架构设计
+---
+
+## 二、现有架构 (Current)
+
+### 数据流
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    AI Service Layer                      │
-├─────────────────────────────────────────────────────────┤
-│                                                          │
-│  ┌──────────────┐    ┌──────────────┐                  │
-│  │   Planner    │───▶│   Canvaser   │                  │
-│  │    Agent     │    │    Agent     │                  │
-│  └──────┬───────┘    └──────┬───────┘                  │
-│         │                    │                          │
-│         ▼                    ▼                          │
-│  ┌─────────────────────────────────────┐               │
-│  │           Tool Registry              │               │
-│  ├─────────────────────────────────────┤               │
-│  │ • Excalidraw Tools (绘图)           │               │
-│  │ • Web Tools (网页爬取)              │               │
-│  │ • General Tools (通用)              │               │
-│  └─────────────────────────────────────┘               │
-│                                                          │
-└─────────────────────────────────────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────────┐
-│                    LLM Client                            │
-│            (SiliconFlow / OpenAI)                        │
-└─────────────────────────────────────────────────────────┘
+User Input → PlannerAgent → ReAct Loop → Tool Call (create_element) → Yjs → Broadcast
+                                              ↑
+                                        含 x,y 坐标
 ```
 
-## 执行流程图
+### 组件
 
-### HTTP API 请求流程
+| 组件 | 文件 | 职责 |
+|------|------|------|
+| PlannerAgent | `src/agent/agents/planner.py` | 主协调者，处理用户请求 |
+| CanvaserAgent | `src/agent/agents/canvaser.py` | 专业绘图，复杂流程图 |
+| BaseAgent | `src/agent/core/agent.py` | ReAct 循环、重试、超时控制 |
+| LLMClient | `src/agent/core/llm.py` | LLM 调用，支持主/备用故障转移 |
+| Tools | `src/agent/tools/` | 画布操作工具（含坐标参数） |
 
-```mermaid
-flowchart TD
-    A[用户发送请求<br/>POST /api/ai/generate] --> B{检查房间锁}
-    B -->|房间忙| C[返回 429 错误]
-    B -->|空闲| D[创建 AgentRun 记录]
-    D --> E[初始化 PlannerAgent]
-    E --> F{检测绘图关键词}
-    F -->|是绘图请求| G[委托给 CanvaserAgent]
-    F -->|普通对话| H[PlannerAgent 处理]
+### 问题
 
-    G --> I[ReAct 循环开始]
-    H --> I
+1. LLM 直接输出坐标 → 不可靠
+2. 没有状态注入 → 无法理解画布当前状态
+3. 单一模型 → 无法针对任务优化
 
-    I --> J[LLM 生成思考 + 工具调用]
-    J --> K{需要调用工具?}
-    K -->|是| L[执行工具<br/>记录到 AgentAction]
-    L --> M[获取工具结果]
-    M --> N{达到终止条件?}
-    K -->|否| O[生成最终响应]
-    N -->|否| J
-    N -->|是| O
+---
 
-    O --> P[更新 AgentRun 状态]
-    P --> Q[返回结果给用户]
+## 三、目标架构 (Target)
+
+### 数据流
+
+```
+User Input
+    ↓
+┌─────────────────────────────────────────────────────────────┐
+│ Phase 1: State Hydration (状态注入)                          │
+│   - summarize_graph(ydoc) → 轻量拓扑描述                      │
+│   - 构建增强 Prompt: {用户指令, 图摘要, 历史}                  │
+└─────────────────────────────────────────────────────────────┘
+    ↓
+┌─────────────────────────────────────────────────────────────┐
+│ Phase 2: Intent Routing (意图路由)                           │
+│   - Router 分类: create / modify / qa                        │
+│   - 分发给对应 Agent                                         │
+└─────────────────────────────────────────────────────────────┘
+    ↓
+┌─────────────────────────────────────────────────────────────┐
+│ Phase 3: Logical Reasoning (逻辑推理)                        │
+│   - Generator: 生成逻辑 JSON (无坐标)                         │
+│   - Mutator: 输出操作序列 [delete, add, connect]             │
+│   - Grounding: 指代消解 "那个红框" → node-123                 │
+└─────────────────────────────────────────────────────────────┘
+    ↓
+┌─────────────────────────────────────────────────────────────┐
+│ Phase 4: Geometric Solving (几何求解)                        │
+│   - LayoutEngine 计算坐标                                     │
+│   - 子图增量布局 (保持心智地图稳定)                            │
+└─────────────────────────────────────────────────────────────┘
+    ↓
+┌─────────────────────────────────────────────────────────────┐
+│ Phase 5: Sync & Broadcast (同步广播)                         │
+│   - CRDT Transaction                                         │
+│   - WebSocket 推送                                           │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### WebSocket 流式响应流程
+### Agent 角色定义
 
-```mermaid
-sequenceDiagram
-    participant 前端 as 前端 (AIAssistant)
-    participant WS as WebSocket 端点
-    participant Service as AIService
-    participant Agent as PlannerAgent
-    participant Tools as 工具 Registry
-    participant DB as 数据库
+| Agent | 推荐模型 | 职责 |
+|-------|----------|------|
+| Router | 小模型 (gpt-4o-mini) | 意图分类，任务分发 |
+| Generator | 推理强 (DeepSeek-V3) | 从零生成图结构 |
+| Mutator | 快速响应 (Qwen-14B) | 增量修改现有结构 |
+| Grounding | 小模型 | 指代消解，空间定位 |
 
-    前端->>WS: 连接 /api/ai/stream/{room_id}
-    WS-->>前端: 连接成功
-
-    前端->>WS: {type: "request", prompt: "画流程图"}
-    WS-->>前端: {type: "started", room_id, prompt}
-
-    WS->>Service: process_request_with_stream()
-    Service->>DB: 创建 AgentRun
-    Service->>Agent: run(context, prompt)
-
-    loop ReAct 循环
-        Agent->>Agent: LLM 思考
-        Agent-->>WS: 步骤回调
-        WS-->>前端: {type: "step", thought, action}
-
-        alt 需要工具调用
-            Agent->>Tools: 执行工具
-            Tools-->>Agent: 工具结果
-            Agent->>DB: 记录 AgentAction
-        end
-    end
-
-    Agent-->>Service: 返回响应
-    Service->>DB: 更新 AgentRun 状态
-    WS-->>前端: {type: "complete", response, metrics}
-```
-
-### Agent 委托决策流程
-
-```mermaid
-flowchart LR
-    A[用户输入] --> B{包含绘图关键词?}
-    B -->|画/绘制/diagram/...| C[CanvaserAgent]
-    B -->|否| D[PlannerAgent 直接处理]
-
-    C --> E[获取画布边界]
-    E --> F[计算节点坐标]
-    F --> G[创建节点]
-    G --> H[连接节点]
-    H --> I[返回结果]
-
-    D --> J{需要工具?}
-    J -->|是| K[调用工具]
-    J -->|否| L[生成文本回复]
-    K --> L
-```
-
-### 工具执行流程
-
-```mermaid
-flowchart TD
-    A[Agent 决定调用工具] --> B[Tool Registry 查找工具]
-    B --> C{工具存在?}
-    C -->|否| D[返回 TOOL_NOT_FOUND 错误]
-    C -->|是| E[Pydantic 参数验证]
-
-    E --> F{验证通过?}
-    F -->|否| G[返回参数错误]
-    F -->|是| H{需要 room_id?}
-
-    H -->|是| I[从 context 获取 room_id]
-    I --> J[获取 Yjs Room]
-    H -->|否| K[直接执行]
-    J --> K
-
-    K --> L[执行工具函数]
-    L --> M{执行成功?}
-    M -->|是| N[记录到 AgentAction]
-    M -->|否| O{重试次数 < 3?}
-    O -->|是| L
-    O -->|否| P[返回 TOOL_EXECUTION_ERROR]
-
-    N --> Q[返回结果给 Agent]
-```
-
-## 核心组件
-
-### 1. PlannerAgent (主协调者)
-
-负责理解用户意图，可以：
-
-- 直接回答问题
-- 使用工具完成任务
-- 将复杂绘图任务委托给 CanvaserAgent
-
-**委托关键词检测:**
-
-```python
-DRAW_KEYWORDS = [
-    "draw", "diagram", "flowchart", "sketch",
-    "画", "绘制", "流程图", "数据流图", "架构图"
-]
-```
-
-### 2. CanvaserAgent (绘图专家)
-
-专门处理绘图任务，特点：
-
-- 低温度 (0.2) 保证一致性
-- 详细的布局指南
-- 自动获取画布边界
-
-**布局配置:**
-
-```python
-class LayoutConfig:
-    NODE_WIDTH = 160       # 矩形宽度
-    NODE_HEIGHT = 70       # 矩形高度
-    DECISION_SIZE = 120    # 菱形尺寸
-    VERTICAL_GAP = 80      # 垂直间距
-    HORIZONTAL_GAP = 220   # 分支水平间距
-```
-
-## 工具系统
-
-### Excalidraw 绘图工具
-
-| 工具名                  | 功能           | 主要参数                          |
-| ----------------------- | -------------- | --------------------------------- |
-| `get_canvas_bounds`     | 获取画布边界   | -                                 |
-| `create_flowchart_node` | 创建流程图节点 | label, node_type, x, y            |
-| `connect_nodes`         | 连接两个节点   | from_id, to_id, label             |
-| `create_element`        | 创建基础图形   | element_type, x, y, width, height |
-| `list_elements`         | 列出画布元素   | limit                             |
-| `update_element`        | 更新元素属性   | element_id, ...                   |
-| `delete_elements`       | 删除元素       | element_ids                       |
-| `clear_canvas`          | 清空画布       | confirm                           |
-
-### 网页工具
-
-| 工具名          | 功能            | 主要参数                      |
-| --------------- | --------------- | ----------------------------- |
-| `fetch_webpage` | 获取网页内容    | url, extract_text, max_length |
-| `search_web`    | 搜索网页 (占位) | query, max_results            |
-
-### 通用工具
-
-| 工具名             | 功能            | 主要参数            |
-| ------------------ | --------------- | ------------------- |
-| `get_current_time` | 获取当前时间    | format              |
-| `calculate`        | 数学计算        | expression          |
-| `create_outline`   | 创建大纲 (占位) | topic, depth        |
-| `thinking`         | 思考记录 (占位) | text, analysis_type |
-
-## 工具注册机制
-
-使用装饰器模式注册工具：
-
-```python
-from src.ai_engine.core.tools import registry
-
-@registry.register(
-    "tool_name",
-    "工具描述",
-    ArgsModel  # Pydantic 模型定义参数
-)
-async def tool_name(
-    param1: str,
-    param2: int = 10,
-    context: AgentContext = None,
-) -> Dict[str, Any]:
-    """工具实现"""
-    return {"status": "success", "data": ...}
-```
-
-## 绘图流程
-
-### 1. 获取画布边界 (必须)
-
-```python
-# Agent 首先调用
-result = await get_canvas_bounds(context=ctx)
-# 返回:
-# {
-#     "status": "success",
-#     "is_empty": False,
-#     "bounds": {"min_x": 100, "max_x": 500, ...},
-#     "suggested_start": {"x": 600, "y": 100},
-#     "message": "建议从 (600, 100) 开始绘制"
-# }
-```
-
-### 2. 创建节点
-
-```python
-# 根据 suggested_start 创建节点
-result = await create_flowchart_node(
-    label="开始",
-    node_type="ellipse",
-    x=600, y=100,  # 使用建议位置
-    context=ctx
-)
-# 返回的 element_id 用于后续连接
-element_id = result["element_id"]
-```
-
-### 3. 连接节点
-
-```python
-await connect_nodes(
-    from_id=start_id,
-    to_id=step1_id,
-    label=None,  # 判断分支时使用 "是"/"否"
-    context=ctx
-)
-```
-
-## 配置
-
-配置文件位于 `config/config.toml`:
+### 任务模型配置
 
 ```toml
-[ai]
-provider = "siliconflow"
-model = "Qwen/Qwen2.5-14B-Instruct"
-base_url = "https://api.siliconflow.cn/v1"
-api_key = "your-api-key"
+[model_task_config.router]
+model_list = ["gpt-4o-mini"]
+temperature = 0.1
 
-# 备用提供商
-fallback_provider = "openai"
-fallback_model = "gpt-4o-mini"
+[model_task_config.generator]
+model_list = ["deepseek-v3", "qwen-14b"]
+temperature = 0.3
 
-# 工具调用配置
-tool_choice = "auto"
-max_tool_calls = 10
+[model_task_config.mutator]
+model_list = ["qwen-14b"]
+temperature = 0.2
+
+[model_task_config.grounding]
+model_list = ["gpt-4o-mini"]
+temperature = 0.1
 ```
 
-## API 接口
+---
 
-### POST /api/ai/generate
+## 四、核心创新点
 
-生成图形/执行 AI 任务
+### 1. 拓扑与几何解耦
 
-**请求:**
+```python
+# 现在：LLM 输出坐标
+create_flowchart_node(x=100, y=200, text="A")
 
+# 目标：LLM 只输出逻辑
+add_node(label="A", type="process", parent="root")
+# 坐标由 LayoutEngine 计算
+```
+
+### 2. 状态注入 (State Hydration)
+
+```python
+def summarize_graph(ydoc) -> str:
+    """将画布转为轻量拓扑描述"""
+    # 输出: "Nodes: [A(start), B(process)], Edges: [A→B]"
+    # 不含坐标，减少 Token 消耗
+```
+
+### 3. 指代消解 (Grounding)
+
+用户说："在左边那个红框下面加一个圆"
+
+```python
+def ground_reference(query: str, graph_summary: str) -> str:
+    """将模糊指代转为具体 ID"""
+    # "左边红框" → "node-abc-123"
+```
+
+### 4. 子图增量布局
+
+```python
+def apply_layout(ops: List[Op], graph: Graph) -> Graph:
+    affected = identify_affected_subgraph(ops)  # 只识别受影响节点
+    return layout_subgraph(graph, affected)      # 避免全图重排
+```
+
+---
+
+## 五、数据流转示例
+
+**用户输入：** "在 Login 和 Home 之间加一个 2FA 验证"
+
+**Phase 1 输出：**
 ```json
 {
-  "prompt": "画一个用户登录流程图",
-  "room_id": "uuid-string"
+  "instruction": "Insert '2FA' between 'Login' and 'Home'",
+  "graph_summary": "Nodes: [Login(n1), Home(n2)], Edges: [n1→n2]"
 }
 ```
 
-**响应:**
-
+**Phase 3 输出：**
 ```json
 {
-  "status": "success",
-  "message": "已创建 6 个节点，5 条连接线",
-  "run_id": 123
+  "actions": [
+    {"op": "delete_edge", "src": "n1", "tgt": "n2"},
+    {"op": "add_node", "id": "n3", "label": "2FA"},
+    {"op": "add_edge", "src": "n1", "tgt": "n3"},
+    {"op": "add_edge", "src": "n3", "tgt": "n2"}
+  ]
 }
 ```
 
-### GET /api/ai/runs/{run_id}
-
-获取 Agent 运行详情
-
-**响应:**
-
+**Phase 4 输出：**
 ```json
 {
-    "data": {
-        "run_id": 123,
-        "room_id": "uuid",
-        "prompt": "...",
-        "status": "completed",
-        "actions": [
-            {
-                "tool": "get_canvas_bounds",
-                "arguments": {},
-                "result": {"status": "success", ...}
-            },
-            ...
-        ]
-    }
+  "updates": [
+    {"id": "n3", "x": 100, "y": 150},
+    {"id": "n2", "x": 100, "y": 300}
+  ]
 }
 ```
 
-## 扩展指南
+---
 
-### 添加新工具
+## 六、相关文件
 
-1. 在 `src/ai_engine/tools/` 创建模块
-2. 定义参数 Schema (Pydantic)
-3. 使用 `@registry.register` 装饰器
-4. 在 `__init__.py` 中导入
-
-```python
-# src/ai_engine/tools/my_tools.py
-from pydantic import BaseModel, Field
-from src.ai_engine.core.tools import registry
-
-class MyToolArgs(BaseModel):
-    param: str = Field(..., description="参数描述")
-
-@registry.register("my_tool", "工具描述", MyToolArgs)
-async def my_tool(param: str, context=None):
-    return {"status": "success", "result": param}
-```
-
-### 添加新 Agent
-
-1. 继承 `BaseAgent` 或 `PlanningAgent`
-2. 定义系统提示词
-3. 注册需要的工具
-4. 实现 `run` 方法
-
-```python
-from src.ai_engine.core.agent import BaseAgent
-
-class MyAgent(BaseAgent):
-    def __init__(self, llm_client):
-        super().__init__(
-            name="MyAgent",
-            role="...",
-            llm_client=llm_client,
-            system_prompt="...",
-        )
-        self._register_tools()
-
-    async def run(self, context, user_input, temperature=0.3):
-        return await super().run(context, user_input, temperature)
-```
-
-## 鲁棒性架构
-
-### 重试机制
-
-LLM 调用和工具执行失败时自动重试：
-
-```python
-# 配置
-AgentConfig(
-    max_retries=3,      # 最大重试次数
-    retry_delay=1.0,    # 重试间隔
-)
-```
-
-### 超时控制
-
-多层超时保护：
-
-```python
-AgentConfig(
-    llm_timeout=60.0,     # LLM 调用超时
-    tool_timeout=30.0,    # 工具执行超时
-    total_timeout=300.0,  # 总执行超时
-)
-```
-
-### 并发控制
-
-房间级别锁，防止同一房间同时多个 Agent 操作：
-
-```python
-async with RoomLockManager.acquire(room_id):
-    # 执行操作
-```
-
-### 执行指标
-
-```python
-agent.metrics.to_dict()
-# {
-#     "duration_ms": 1234.5,
-#     "total_llm_calls": 3,
-#     "total_tool_calls": 5,
-#     "total_retries": 1,
-#     "avg_llm_latency_ms": 456.7,
-#     "errors": []
-# }
-```
-
-### 工具安全验证
-
-- 参数类型验证 (Pydantic)
-- 危险模式检测 (防止代码注入)
-- URL 黑名单 (防止 SSRF)
-
-```python
-# 自动验证
-@registry.register(
-    "my_tool",
-    "描述",
-    ArgsSchema,
-    validate_args=True,  # 启用验证
-)
-```
-
-### 错误类型
-
-统一的错误代码系统：
-
-| 代码 | 名称                 | 说明         |
-| ---- | -------------------- | ------------ |
-| 2001 | LLM_CONNECTION       | LLM 连接失败 |
-| 2002 | LLM_TIMEOUT          | LLM 调用超时 |
-| 3001 | TOOL_NOT_FOUND       | 工具不存在   |
-| 3003 | TOOL_EXECUTION_ERROR | 工具执行错误 |
-| 4002 | ROOM_BUSY            | 房间正忙     |
-
-## 日志
-
-日志系统支持颜色输出，不同模块显示不同颜色：
-
-- 🔵 **蓝色** - API 路由 (`src.routers`)
-- 🟣 **紫色** - AI 引擎 (`src.ai`)
-- 🔵 **青色** - WebSocket (`src.ws`)
-- 🟡 **黄色** - 数据库 (`src.db`)
-- ⚪ **灰色** - Uvicorn
-
-日志格式: `HH:MM:SS [级别] 模块名 消息`
-
-## 故障排查
-
-### 工具调用失败
-
-1. 检查 `context.room_id` 是否正确
-2. 确认 WebSocket 房间已创建
-3. 查看后端日志获取详细错误
-
-### 元素未显示
-
-1. 检查坐标是否在可视范围
-2. 确认 Y.Array 同步正常
-3. 刷新前端页面
-
-### LLM 响应异常
-
-1. 检查 API Key 是否有效
-2. 查看 `config/config.toml` 配置
-3. 尝试切换到备用提供商
+| 文件 | 用途 |
+|------|------|
+| `src/agent/core/agent.py` | BaseAgent 基类 |
+| `src/agent/core/llm.py` | LLM 客户端 |
+| `src/agent/agents/planner.py` | PlannerAgent |
+| `src/agent/agents/canvaser.py` | CanvaserAgent |
+| `src/agent/tools/` | 画布操作工具 |
+| `src/agent/prompts/` | Prompt 模板 |

@@ -7,7 +7,8 @@
 ```
 SyncCanvas/
 ├── main.py                 # 应用入口，FastAPI 服务器
-├── config.toml             # 配置文件
+├── config/                 # 配置目录
+│   └── config.toml         # 主配置文件
 ├── pyproject.toml          # Python 项目配置 (uv)
 ├── requirements.txt        # Python 依赖列表
 ├── uv.lock                 # uv 锁定文件
@@ -16,127 +17,75 @@ SyncCanvas/
 │   ├── __init__.py
 │   ├── config.py           # 配置加载
 │   ├── logger.py           # 日志配置
+│   ├── deps.py             # FastAPI 依赖注入
+│   │
+│   ├── agent/              # AI Agent 模块 ⭐
+│   │   ├── __init__.py
+│   │   ├── agents/         # Agent 实现
+│   │   │   ├── planner.py  # PlannerAgent (主协调)
+│   │   │   └── canvaser.py # CanvaserAgent (绘图专家)
+│   │   ├── core/           # 核心组件
+│   │   │   ├── agent.py    # BaseAgent 基类
+│   │   │   ├── llm.py      # LLM 客户端
+│   │   │   ├── tools.py    # 工具注册器
+│   │   │   ├── errors.py   # 错误定义
+│   │   │   ├── json_parser.py
+│   │   │   ├── state_machine.py
+│   │   │   └── error_recovery.py
+│   │   ├── prompts/        # Prompt 模板 (Jinja2)
+│   │   └── tools/          # 画布操作工具
+│   │       ├── canvas.py   # 画布查询
+│   │       ├── elements.py # 元素操作
+│   │       ├── flowchart.py# 流程图节点
+│   │       ├── architecture.py
+│   │       ├── auto_layout.py
+│   │       └── presets.py
 │   │
 │   ├── auth/               # 认证模块
-│   │   ├── __init__.py
-│   │   ├── router.py       # 认证路由 (登录/注册)
-│   │   └── utils.py        # JWT 工具函数
-│   │
-│   ├── crdt/               # CRDT 模块 (预留)
-│   │   └── __init__.py
+│   │   ├── router.py       # 认证路由
+│   │   └── utils.py        # JWT 工具
 │   │
 │   ├── db/                 # 数据库模块
-│   │   ├── __init__.py
 │   │   ├── crud.py         # CRUD 操作
 │   │   ├── database.py     # 数据库连接
-│   │   ├── models.py       # SQLModel 模型 (Commit, Update, Room, User)
-│   │   └── ystore.py       # 自定义 YStore (SQLModel 持久化)
-│   │
-│   ├── models/             # Pydantic 模型
-│   │   ├── __init__.py
-│   │   └── user.py         # 用户模型
+│   │   ├── models.py       # SQLModel 模型
+│   │   └── ystore.py       # Yjs 持久化
 │   │
 │   ├── routers/            # API 路由
-│   │   ├── __init__.py
 │   │   ├── ai.py           # AI 相关路由
-│   │   ├── rooms.py        # 房间管理路由
-│   │   ├── upload.py       # 文件上传路由
-│   │   └── igit/           # IGit 版本控制路由
-│   │       ├── __init__.py
-│   │       ├── models.py   # IGit 请求/响应模型
-│   │       ├── router.py   # IGit 路由
-│   │       └── utils.py    # IGit 工具函数
+│   │   ├── config.py       # 配置管理路由
+│   │   ├── rooms.py        # 房间管理
+│   │   ├── upload.py       # 文件上传
+│   │   └── igit/           # 版本控制
 │   │
-│   ├── services/           # 业务逻辑服务
-│   │   └── igit.py         # IGit 版本控制服务
+│   ├── services/           # 业务逻辑
+│   │   ├── agent_runs.py   # Agent 运行记录
+│   │   └── igit.py         # IGit 服务
 │   │
 │   └── ws/                 # WebSocket 模块
-│       ├── __init__.py
-│       └── sync.py         # Yjs 同步服务 (pycrdt-websocket)
+│       ├── sync.py         # Yjs 同步服务
+│       └── message_router.py
 │
 ├── frontend/               # 前端源代码 (React + TypeScript)
-│   ├── index.html          # HTML 入口
-│   ├── package.json        # npm 依赖
-│   ├── pnpm-lock.yaml      # pnpm 锁定文件
-│   ├── vite.config.ts      # Vite 配置
-│   ├── tsconfig.json       # TypeScript 配置
-│   ├── tailwind.config.js  # Tailwind CSS 配置
-│   ├── postcss.config.js   # PostCSS 配置
-│   ├── eslint.config.js    # ESLint 配置
-│   │
-│   ├── dist/               # 构建输出 (由后端静态服务)
-│   │
-│   └── src/
-│       ├── main.tsx        # React 入口
-│       ├── App.tsx         # 应用主组件 (路由配置)
-│       ├── index.css       # 全局样式
-│       │
-│       ├── components/     # UI 组件
-│       │   ├── AIGenerateModal.tsx # AI 生成弹窗
-│       │   ├── Canvas.tsx          # 画布主组件 (Konva)
-│       │   ├── CommitDiffPanel.tsx # 提交差异面板
-│       │   ├── ContextMenu.tsx     # 右键菜单
-│       │   ├── Cursors.tsx         # 远程光标显示
-│       │   ├── ElementsPanel.tsx   # 元素面板
-│       │   ├── ExportButtons.tsx   # 导出按钮
-│       │   ├── Grid.tsx            # 网格背景
-│       │   ├── HistoryPanel.tsx    # 历史版本面板
-│       │   ├── Modal.tsx           # 通用弹窗组件
-│       │   ├── PropertiesPanel.tsx # 属性面板
-│       │   ├── SettingsModal.tsx   # 设置弹窗
-│       │   ├── Sidebar.tsx         # 侧边栏
-│       │   ├── Toolbar.tsx         # 工具栏
-│       │   ├── WelcomeModal.tsx    # 欢迎弹窗
-│       │   └── ZoomControls.tsx    # 缩放控件
-│       │
-│       ├── stores/         # Zustand 状态管理
-│       │   ├── connection_store.ts # 连接状态
-│       │   ├── history_store.ts    # 历史记录
-│       │   ├── preferences_store.ts# 用户偏好
-│       │   ├── useCanvasStore.ts   # 画布状态
-│       │   └── useThemeStore.ts    # 主题状态
-│       │
-│       ├── hooks/          # React Hooks
-│       │   ├── useYjs.ts           # Yjs 同步 Hook
-│       │   └── use_websocket.ts    # WebSocket Hook
-│       │
-│       ├── lib/            # 工具库
-│       │   ├── d3-layout.ts        # D3 布局算法
-│       │   ├── utils.ts            # 通用工具
-│       │   └── yjs.ts              # Yjs 房间管理器
-│       │
-│       ├── pages/          # 页面组件
-│       │   ├── Login.tsx           # 登录页
-│       │   └── Rooms.tsx           # 房间列表页
-│       │
-│       ├── services/       # API 服务
-│       │   └── api/
-│       │       ├── ai.ts           # AI API 调用
-│       │       └── rooms.ts        # 房间 API 调用
-│       │
-│       ├── config/         # 前端配置
-│       │   ├── env.ts              # 环境变量
-│       │   └── tool_icon_sets.ts   # 工具图标
-│       │
-│       ├── types/          # TypeScript 类型
-│       │   └── index.ts
-│       │
-│       └── utils/          # 工具函数
-│           ├── export.ts           # 导出功能
-│           ├── smooth_stroke.ts    # 平滑笔画
-│           └── websocket.ts        # WebSocket 工具
+│   ├── src/
+│   │   ├── components/     # UI 组件
+│   │   ├── pages/          # 页面 (Login, Rooms, Settings, Welcome)
+│   │   ├── stores/         # Zustand 状态管理
+│   │   ├── hooks/          # React Hooks
+│   │   ├── services/api/   # API 服务
+│   │   └── ...
+│   └── ...
 │
 ├── data/                   # 数据目录
-│   ├── settings.json       # 服务器配置 (含 secret_key)
 │   ├── sync_canvas.db      # SQLite 数据库
 │   └── images/             # 上传的图片
 │
 ├── docs/                   # 文档
+│   ├── ai_agent.md         # AI Agent 架构文档 ⭐
 │   ├── features.md         # 功能说明
-│   └── todo.md             # 待办事项
+│   └── todo.md             # 开发计划
 │
 └── logs/                   # 日志目录
-    └── app.log             # 应用日志
 ```
 
 ## Quick Start

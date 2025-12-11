@@ -76,12 +76,6 @@ class SecurityConfig(BaseModel):
         description="应用安全密钥，用于 JWT 签名",
         json_schema_extra=ExtraField(is_secret=True, is_hidden=True).model_dump(),
     )
-    admin_key: str = Field(
-        default="admin",
-        title="管理员密钥",
-        description="管理员 API 访问密钥",
-        json_schema_extra=ExtraField(is_secret=True).model_dump(),
-    )
 
 
 class ServerConfig(BaseModel):
@@ -205,11 +199,33 @@ class AIProviderConfig(BaseModel):
 class LoggingConfig(BaseModel):
     """日志配置"""
 
-    level: str = "INFO"
-    format: str = "[%(levelname).1s] %(name)s: %(message)s"
-    show_time: bool = True
-    colorize: bool = True
-    file: Optional[str] = None
+    level: str = Field(default="INFO", title="日志级别", description="全局日志级别")
+    colorize: bool = Field(
+        default=True, title="彩色输出", description="是否启用彩色日志"
+    )
+    show_time: bool = Field(
+        default=True, title="显示时间", description="是否显示时间戳"
+    )
+    file: Optional[str] = Field(
+        default=None, title="日志文件", description="日志输出文件路径"
+    )
+
+    # 前后端分离配置
+    exclude_frontend: bool = Field(
+        default=False,
+        title="过滤前端日志",
+        description="是否过滤 WebSocket/Uvicorn 等前端相关日志",
+    )
+    frontend_level: str = Field(
+        default="WARNING",
+        title="前端日志级别",
+        description="前端模块 (ws, uvicorn) 的日志级别",
+    )
+    agent_level: str = Field(
+        default="DEBUG",
+        title="Agent 日志级别",
+        description="AI Agent 思考过程的日志级别",
+    )
 
 
 class AppConfig(BaseModel):
@@ -218,7 +234,9 @@ class AppConfig(BaseModel):
     基于 Pydantic 的配置模型，支持类型验证和默认值。
     """
 
-    version: str = "1.0.0"
+    # 配置文件版本，用于自动迁移
+    version: str = "0.1.1"
+
     security: SecurityConfig = Field(default_factory=SecurityConfig)
     server: ServerConfig = Field(default_factory=ServerConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
@@ -256,10 +274,14 @@ class ConfigManager:
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
     def _load(self) -> None:
-        """加载配置文件"""
+        """加载配置文件，自动迁移旧版本配置"""
+        # 获取代码中定义的默认版本
+        default_config = AppConfig()
+        code_version = default_config.version
+
         if not self._config_file.exists():
             # 创建默认配置
-            self._config = AppConfig()
+            self._config = default_config
             self._save()
             logger.info("已创建默认配置文件: %s", self._config_file)
             return
@@ -276,13 +298,79 @@ class ConfigManager:
             if "version" in raw and isinstance(raw["version"], int):
                 raw["version"] = f"{raw['version']}.0.0"
 
-            self._config = AppConfig(**raw)
-            self._last_mtime = mtime
+            file_version = raw.get("version", "0.0.0")
+
+            # 版本检查和自动迁移
+            if self._version_compare(file_version, code_version) < 0:
+                logger.info(
+                    "检测到旧版本配置 (v%s -> v%s)，正在迁移...",
+                    file_version,
+                    code_version,
+                )
+                raw = self._migrate_config(raw, default_config)
+                raw["version"] = code_version
+
+                # 立即保存迁移后的配置
+                self._config = AppConfig(**raw)
+                self._save()
+                logger.info("配置已迁移到 v%s", code_version)
+            else:
+                self._config = AppConfig(**raw)
+                # 检查是否有缺失字段被默认值填充，如有则补全保存
+                loaded_dict = self._config.model_dump()
+                if loaded_dict != raw:
+                    self._save()
+                    logger.info("配置已补全缺失字段")
+
+            self._last_mtime = self._config_file.stat().st_mtime
             logger.info("配置已加载 (v%s)", self._config.version)
 
         except Exception as e:  # pylint: disable=broad-except
             logger.error("加载配置失败: %s", e)
             self._config = AppConfig()
+
+    def _version_compare(self, v1: str, v2: str) -> int:
+        """比较版本号: 返回 -1 (v1 < v2), 0 (v1 == v2), 1 (v1 > v2)"""
+        try:
+            parts1 = [int(x) for x in v1.split(".")]
+            parts2 = [int(x) for x in v2.split(".")]
+            for p1, p2 in zip(parts1, parts2):
+                if p1 < p2:
+                    return -1
+                if p1 > p2:
+                    return 1
+            return 0
+        except (ValueError, AttributeError):
+            return -1
+
+    def _migrate_config(self, old: Dict, default: AppConfig) -> Dict:
+        """迁移旧配置，保留用户数据并添加新字段"""
+        default_dict = default.model_dump()
+
+        def deep_merge(base: Dict, override: Dict) -> Dict:
+            """深度合并字典，override 中的值优先"""
+            result = base.copy()
+            for key, value in override.items():
+                if (
+                    key in result
+                    and isinstance(result[key], dict)
+                    and isinstance(value, dict)
+                ):
+                    result[key] = deep_merge(result[key], value)
+                else:
+                    result[key] = value
+            return result
+
+        # 用默认配置作为基础，用户配置覆盖
+        migrated = deep_merge(default_dict, old)
+
+        # 删除已废弃的字段
+        if "security" in migrated and "admin_key" in migrated["security"]:
+            del migrated["security"]["admin_key"]
+        if "logging" in migrated and "format" in migrated["logging"]:
+            del migrated["logging"]["format"]
+
+        return migrated
 
     def _save(self) -> None:
         """保存配置到文件"""
@@ -340,10 +428,6 @@ class ConfigManager:
     @property
     def secret_key(self) -> str:
         return self.config.security.secret_key
-
-    @property
-    def admin_key(self) -> str:
-        return self.config.security.admin_key
 
     @property
     def host(self) -> str:
