@@ -30,7 +30,7 @@ TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 class StringLoader(BaseLoader):
     """字符串模板加载器
-    
+
     支持直接从字符串加载模板。
     """
 
@@ -50,20 +50,20 @@ class StringLoader(BaseLoader):
 
 class PromptManager:
     """Prompt 模板管理器
-    
+
     管理和渲染 Jinja2 模板，支持:
     - 文件模板加载
     - 字符串模板注册
     - 模板继承和包含
     - 自定义过滤器和函数
-    
+
     Example:
         ```python
         pm = PromptManager()
-        
+
         # 渲染文件模板
-        prompt = pm.render("teacher.jinja2", tools=["tool1", "tool2"])
-        
+        prompt = pm.render("planner.jinja2", tools=["tool1", "tool2"])
+
         # 注册并渲染字符串模板
         pm.register("custom", "Hello {{ name }}!")
         prompt = pm.render("custom", name="World")
@@ -72,7 +72,7 @@ class PromptManager:
 
     def __init__(self, templates_dir: Optional[Path] = None):
         """初始化模板管理器
-        
+
         Args:
             templates_dir: 模板文件目录，默认为 prompts/templates
         """
@@ -107,7 +107,7 @@ class PromptManager:
             if style == "bullet":
                 return "\n".join(f"- {item}" for item in items)
             elif style == "numbered":
-                return "\n".join(f"{i+1}. {item}" for i, item in enumerate(items))
+                return "\n".join(f"{i + 1}. {item}" for i, item in enumerate(items))
             elif style == "comma":
                 return ", ".join(items)
             return "\n".join(items)
@@ -116,11 +116,10 @@ class PromptManager:
         def truncate(text: str, length: int = 100, suffix: str = "...") -> str:
             if len(text) <= length:
                 return text
-            return text[:length - len(suffix)] + suffix
+            return text[: length - len(suffix)] + suffix
 
         # JSON 格式化
         def to_json(obj: Any, indent: int = 2) -> str:
-
             return json.dumps(obj, ensure_ascii=False, indent=indent)
 
         # 代码块格式化
@@ -140,7 +139,7 @@ class PromptManager:
 
     def register(self, name: str, template_str: str) -> None:
         """注册字符串模板
-        
+
         Args:
             name: 模板名称
             template_str: 模板字符串
@@ -150,14 +149,14 @@ class PromptManager:
 
     def render(self, template_name: str, **kwargs) -> str:
         """渲染模板
-        
+
         Args:
             template_name: 模板名称 (文件名或注册的字符串模板名)
             **kwargs: 模板变量
-            
+
         Returns:
             str: 渲染后的文本
-            
+
         Raises:
             TemplateNotFound: 模板不存在
         """
@@ -182,11 +181,11 @@ class PromptManager:
 
     def render_string(self, template_str: str, **kwargs) -> str:
         """直接渲染字符串模板
-        
+
         Args:
             template_str: 模板字符串
             **kwargs: 模板变量
-            
+
         Returns:
             str: 渲染后的文本
         """
@@ -195,7 +194,7 @@ class PromptManager:
 
     def list_templates(self) -> List[str]:
         """列出所有可用模板
-        
+
         Returns:
             list: 模板名称列表
         """
@@ -215,10 +214,10 @@ class PromptManager:
 
     def get_template_source(self, template_name: str) -> Optional[str]:
         """获取模板源码
-        
+
         Args:
             template_name: 模板名称
-            
+
         Returns:
             str: 模板源码，不存在则返回 None
         """

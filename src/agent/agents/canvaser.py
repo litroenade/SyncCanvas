@@ -218,7 +218,7 @@ class CanvaserAgent(PlanningAgent):
         """
         try:
             return prompt_manager.render(
-                "painter.jinja2",
+                "canvaser.jinja2",
                 layout=self.layout_config.to_dict(),
                 tools=[
                     {

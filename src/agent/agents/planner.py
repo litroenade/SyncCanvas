@@ -165,7 +165,7 @@ class PlannerAgent(BaseAgent):
         """
         try:
             return prompt_manager.render(
-                "teacher.jinja2",
+                "planner.jinja2",
                 drawing_tools=[
                     {
                         "name": "get_canvas_bounds",
@@ -191,7 +191,7 @@ class PlannerAgent(BaseAgent):
                     "遇到复杂绘图任务，会自动委托给专业绘图助手",
                 ],
             )
-        except Exception as e: # pylint: disable=broad-except
+        except Exception as e:  # pylint: disable=broad-except
             logger.warning("Jinja2 模板渲染失败，使用静态 prompt: %s", e)
             return PLANNER_SYSTEM_PROMPT
 

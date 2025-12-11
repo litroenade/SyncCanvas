@@ -6,23 +6,15 @@
 - models: 核心数据模型 (Room, Commit, Update, AgentRun 等)
 - user: 用户模型
 - base: 模型基类和时间工具
-- repository: Repository 层抽象
-- crud: 传统 CRUD 函数 (兼容)
+- crud: CRUD 操作函数
 - ystore: Yjs 持久化存储
 """
 
-from .database import engine, init_db, get_session
+from .database import engine, init_db, get_session, get_sync_session
 from .models import Room, RoomMember, Update, Commit, AgentRun, AgentAction
 from .user import User
 from .base import BaseDBMixin, now_timestamp, now_timestamp_ms
-from .repository import (
-    room_repo,
-    room_member_repo,
-    commit_repo,
-    update_repo,
-    agent_run_repo,
-    agent_action_repo,
-)
+from . import crud
 from .ystore import SQLModelYStore
 
 __all__ = [
@@ -30,6 +22,7 @@ __all__ = [
     "engine",
     "init_db",
     "get_session",
+    "get_sync_session",
     # 模型
     "Room",
     "RoomMember",
@@ -42,13 +35,8 @@ __all__ = [
     "BaseDBMixin",
     "now_timestamp",
     "now_timestamp_ms",
-    # Repository
-    "room_repo",
-    "room_member_repo",
-    "commit_repo",
-    "update_repo",
-    "agent_run_repo",
-    "agent_action_repo",
+    # CRUD
+    "crud",
     # 存储
     "SQLModelYStore",
 ]
