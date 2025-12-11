@@ -111,7 +111,6 @@ class GetCanvasBoundsArgs(BaseModel):
     """
 
 
-
 class UpdateElementArgs(BaseModel):
     """更新元素的参数
 
@@ -235,8 +234,7 @@ class CreatePresetElementArgs(BaseModel):
 
     preset: str = Field(
         ...,
-        description=
-        "预设名称: flowchart_start, flowchart_end, flowchart_process, flowchart_decision, flowchart_io",
+        description="预设名称: flowchart_start, flowchart_end, flowchart_process, flowchart_decision, flowchart_io",
     )
     label: str = Field(..., description="元素标签文字")
     x: float = Field(..., description="X 坐标")
@@ -252,4 +250,64 @@ class BatchUpdateArgs(BaseModel):
 
     updates: List[Dict[str, Any]] = Field(
         ..., description="更新列表，每项包含 id 和要更新的属性"
+    )
+
+
+# ==================== 批量创建参数 (JSON 规划层支持) ====================
+
+
+class ElementSpec(BaseModel):
+    """单个元素规格描述
+
+    Attributes:
+        id: 临时 ID (用于边关联)
+        type: 元素类型
+        label: 标签文字
+        x: X 坐标
+        y: Y 坐标
+        width: 宽度
+        height: 高度
+        stroke_color: 描边颜色
+        bg_color: 背景颜色
+    """
+
+    id: str = Field(..., description="临时 ID (用于边关联，如 'n1', 'n2')")
+    type: str = Field(
+        "rectangle",
+        description="元素类型: rectangle, diamond, ellipse, text",
+    )
+    label: str = Field(..., description="标签文字")
+    x: float = Field(..., description="X 坐标")
+    y: float = Field(..., description="Y 坐标")
+    width: float = Field(160, description="宽度")
+    height: float = Field(70, description="高度")
+    stroke_color: str = Field("#1e1e1e", description="描边颜色")
+    bg_color: str = Field("#ffffff", description="背景颜色")
+
+
+class EdgeSpec(BaseModel):
+    """边 (连接线) 规格描述
+
+    Attributes:
+        from_id: 起始元素临时 ID
+        to_id: 结束元素临时 ID
+        label: 边标签 (可选)
+    """
+
+    from_id: str = Field(..., description="起始元素临时 ID (如 'n1')")
+    to_id: str = Field(..., description="结束元素临时 ID (如 'n2')")
+    label: Optional[str] = Field(None, description="边标签 (可选，如 '是', '否')")
+
+
+class BatchCreateElementsArgs(BaseModel):
+    """批量创建元素的参数 (支持 LLM 返回的 JSON 规划)
+
+    Attributes:
+        elements: 元素规格列表
+        edges: 边 (连接线) 规格列表
+    """
+
+    elements: List[ElementSpec] = Field(..., description="元素规格列表")
+    edges: List[EdgeSpec] = Field(
+        default_factory=list, description="边 (连接线) 规格列表"
     )

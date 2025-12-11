@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse
 from src.db.database import init_db
 from src.ws.sync import websocket_server, asgi_server
 from src.ws.message_router import message_router
-from src.core.async_task import async_task_manager
+from src.utils.async_task import async_task_manager
 from src.config import config
 from src.logger import get_logger, setup_logging
 from src.auth.router import router as auth_router
@@ -184,5 +184,4 @@ else:
 
 
 if __name__ == "__main__":
-
     uvicorn.run(app, host=config.host, port=config.port)

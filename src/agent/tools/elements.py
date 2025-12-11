@@ -24,6 +24,7 @@ from src.agent.tools.schemas import (
     UpdateElementArgs,
     DeleteElementsArgs,
     ClearCanvasArgs,
+    BatchCreateElementsArgs,
 )
 from src.agent.tools.helpers import (
     require_room_id,
@@ -359,3 +360,194 @@ async def clear_canvas(
     logger.info("清空画布: 删除了 %d 个元素", count, extra={"room": room_id})
 
     return {"status": "success", "message": f"已清空画布 (删除了 {count} 个元素)"}
+
+
+# ==================== 批量创建工具 (JSON 规划层支持) ====================
+
+
+@registry.register(
+    "batch_create_elements",
+    "批量创建流程图元素和连接线 (支持 JSON 规划)",
+    BatchCreateElementsArgs,
+    category=ToolCategory.CANVAS,
+)
+async def batch_create_elements(
+    elements: list,
+    edges: list = None,
+    context: AgentContext = None,
+) -> Dict[str, Any]:
+    """批量创建元素和连接线
+
+    接收 LLM 输出的 JSON 规划，一次性创建所有元素和连接。
+
+    Args:
+        elements: 元素规格列表，每项包含 {id, type, label, x, y, width, height, ...}
+        edges: 边规格列表，每项包含 {from_id, to_id, label}
+        context: Agent 上下文
+
+    Returns:
+        dict: 包含 status, created_elements, created_edges 的结果
+    """
+    room_id = require_room_id(context)
+    _, doc, elements_array = await get_room_and_doc(room_id)
+
+    edges = edges or []
+
+    # 临时 ID 到真实 ID 的映射
+    id_mapping: Dict[str, str] = {}
+    created_elements = []
+    created_edges = []
+
+    with doc.transaction(origin="ai-engine/batch_create_elements"):
+        # 1. 创建所有元素
+        for spec in elements:
+            temp_id = spec.get("id", "")
+            elem_type = spec.get("type", "rectangle")
+            label = spec.get("label", "")
+            x = spec.get("x", 0)
+            y = spec.get("y", 0)
+            width = spec.get("width", 160)
+            height = spec.get("height", 70)
+            stroke_color = spec.get("stroke_color", "#1e1e1e")
+            bg_color = spec.get("bg_color", "#ffffff")
+
+            # 创建形状元素
+            shape = base_excalidraw_element(
+                elem_type, x, y, width, height, stroke_color, bg_color
+            )
+            shape_id = shape["id"]
+            id_mapping[temp_id] = shape_id
+
+            # 矩形添加圆角
+            if elem_type == "rectangle":
+                shape["roundness"] = {"type": 3}
+
+            # 创建绑定的文本元素
+            text_id = f"text_{shape_id}"
+            text_element = {
+                "id": text_id,
+                "type": "text",
+                "x": x + width / 2,
+                "y": y + height / 2,
+                "width": width - 20,
+                "height": 20,
+                "strokeColor": stroke_color,
+                "backgroundColor": "transparent",
+                "fillStyle": "solid",
+                "strokeWidth": 1,
+                "strokeStyle": "solid",
+                "roughness": 0,
+                "opacity": 100,
+                "groupIds": [],
+                "seed": random.randint(1, 100000),
+                "version": 1,
+                "versionNonce": random.randint(1, 1000000000),
+                "isDeleted": False,
+                "boundElements": None,
+                "updated": 1,
+                "link": None,
+                "locked": False,
+                "text": label,
+                "fontSize": 18,
+                "fontFamily": 1,
+                "textAlign": "center",
+                "verticalAlign": "middle",
+                "containerId": shape_id,
+                "originalText": label,
+                "autoResize": True,
+            }
+
+            # 更新形状的 boundElements
+            shape["boundElements"] = [{"id": text_id, "type": "text"}]
+
+            elements_array.append(element_to_ymap(shape))
+            elements_array.append(element_to_ymap(text_element))
+
+            created_elements.append(
+                {
+                    "temp_id": temp_id,
+                    "element_id": shape_id,
+                    "text_id": text_id,
+                    "label": label,
+                }
+            )
+
+        # 2. 创建所有连接线
+        for edge in edges:
+            from_temp_id = edge.get("from_id", "")
+            to_temp_id = edge.get("to_id", "")
+            edge_label = edge.get("label")
+
+            from_id = id_mapping.get(from_temp_id)
+            to_id = id_mapping.get(to_temp_id)
+
+            if not from_id or not to_id:
+                continue
+
+            # 查找节点位置
+            from_node = None
+            to_node = None
+            for i in range(len(elements_array)):
+                el = elements_array[i]
+                if isinstance(el, Map):
+                    el = dict(el)
+                if el.get("id") == from_id:
+                    from_node = el
+                if el.get("id") == to_id:
+                    to_node = el
+
+            if not from_node or not to_node:
+                continue
+
+            # 计算连接点
+            start_x = from_node.get("x", 0) + from_node.get("width", 100) / 2
+            start_y = from_node.get("y", 0) + from_node.get("height", 100)
+            end_x = to_node.get("x", 0) + to_node.get("width", 100) / 2
+            end_y = to_node.get("y", 0)
+
+            # 创建箭头
+            arrow = base_excalidraw_element(
+                "arrow",
+                start_x,
+                start_y,
+                abs(end_x - start_x),
+                abs(end_y - start_y),
+                "#1e1e1e",
+                "transparent",
+            )
+            arrow.update(
+                {
+                    "points": [[0, 0], [end_x - start_x, end_y - start_y]],
+                    "startBinding": {"elementId": from_id, "focus": 0, "gap": 4},
+                    "endBinding": {"elementId": to_id, "focus": 0, "gap": 4},
+                    "startArrowhead": None,
+                    "endArrowhead": "arrow",
+                    "strokeWidth": 2,
+                }
+            )
+
+            elements_array.append(element_to_ymap(arrow))
+
+            created_edges.append(
+                {
+                    "arrow_id": arrow["id"],
+                    "from_id": from_id,
+                    "to_id": to_id,
+                    "label": edge_label,
+                }
+            )
+
+    logger.info(
+        "批量创建: %d 元素, %d 连接",
+        len(created_elements),
+        len(created_edges),
+        extra={"room": room_id},
+    )
+
+    return {
+        "status": "success",
+        "message": f"已创建 {len(created_elements)} 个元素和 {len(created_edges)} 条连接线",
+        "created_elements": created_elements,
+        "created_edges": created_edges,
+        "id_mapping": id_mapping,
+    }
