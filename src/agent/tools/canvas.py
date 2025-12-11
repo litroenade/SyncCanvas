@@ -54,9 +54,17 @@ async def get_canvas_bounds(context: AgentContext = None) -> Dict[str, Any]:
     max_y = float("-inf")
     element_count = 0
 
-    for el in enumerate(elements_array):
+    logger.info("获取画布边界: room_id=%s, 元素数量=%d", room_id, len(elements_array))
+
+    for el in elements_array:
+        # 处理 Map 类型
         if isinstance(el, Map):
             el = dict(el)
+
+        # 跳过非字典类型
+        if not isinstance(el, dict):
+            logger.warning("跳过非字典元素: type=%s", type(el).__name__)
+            continue
 
         if el.get("isDeleted"):
             continue

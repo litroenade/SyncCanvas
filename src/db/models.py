@@ -37,7 +37,7 @@ class Room(SQLModel, table=True):
 
     id: str = Field(primary_key=True, max_length=36)
     name: str = Field(max_length=100)
-    owner_id: Optional[int] = Field(default=None, foreign_key="user.id", index=True)
+    owner_id: Optional[int] = Field(default=None, foreign_key="users.id", index=True)
     password_hash: Optional[str] = Field(default=None, max_length=255)
     is_public: bool = Field(default=True)
     max_users: int = Field(default=10)
@@ -54,7 +54,7 @@ class RoomMember(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     room_id: str = Field(foreign_key="room.id", index=True, max_length=36)
-    user_id: int = Field(foreign_key="user.id", index=True)
+    user_id: int = Field(foreign_key="users.id", index=True)
     role: str = Field(default="editor", max_length=20)
     joined_at: int = Field(default_factory=lambda: int(datetime.utcnow().timestamp()))
 
@@ -69,7 +69,7 @@ class Commit(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     room_id: str = Field(index=True, max_length=36)
     parent_id: Optional[int] = Field(default=None, index=True)
-    author_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    author_id: Optional[int] = Field(default=None, foreign_key="users.id")
     author_name: str = Field(default="Anonymous", max_length=100)
     message: str = Field(default="Auto save", max_length=500)
     data: bytes = Field()
