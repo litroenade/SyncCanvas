@@ -110,7 +110,6 @@ class GetCanvasBoundsArgs(BaseModel):
     无需额外参数，仅依赖 context 中的 session_id。
     """
 
-    pass
 
 
 class UpdateElementArgs(BaseModel):

@@ -115,7 +115,7 @@ async def create_container(
         elements_array.append(element_to_ymap(container))
         elements_array.append(element_to_ymap(title_element))
 
-    logger.info(f"创建容器: {container_id}", extra={"room": room_id, "title": title})
+    logger.info("创建容器: %s", container_id, extra={"room": room_id, "title": title})
 
     return {
         "status": "success",
@@ -242,13 +242,12 @@ async def create_component(
         elements_array.append(element_to_ymap(text_element))
 
     logger.info(
-        f"创建组件: {component_id}",
-        extra={"room": room_id, "type": component_type, "label": label},
+        "创建组件: %s", component_id, extra={"room": room_id, "type": component_type, "label": label}
     )
 
     return {
         "status": "success",
-        "message": f"已创建 {component_type} 组件: {label}",
+        "message": "已创建 %s 组件: %s",
         "element_id": component_id,
         "text_id": text_id,
         "position": {"x": x, "y": y},

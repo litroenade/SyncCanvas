@@ -185,7 +185,7 @@ async def calculate(
         tree = ast.parse(expr, mode='eval')
         result = safe_eval(tree.body)
 
-        logger.info(f"计算: {expr} = {result}")
+        logger.info("计算: %s = %s", expr, result)
 
         return {
             "status": "success",
@@ -211,7 +211,7 @@ async def calculate(
             "expression": expr,
             "message": "除零错误"
         }
-    except Exception as e:
+    except Exception as e: # pylint: disable=broad-except
         return {
             "status": "error",
             "expression": expr,

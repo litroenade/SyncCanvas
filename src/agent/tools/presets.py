@@ -198,10 +198,7 @@ async def batch_update_elements(
                     }
                 )
 
-    logger.info(
-        f"批量更新元素: {updated_count} 成功, {error_count} 失败",
-        extra={"room": room_id},
-    )
+    logger.info("批量更新元素: %s 成功, %s 失败", updated_count, error_count, extra={"room": room_id})
 
     return {
         "status": "success" if error_count == 0 else "partial",

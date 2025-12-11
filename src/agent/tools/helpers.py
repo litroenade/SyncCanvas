@@ -123,8 +123,7 @@ def find_element_by_id(elements_array: Array, element_id: str) -> Tuple[int, Any
     Returns:
         tuple: (索引, 元素数据) 或 (-1, None)
     """
-    for i in range(len(elements_array)):
-        el = elements_array[i]
+    for i, el in enumerate(elements_array):
         if isinstance(el, Map):
             if el.get("id") == element_id:
                 return i, dict(el)

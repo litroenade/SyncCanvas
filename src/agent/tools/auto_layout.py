@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 
 # 布局配置常量
 HORIZONTAL_GAP: int = 200  # 水平间距
-VERTICAL_GAP: int = 120    # 垂直间距
+VERTICAL_GAP: int = 120  # 垂直间距
 DEFAULT_NODE_WIDTH: int = 160
 DEFAULT_NODE_HEIGHT: int = 70
 
@@ -36,7 +36,7 @@ class SizeView:
 
 
 def _extract_graph_from_elements(
-    elements: List[Dict[str, Any]]
+    elements: List[Dict[str, Any]],
 ) -> Tuple[Dict[str, Dict], List[Tuple[str, str]], Dict[str, Any]]:
     """从画布元素中提取图结构
 
@@ -170,8 +170,7 @@ async def auto_layout_flowchart(
 
     # 提取元素数据
     elements = []
-    for i in range(len(elements_array)):
-        ymap = elements_array[i]
+    for ymap in elements_array:
         el = dict(ymap)
         elements.append(el)
 
@@ -199,8 +198,7 @@ async def auto_layout_flowchart(
     # 应用新位置
     moved_count = 0
     with doc.transaction(origin="ai-engine/auto_layout"):
-        for i in range(len(elements_array)):
-            ymap = elements_array[i]
+        for ymap in elements_array:
             el_id = ymap.get("id")
             if el_id in positions:
                 new_x, new_y = positions[el_id]
@@ -208,10 +206,7 @@ async def auto_layout_flowchart(
                 ymap["y"] = new_y
                 moved_count += 1
 
-    logger.info(
-        f"自动布局完成: 移动 {moved_count} 个节点",
-        extra={"room": room_id},
-    )
+    logger.info("自动布局完成: 移动 %s 个节点", moved_count, extra={"room": room_id})
 
     return {
         "status": "success",
@@ -254,8 +249,7 @@ async def suggest_next_position(
     max_x: float = 0
     max_bottom: float = 0
 
-    for i in range(len(elements_array)):
-        ymap = elements_array[i]
+    for ymap in elements_array:
         if ymap.get("isDeleted"):
             continue
 

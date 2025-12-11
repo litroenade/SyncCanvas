@@ -98,16 +98,16 @@ class CommitDiffResponse(BaseModel):
     elements_modified: int
     changes: List[ElementChange]
     size_diff: int
-    
+
     # 别名字段，保持向后兼容
     @property
     def strokes_added(self) -> int:
         return self.elements_added
-    
+
     @property
     def strokes_removed(self) -> int:
         return self.elements_removed
-    
+
     @property
     def strokes_modified(self) -> int:
         return self.elements_modified
@@ -124,12 +124,12 @@ class CommitDetailResponse(BaseModel):
     commit: CommitInfo
     elements_count: int
     element_types: dict  # element_type -> count
-    
+
     # 别名字段，保持向后兼容
     @property
     def strokes_count(self) -> int:
         return self.elements_count
-    
+
     @property
     def stroke_types(self) -> dict:
         return self.element_types

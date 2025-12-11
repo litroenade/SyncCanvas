@@ -6,9 +6,6 @@
 - 指数退避重试策略
 - 错误上下文保存和恢复
 - 优雅降级处理
-
-@Time: 2025-12-10
-@File: error_recovery.py
 """
 
 from __future__ import annotations
@@ -275,7 +272,7 @@ class ErrorRecoveryManager:
                 else:
                     return func(*args, **kwargs)
 
-            except Exception as e:
+            except Exception as e: # pylint: disable=broad-except
                 last_error = e
                 category = ErrorClassifier.classify(e)
 
@@ -290,7 +287,7 @@ class ErrorRecoveryManager:
 
                 # 检查是否可重试
                 if not error_ctx.can_retry:
-                    logger.warning(f"不可重试的错误: {category.value}, {e}")
+                    logger.warning("不可重试的错误: %s, %s", category.value, e)
 
                     # 尝试调用错误处理器
                     if category in self._error_handlers:
@@ -307,8 +304,11 @@ class ErrorRecoveryManager:
                 # 计算延迟
                 delay = policy.get_delay(attempt)
                 logger.info(
-                    f"重试 {attempt + 1}/{policy.max_retries}: "
-                    f"{category.value}, 延迟 {delay:.2f}s"
+                    "重试 %s/%s: %s, 延迟 %s",
+                    attempt + 1,
+                    policy.max_retries,
+                    category.value,
+                    delay,
                 )
 
                 await asyncio.sleep(delay)

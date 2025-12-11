@@ -105,7 +105,7 @@ def _is_valid_url(url: str) -> bool:
     try:
         result = urlparse(url)
         return all([result.scheme in ("http", "https"), result.netloc])
-    except Exception:
+    except Exception: # pylint: disable=broad-except
         return False
 
 
@@ -169,7 +169,7 @@ async def fetch_webpage(
             if len(content) > max_length:
                 content = content[:max_length] + "...(内容已截断)"
 
-            logger.info(f"获取网页成功: {url}", extra={"length": len(content)})
+            logger.info("获取网页成功: %s", url, extra={"length": len(content)})
 
             return {
                 "status": "success",
@@ -181,19 +181,19 @@ async def fetch_webpage(
             }
 
     except httpx.TimeoutException:
-        logger.warning(f"获取网页超时: {url}")
+        logger.warning("获取网页超时: %s", url)
         return {
             "status": "error",
             "message": f"请求超时: {url}"
         }
     except httpx.HTTPStatusError as e:
-        logger.warning(f"获取网页失败: {url}, 状态码: {e.response.status_code}")
+        logger.warning("获取网页失败: %s, 状态码: %s", url, e.response.status_code)
         return {
             "status": "error",
             "message": f"HTTP 错误: {e.response.status_code}"
         }
-    except Exception as e:
-        logger.error(f"获取网页异常: {url}, 错误: {e}")
+    except Exception as e: # pylint: disable=broad-except
+        logger.error("获取网页异常: %s, 错误: %s", url, e)
         return {
             "status": "error",
             "message": f"获取失败: {str(e)}"
@@ -220,7 +220,7 @@ async def search_web(
     Returns:
         dict: 搜索结果
     """
-    logger.info(f"搜索请求: {query}")
+    logger.info("搜索请求: %s", query)
 
     # 占位实现 - 实际需要接入搜索 API
     return {

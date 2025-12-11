@@ -90,8 +90,8 @@ def parse_json_safe(text: str, default: Any = None) -> Any:
         # 使用 json_repair 修复
         repaired = repair_json(text, return_objects=True)
         return repaired
-    except Exception as e:
-        logger.warning(f"JSON 修复失败: {e}")
+    except Exception as e: # pylint: disable=broad-except
+        logger.warning("JSON 修复失败: %s", e)
         return default
 
 

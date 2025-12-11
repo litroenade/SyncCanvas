@@ -13,8 +13,6 @@ from src.agent.prompts import prompt_manager
 from src.agent.agents.canvaser import CanvaserAgent
 from src.logger import get_logger
 
-# 导入工具以确保它们被注册
-import src.agent.tools  # noqa: F401 - 导入工具包以触发注册
 
 if TYPE_CHECKING:
     from src.services.agent_runs import AgentRunService
@@ -193,8 +191,8 @@ class PlannerAgent(BaseAgent):
                     "遇到复杂绘图任务，会自动委托给专业绘图助手",
                 ],
             )
-        except Exception as e:
-            logger.warning(f"Jinja2 模板渲染失败，使用静态 prompt: {e}")
+        except Exception as e: # pylint: disable=broad-except
+            logger.warning("Jinja2 模板渲染失败，使用静态 prompt: %s", e)
             return PLANNER_SYSTEM_PROMPT
 
     def _register_default_tools(self) -> None:
@@ -225,7 +223,7 @@ class PlannerAgent(BaseAgent):
                 retries=retries,
             )
 
-        logger.info(f"Planner Agent 已注册 {len(self.tools)} 个工具")
+        logger.info("Planner Agent 已注册 %s 个工具", len(self.tools))
 
     def _should_delegate_to_canvaser(self, text: str) -> bool:
         """判断是否应该委托给 Canvaser Agent

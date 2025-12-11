@@ -54,8 +54,7 @@ async def get_canvas_bounds(context: AgentContext = None) -> Dict[str, Any]:
     max_y = float("-inf")
     element_count = 0
 
-    for i in range(len(elements_array)):
-        el = elements_array[i]
+    for el in enumerate(elements_array):
         if isinstance(el, Map):
             el = dict(el)
 

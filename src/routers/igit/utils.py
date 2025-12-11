@@ -52,8 +52,7 @@ def parse_yjs_elements(data: bytes) -> dict:
         try:
             elements_array = ydoc.get("elements", type=Array)
             if elements_array is not None and len(elements_array) > 0:
-                for i in range(len(elements_array)):
-                    el = elements_array[i]
+                for el in elements_array:
                     if isinstance(el, Map):
                         el_dict = dict(el)
                     elif isinstance(el, dict):
