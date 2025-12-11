@@ -22,7 +22,7 @@ from src.auth.router import router as auth_router
 from src.routers.ai import router as ai_router
 from src.routers.upload import router as upload_router
 from src.routers.rooms import router as rooms_router
-from src.routers.igit import igit_router
+from src.routers.version_control import version_control_router
 from src.routers.config import router as config_router
 
 setup_logging()
@@ -81,7 +81,7 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(ai_router, prefix="/api")
 app.include_router(upload_router)  # upload_router 自带 /api/upload 前缀
 app.include_router(rooms_router, prefix="/api")
-app.include_router(igit_router, prefix="/api/rooms")
+app.include_router(version_control_router, prefix="/api/rooms")
 app.include_router(config_router, prefix="/api")
 
 

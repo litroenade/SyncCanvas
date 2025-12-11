@@ -226,7 +226,7 @@ async def get_agent_status():
         dict: 系统状态
     """
     # 获取活跃房间列表
-    active_rooms = list(RoomLockManager._active_rooms)
+    active_rooms = RoomLockManager.get_active_rooms()
 
     # 统计工具
     tools = registry.list_tools()

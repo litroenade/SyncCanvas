@@ -4,8 +4,7 @@
 
 from typing import Optional
 
-from fastapi import Response
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlmodel import Session
 
 from src.db.models import Commit
@@ -13,7 +12,7 @@ from src.db.database import get_session
 from src.auth.utils import get_current_user_optional
 from src.db.user import User
 from src.logger import get_logger
-from src.services.igit import IGitService
+from src.services.version_control import IGitService
 from src.ws.sync import websocket_server
 
 from .models import (
@@ -105,7 +104,9 @@ async def create_commit(
             },
         }
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
 
 
 @router.post("/{room_id}/checkout/{commit_id}")
@@ -247,7 +248,6 @@ async def get_commit_data(
     Returns:
         bytes: Yjs 更新数据
     """
-
 
     commit = session.get(Commit, commit_id)
     if not commit or commit.room_id != room_id:

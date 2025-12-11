@@ -1,5 +1,5 @@
-"""模块名称: igit
-主要功能: IGit 版本控制服务层
+"""模块名称: version_control
+主要功能: 画布版本控制服务层 (原 IGit)
 """
 
 import time
@@ -11,13 +11,13 @@ from pycrdt import Doc
 from src.db.models import Update, Commit
 from src.db import crud
 from src.logger import get_logger
-from src.routers.igit.models import (
+from src.routers.version_control.models import (
     CommitInfo,
     HistoryResponse,
     CommitDetailResponse,
     CommitDiffResponse,
 )
-from src.routers.igit.utils import (
+from src.routers.version_control.utils import (
     generate_commit_hash,
     parse_yjs_elements,
     compute_elements_diff,
@@ -130,8 +130,11 @@ class IGitService:
 
         # 解析元素并更新统计
         elements = parse_yjs_elements(doc_data)
-        valid_elements = [el for el in elements.values()
-                        if isinstance(el, dict) and not el.get("isDeleted")]
+        valid_elements = [
+            el
+            for el in elements.values()
+            if isinstance(el, dict) and not el.get("isDeleted")
+        ]
         room.elements_count = len(valid_elements)
 
         # 更新贡献者数量（简化逻辑：每次提交检查是否是新贡献者）
@@ -310,7 +313,7 @@ class IGitService:
         if websocket_server and hasattr(websocket_server, "get_ystore"):
             ystore = websocket_server.get_ystore(room_id)
             if ystore:
-                mem_updates_count = ystore._buffer.size()
+                mem_updates_count = ystore.get_buffer_stats()["buffer_size"]
 
         pending_changes += mem_updates_count
 
@@ -346,7 +349,8 @@ class IGitService:
 
         # 计算有效元素数量（排除已删除的）
         valid_elements_count = sum(
-            1 for el in elements.values()
+            1
+            for el in elements.values()
             if isinstance(el, dict) and not el.get("isDeleted")
         )
 
@@ -364,7 +368,7 @@ class IGitService:
         return CommitDetailResponse(
             commit=commit_info,
             elements_count=valid_elements_count,
-            element_types=element_types
+            element_types=element_types,
         )
 
     def get_commit_diff(

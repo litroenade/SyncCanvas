@@ -102,6 +102,11 @@ class RoomLockManager:
         """检查房间是否正忙"""
         return room_id in cls._active_rooms
 
+    @classmethod
+    def get_active_rooms(cls) -> list:
+        """获取所有活跃房间列表"""
+        return list(cls._active_rooms)
+
 
 # ==================== 状态和数据结构 ====================
 
@@ -204,7 +209,6 @@ class AgentContext:
         if self._ydoc is not None:
             return self._ydoc
 
-
         room = websocket_server.rooms.get(self.session_id)
         if room:
             self._ydoc = room.ydoc
@@ -225,7 +229,7 @@ class AgentContext:
         try:
             elements_array = ydoc.get("elements", type="Array")
             return list(elements_array)
-        except Exception as e: # pylint: disable=broad-except
+        except Exception as e:  # pylint: disable=broad-except
             logger.error("[AgentContext] 获取画布元素失败: %s", e)
             return []
 
@@ -466,7 +470,7 @@ class BaseAgent(ABC):
                     if isinstance(result, dict)
                     else {"output": str(result)[:500]},
                 )
-            except Exception as e: # pylint: disable=broad-except
+            except Exception as e:  # pylint: disable=broad-except
                 logger.warning("记录工具调用失败: %s", e)
 
     async def _call_llm_with_retry(
@@ -509,7 +513,7 @@ class BaseAgent(ABC):
             except asyncio.TimeoutError:
                 last_error = TimeoutError(f"LLM 调用超时 ({self.config.llm_timeout}s)")
                 self._metrics.errors.append(f"LLM 超时 (尝试 {attempt + 1})")
-            except Exception as e: # pylint: disable=broad-except
+            except Exception as e:  # pylint: disable=broad-except
                 last_error = e
                 self._metrics.errors.append(f"LLM 错误: {str(e)[:100]}")
 
@@ -561,7 +565,7 @@ class BaseAgent(ABC):
                     tool.timeout,
                     attempt + 1,
                 )
-            except Exception as e: # pylint: disable=broad-except
+            except Exception as e:  # pylint: disable=broad-except
                 last_error = e
                 self._metrics.errors.append(f"工具 {name} 错误: {str(e)[:100]}")
                 # 打印完整堆栈信息
@@ -657,13 +661,15 @@ class BaseAgent(ABC):
             logger.warning("Agent %s 被取消", self.name)
             return "任务已取消"
 
-        except Exception as e: # pylint: disable=broad-except
+        except Exception as e:  # pylint: disable=broad-except
             self._state_machine.transition(
                 AgentState.FAILED, reason=f"错误: {e}", force=True
             )
             self._status = AgentStatus.ERROR
             self._metrics.errors.append(str(e))
-            logger.error("Agent %s 执行失败: %s\n%s", self.name, e, traceback.format_exc())
+            logger.error(
+                "Agent %s 执行失败: %s\n%s", self.name, e, traceback.format_exc()
+            )
             return f"执行失败: {str(e)}"
 
         finally:
@@ -720,7 +726,7 @@ class BaseAgent(ABC):
                     response = await self._call_llm_with_retry(
                         messages, tool_definitions, temperature
                     )
-                except Exception as e: # pylint: disable=broad-except
+                except Exception as e:  # pylint: disable=broad-except
                     self._status = AgentStatus.ERROR
                     self._state_machine.transition(
                         AgentState.RECOVERING, reason=f"LLM 错误: {e}"
@@ -818,7 +824,7 @@ class BaseAgent(ABC):
                                 ensure_ascii=False,
                             )
                             current_step.success = False
-                        except Exception as e: # pylint: disable=broad-except
+                        except Exception as e:  # pylint: disable=broad-except
                             logger.error("工具 %s 执行失败: %s", func_name, e)
                             result_str = json.dumps(
                                 {"status": "error", "message": f"执行失败: {str(e)}"},
