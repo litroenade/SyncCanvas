@@ -142,6 +142,44 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
         excalidrawAPI?.toggleSidebar({ name: SETTINGS_SIDEBAR_NAME });
     }, [excalidrawAPI]);
 
+    /**
+     * 上传图片到后端并返回文件 ID
+     * Excalidraw 会使用此 ID 来引用图片
+     */
+    const generateIdForFile = useCallback(async (file: File): Promise<string> => {
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const token = localStorage.getItem('token');
+            const headers: HeadersInit = {};
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                headers,
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({ detail: '上传失败' }));
+                throw new Error(error.detail || '上传失败');
+            }
+
+            const data = await response.json();
+            console.log('[Canvas] 图片上传成功:', data.filename);
+
+            // 返回文件名作为 ID，Excalidraw 会用这个 ID 来引用图片
+            return data.filename;
+        } catch (error) {
+            console.error('[Canvas] 图片上传失败:', error);
+            // 失败时返回一个随机 ID，图片将以 base64 形式保存在本地
+            return `local-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        }
+    }, []);
+
     const handleClearCanvas = useCallback(() => {
         excalidrawAPI?.resetScene();
     }, [excalidrawAPI]);
@@ -299,6 +337,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
                 zenModeEnabled={false}
                 gridModeEnabled={false}
                 renderTopRightUI={renderTopRightUI}
+                generateIdForFile={generateIdForFile}
                 UIOptions={{
                     canvasActions: {
                         loadScene: !isGuest,
