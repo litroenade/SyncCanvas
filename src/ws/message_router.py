@@ -1,23 +1,8 @@
-"""模块名称: message_router
-主要功能: 统一的 WebSocket 消息路由器
-
-提供类似事件总线的功能，支持：
-- 消息类型注册和处理
-- 订阅/取消订阅特定类型消息
-- 房间级别的消息广播
-
-@Time: 2025-12-10
-@File: message_router.py
-"""
-
 from __future__ import annotations
-
 import asyncio
 from dataclasses import dataclass
 from typing import Any, Callable, Awaitable, Dict, List, Set, Optional, TypeVar
-
 from fastapi import WebSocket
-
 from src.logger import get_logger
 
 logger = get_logger(__name__)

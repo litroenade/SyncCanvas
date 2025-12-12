@@ -1,12 +1,6 @@
-"""模块名称: router
-主要功能: iGit 版本控制系统的 API 路由
-"""
-
 from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlmodel import Session
-
 from src.db.models import Commit
 from src.db.database import get_session
 from src.auth.utils import get_current_user_optional

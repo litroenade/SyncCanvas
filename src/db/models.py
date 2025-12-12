@@ -1,17 +1,5 @@
-"""模块名称: models
-主要功能: SyncCanvas 核心数据模型定义
-
-数据模型设计：
-- Room: 房间基本信息，head_commit_id 指向当前版本 (类似 Git HEAD)
-- RoomMember: 房间成员关系
-- Commit: 版本提交记录，存储完整的文档状态 (类似 Git Commit)
-- Update: 实时增量更新缓冲，定期合并到 Commit
-- Stroke: 图形统计记录
-"""
-
 from datetime import datetime
 from typing import Optional
-
 from sqlalchemy import Column, JSON
 from sqlmodel import Field, SQLModel
 

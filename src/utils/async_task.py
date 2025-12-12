@@ -1,9 +1,3 @@
-"""模块名称：async_task
-主要功能：异步任务管理基础架构
-
-定义 AsyncTask 基类和 AsyncTaskManager，用于统一管理后台周期性任务。
-"""
-
 import asyncio
 import time
 import traceback

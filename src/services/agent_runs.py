@@ -1,15 +1,7 @@
-"""模块名称: agent_runs
-主要功能: Agent 运行生命周期管理与持久化
-
-提供 Agent 运行记录的创建、更新、查询功能。
-支持同步和异步调用方式。
-"""
 
 import time
 from typing import Any, Dict, List, Optional
-
 from sqlmodel import Session, select
-
 from src.db.models import AgentRun, AgentAction
 from src.logger import get_logger
 

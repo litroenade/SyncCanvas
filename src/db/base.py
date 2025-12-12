@@ -1,9 +1,3 @@
-"""模块名称: base
-主要功能: 数据库模型基类
-
-提供通用的模型方法和时间处理工具。
-"""
-
 from datetime import datetime
 from typing import Any, Dict, Optional, Type, TypeVar
 

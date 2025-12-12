@@ -1,23 +1,14 @@
-"""模块名称: ai_service
-主要功能: AI 服务层
-
-提供高级 AI 功能接口，初始化 Agent 并路由请求。
-支持请求处理、历史查询、状态监控。
-"""
-
 from typing import Optional, Dict, Any, List, Callable
 from dataclasses import dataclass, field
 import asyncio
 import time
 from sqlmodel import Session
-
 from src.agent.agents.planner import PlannerAgent
 from src.agent.core.agent import AgentContext, RoomLockManager
 from src.agent.core.llm import LLMClient
 from src.agent.core.tools import registry
 from src.services.agent_runs import AgentRunService
 from src.logger import get_logger
-
 from src.db.database import get_sync_session
 from src.db.database import engine
 logger = get_logger(__name__)

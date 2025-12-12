@@ -1,19 +1,11 @@
-"""模块名称: upload
-主要功能: 文件上传路由
-
-支持已登录用户和游客上传图片。
-"""
-
 import os
 import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
-
 from fastapi import APIRouter, File, UploadFile, HTTPException, Header
 from fastapi.responses import JSONResponse
 from jose import JWTError, jwt
-
 from src.auth.utils import ALGORITHM
 from src.config import config
 from src.logger import get_logger

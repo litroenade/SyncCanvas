@@ -1,7 +1,3 @@
-"""模块名称: utils
-主要功能: iGit 版本控制系统的工具函数
-"""
-
 import hashlib
 from typing import Tuple, List
 from pycrdt import Doc, Map, Array

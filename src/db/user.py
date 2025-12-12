@@ -1,12 +1,5 @@
-"""模块名称: user
-主要功能: 用户数据模型
-
-提供用户模型和相关属性方法。
-"""
-
 from datetime import datetime
 from typing import Any, Dict, Optional
-
 from sqlalchemy import Column, JSON
 from sqlmodel import Field, SQLModel
 

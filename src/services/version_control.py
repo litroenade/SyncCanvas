@@ -1,13 +1,7 @@
-"""模块名称: version_control
-主要功能: 画布版本控制服务层 (原 IGit)
-"""
-
 import time
 from typing import Optional, Tuple, Any
-
 from sqlmodel import Session, delete
 from pycrdt import Doc
-
 from src.db.models import Update, Commit
 from src.db import crud
 from src.logger import get_logger

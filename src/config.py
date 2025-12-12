@@ -1,23 +1,10 @@
-"""模块名称: config
-主要功能: 配置管理，基于 Pydantic 模型的类型安全配置系统
-"""
-
 from __future__ import annotations
-
 import secrets
 from pathlib import Path
 from typing import List, Optional, Dict
-
-
 from pydantic import BaseModel, Field, field_validator
-
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
-
+import tomllib
 import tomli_w
-
 from src.logger import get_logger
 
 logger = get_logger(__name__)

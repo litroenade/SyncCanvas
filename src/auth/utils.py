@@ -1,16 +1,10 @@
-"""模块名称: utils
-主要功能: 认证工具函数，提供密码哈希、验证、JWT Token 生成等功能
-"""
-
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Annotated
-
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from passlib.context import CryptContext
 from sqlmodel import Session, select
-
 from src.config import config
 from src.db.database import get_session
 from src.db.user import User

@@ -1,22 +1,12 @@
-"""模块名称: sync
-主要功能: 基于 pycrdt_websocket 的实时同步功能，带持久化存储
-
-使用 pycrdt_websocket 模块实现与 Yjs 客户端的完全兼容同步。
-通过自定义 SQLModelYStore 实现数据持久化，与业务数据统一存储。
-支持用户连接追踪和自动提交功能。
-"""
-
 import asyncio
 import hashlib
 import time
 from functools import partial
 from typing import Any
-
 from anyio import get_cancelled_exc_class
 from pycrdt import Channel, Doc
 from pycrdt.websocket import WebsocketServer, ASGIServer, YRoom
 from sqlmodel import Session, select, delete
-
 from src.db.ystore import SQLModelYStore
 from src.db.database import engine
 from src.db.models import Commit, Update, Room

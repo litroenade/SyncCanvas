@@ -1,17 +1,10 @@
-"""模块名称: rooms
-主要功能: 房间管理 REST API 路由
-"""
-
 import uuid
 import hashlib
 import secrets
 from typing import Optional, List
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlmodel import Session
-
-from src.config import config
 from src.db.database import get_session
 from src.db.models import Room, RoomMember
 from src.db import crud
@@ -307,34 +300,13 @@ async def join_room(
     if not room:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="房间不存在")
 
-    # 检查权限: 管理员密钥
-    is_admin_login = config.admin_key and request.password == config.admin_key
-
     # 检查是否已是成员
     existing_member = crud.get_room_member(session, room_id, current_user.id)
     if existing_member:
-        # 如果用管理员密钥加入，升级为 owner
-        if is_admin_login and existing_member.role != "owner":
-            existing_member.role = "owner"
-            session.add(existing_member)
-            session.commit()
-            logger.info(
-                "用户 %s 使用管理员密钥升级为房间 %s 的 Owner",
-                current_user.username,
-                room_id,
-            )
-            return {"status": "upgraded_to_owner", "room_id": room_id}
         return {"status": "already_member", "room_id": room_id}
 
-    # 设置角色
-    role = "owner" if is_admin_login else "editor"
-    if is_admin_login:
-        logger.info(
-            "用户 %s 使用管理员密钥加入房间 %s (Owner)", current_user.username, room_id
-        )
-
-    # 验证密码 (如果不是管理员登录)
-    if not is_admin_login and room.password_hash:
+    # 验证密码
+    if room.password_hash:
         if not request.password:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="需要房间密码"
@@ -344,13 +316,13 @@ async def join_room(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="密码错误"
             )
 
-    # 检查人数限制 (管理员可忽略?)
+    # 检查人数限制
     members = crud.get_room_members(session, room_id)
-    if not is_admin_login and len(members) >= room.max_users:
+    if len(members) >= room.max_users:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="房间已满员")
 
     # 加入房间
-    member = RoomMember(room_id=room_id, user_id=current_user.id, role=role)
+    member = RoomMember(room_id=room_id, user_id=current_user.id, role="editor")
     crud.add_room_member(session, member)
     logger.info("用户 %s 加入房间 %s", current_user.username, room_id)
 

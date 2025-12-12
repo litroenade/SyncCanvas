@@ -1,19 +1,6 @@
-"""模块名称: ai
-主要功能: AI Agent API 路由
-
-提供 AI Agent 的 HTTP API 接口，包括:
-- 生成/绘图请求
-- 流式响应 (WebSocket)
-- 运行历史查询
-- 运行详情查询
-- 工具列表
-- Agent 状态监控
-"""
-
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 from sqlmodel import Session
-
 from src.agent.core.agent import RoomLockManager, ReActStep
 from src.agent.core.tools import registry
 from src.agent.prompts import prompt_manager

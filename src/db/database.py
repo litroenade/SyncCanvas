@@ -1,12 +1,6 @@
-"""模块名称: database
-主要功能: 数据库连接和表初始化功能
-"""
-
 from pathlib import Path
-
 from contextlib import contextmanager
 from sqlmodel import SQLModel, create_engine, Session
-
 from src.db.user import User  # noqa: F401  # pylint: disable=unused-import
 from src.db.models import (  # noqa: F401  # pylint: disable=unused-import
     Room,

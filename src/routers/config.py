@@ -1,19 +1,7 @@
-"""模块名称: config
-主要功能: 配置管理 API 路由
-
-统一的配置管理接口，包括:
-- 全局配置 (需要管理员权限)
-- AI 配置 (需要管理员权限)
-- 模型组管理 (需要管理员权限)
-- AI 设置快捷接口 (前端 Settings 页面使用)
-"""
-
 from typing import Dict, Any, List, Optional
 import httpx
-
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
-
 from src.config import config, ModelConfig
 from src.deps import get_current_user
 from src.db.user import User
@@ -66,7 +54,9 @@ class AIConfigUpdate(BaseModel):
 
 
 class ModelInfo(BaseModel):
-    """模型信息"""
+    """
+    模型信息
+    """
 
     id: str
     object: str = "model"

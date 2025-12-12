@@ -1,27 +1,12 @@
-"""模块名称: ystore
-主要功能: 基于 SQLModel 的 Yjs 持久化存储
-
-实现自定义 YStore，将 Yjs 文档更新存储到 SQLModel 数据库中。
-使用 Commit 表存储版本历史，Update 表作为实时缓冲。
-
-数据流：
-1. 用户操作 → Yjs → WebSocket → YStore.write() → Update 表 (缓冲)
-2. 提交时 → 合并 Update → 创建 Commit → 清空 Update
-3. 恢复时 → 读取最新 Commit + 后续 Update
-"""
-
 import threading
 import time
 from collections.abc import AsyncIterator
 from logging import Logger, getLogger
 from typing import Callable, Awaitable
-
 from anyio import Lock
 from sqlmodel import Session, select
-
 from pycrdt import Doc
 from pycrdt.store.base import BaseYStore, YDocNotFound
-
 from src.db.models import Room
 from src.db.database import engine
 from src.db.models import Commit, Update

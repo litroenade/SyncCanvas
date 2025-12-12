@@ -1,34 +1,15 @@
-"""模块名称: logger
-主要功能: 日志系统配置，使用 rich 库美化输出，支持前后端分离
-
-特性:
-- 使用 rich 库进行美化输出
-- 前端日志 (ws, sync) 可单独过滤
-- 模块区分颜色
-- Agent 思考过程详细日志
-"""
-
 from __future__ import annotations
-
 import logging
 import logging.handlers
 import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
+import tomllib
+from rich.console import Console
+from rich.logging import RichHandler
+from rich.theme import Theme
 
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
-
-try:
-    from rich.console import Console
-    from rich.logging import RichHandler
-    from rich.theme import Theme
-
-    RICH_AVAILABLE = True
-except ImportError:
-    RICH_AVAILABLE = False
+RICH_AVAILABLE = True
 
 
 # ==================== 日志分类 ====================

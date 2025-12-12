@@ -1,7 +1,3 @@
-"""包名称: auth
-功能说明: 用户认证模块，包含登录、注册、Token 管理等功能
-"""
-
 from .router import router
 from .utils import (
     verify_password,

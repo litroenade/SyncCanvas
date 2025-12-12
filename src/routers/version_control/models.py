@@ -1,11 +1,5 @@
-"""模块名称: models
-主要功能: iGit 版本控制系统的数据模型定义
-"""
-
 from typing import Optional, List
-
 from pydantic import BaseModel, Field
-
 
 class CommitInfo(BaseModel):
     """提交信息

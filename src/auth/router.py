@@ -1,8 +1,3 @@
-"""模块名称: router
-主要功能: 用户认证路由，提供登录、Token 管理等接口
-支持通过服务端 secret_key 认证，用户名可任意填写
-"""
-
 import secrets
 from datetime import timedelta
 from typing import Annotated
