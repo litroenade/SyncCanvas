@@ -1,4 +1,4 @@
-"""模块名称: auto_layout
+﻿"""模块名称: auto_layout
 主要功能: 流程图自动布局工具
 
 使用 grandalf 库实现 DAG 层次布局，提供:
@@ -11,8 +11,8 @@ from typing import Dict, Any, List, Tuple
 from grandalf.graphs import Graph, Vertex, Edge
 from grandalf.layouts import SugiyamaLayout
 
-from src.agent.core.agent import AgentContext
-from src.agent.core.tools import registry, ToolCategory
+from src.agent.base import AgentContext
+from src.agent.registry import registry, ToolCategory
 from src.agent.tools.helpers import require_room_id, get_room_and_doc
 from src.logger import get_logger
 

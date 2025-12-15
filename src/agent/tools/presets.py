@@ -1,4 +1,4 @@
-"""模块名称: presets
+﻿"""模块名称: presets
 主要功能: 元素预设和批量操作
 
 提供:
@@ -9,8 +9,8 @@
 
 from typing import List, Dict, Any
 
-from src.agent.core.agent import AgentContext
-from src.agent.core.tools import registry, ToolCategory
+from src.agent.base import AgentContext
+from src.agent.registry import registry, ToolCategory
 from src.agent.tools.schemas import CreatePresetElementArgs, BatchUpdateArgs
 from src.agent.tools.flowchart import create_flowchart_node
 from src.agent.tools.helpers import (

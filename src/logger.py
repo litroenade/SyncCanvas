@@ -32,10 +32,10 @@ FRONTEND_MODULES = frozenset(
 AGENT_MODULES = frozenset(
     {
         "src.agent",
-        "src.agent.core",
-        "src.agent.core.agent",
-        "src.agent.core.llm",
-        "src.agent.agents",
+        "src.agent.base",
+        "src.agent.llm",
+        "src.agent.pipeline",
+        "src.agent.canvas",
         "src.agent.tools",
     }
 )

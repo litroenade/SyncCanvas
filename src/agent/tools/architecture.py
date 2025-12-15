@@ -1,4 +1,4 @@
-"""模块名称: architecture
+﻿"""模块名称: architecture
 主要功能: 架构图工具
 
 提供架构图绘制功能:
@@ -9,8 +9,8 @@
 import random
 from typing import Dict, Any
 
-from src.agent.core.agent import AgentContext
-from src.agent.core.tools import registry, ToolCategory
+from src.agent.base import AgentContext
+from src.agent.registry import registry, ToolCategory
 from src.agent.tools.schemas import CreateContainerArgs, CreateComponentArgs
 from src.agent.tools.helpers import (
     require_room_id,

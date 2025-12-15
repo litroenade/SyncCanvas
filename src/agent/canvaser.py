@@ -10,9 +10,9 @@ from dataclasses import dataclass, asdict
 import json
 from typing import Dict, List, Any, Optional, TYPE_CHECKING
 
-from src.agent.core.agent import PlanningAgent, AgentContext, AgentConfig
-from src.agent.core.llm import LLMClient
-from src.agent.core.tools import registry
+from src.agent.base import PlanningAgent, AgentContext, AgentConfig
+from src.agent.llm import LLMClient
+from src.agent.registry import registry
 from src.agent.prompts import prompt_manager
 from src.logger import get_logger
 
@@ -340,6 +340,13 @@ class CanvaserAgent(PlanningAgent):
     ) -> str:
         """执行绘图任务
 
+        使用 5-Phase Pipeline 架构:
+        1. State Hydration - 增量状态注入
+        2. Intent Routing - 动态模型选择
+        3. Logical Reasoning - 纯拓扑推理 (禁止坐标)
+        4. Geometric Solving - 符号化布局
+        5. Semantic Transaction - CRDT 原子提交
+
         Args:
             context: Agent 上下文
             user_input: 用户输入
@@ -348,16 +355,36 @@ class CanvaserAgent(PlanningAgent):
         Returns:
             str: 执行结果描述
         """
+        # 导入 Pipeline
+        from src.agent.pipeline import AgentPipeline
+
         # 重置节点注册表
         self.node_registry = {}
 
-        # 执行 ReAct 循环
-        result = await super().run(context, user_input, temperature)
+        # 使用 5-Phase Pipeline 执行
+        pipeline = AgentPipeline(self.llm)
+        result = await pipeline.execute(context, user_input, temperature)
 
-        # 生成执行摘要
-        summary = self._generate_summary(context)
+        if result.success:
+            # 记录创建的元素
+            context.created_element_ids.extend(result.created_ids)
 
-        return f"{result}\n\n{summary}" if summary else result
+            # 生成响应消息
+            response = result.message
+
+            # 添加指标信息 (可选,调试用)
+            metrics = result.metrics
+            logger.info(
+                "[CanvaserAgent] Pipeline 完成: %.1fms, %d ops, %d created",
+                metrics.total_ms,
+                metrics.logical_ops_count,
+                metrics.created_elements,
+            )
+
+            return response
+        else:
+            logger.error("[CanvaserAgent] Pipeline 失败: %s", result.message)
+            return f"执行失败: {result.message}"
 
     def _generate_summary(self, context: AgentContext) -> str:
         """生成执行摘要

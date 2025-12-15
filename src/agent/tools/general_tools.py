@@ -1,4 +1,4 @@
-"""模块名称: general_tools
+﻿"""模块名称: general_tools
 主要功能: 通用 AI 工具，包括文本分析、知识整理等
 
 提供非绘图场景下的通用工具支持。
@@ -12,7 +12,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from src.agent.core.tools import registry, ToolCategory
+from src.agent.registry import registry, ToolCategory
 from src.logger import get_logger
 
 logger = get_logger(__name__)

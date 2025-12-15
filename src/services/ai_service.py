@@ -3,14 +3,15 @@ from dataclasses import dataclass, field
 import asyncio
 import time
 from sqlmodel import Session
-from src.agent.agents.planner import PlannerAgent
-from src.agent.core.agent import AgentContext, RoomLockManager
-from src.agent.core.llm import LLMClient
-from src.agent.core.tools import registry
+from src.agent.planner import PlannerAgent
+from src.agent.base import AgentContext, RoomLockManager
+from src.agent.llm import LLMClient
+from src.agent.registry import registry
 from src.services.agent_runs import AgentRunService
 from src.logger import get_logger
 from src.db.database import get_sync_session
 from src.db.database import engine
+
 logger = get_logger(__name__)
 
 
@@ -114,7 +115,6 @@ class AIService:
             dict: 包含 response, run_id, status, metrics 的结果
         """
 
-
         start_time = time.time()
 
         run_service = AgentRunService(db)
@@ -177,7 +177,7 @@ class AIService:
                 },
             }
 
-        except Exception as e: # pylint: disable=broad-except
+        except Exception as e:  # pylint: disable=broad-except
             error_msg = str(e)
             duration_ms = (time.time() - start_time) * 1000
 
@@ -247,7 +247,6 @@ class AIService:
             dict: 包含 response, run_id, status, metrics 的结果
         """
 
-
         start_time = time.time()
 
         # 使用同步会话创建运行记录
@@ -283,7 +282,7 @@ class AIService:
                     result = step_callback(step)
                     if asyncio.iscoroutine(result):
                         await result
-                except Exception as e: # pylint: disable=broad-except
+                except Exception as e:  # pylint: disable=broad-except
                     logger.warning(f"步骤回调失败: {e}")
 
             planner.set_step_callback(async_callback)
@@ -328,7 +327,7 @@ class AIService:
                 },
             }
 
-        except Exception as e: # pylint: disable=broad-except
+        except Exception as e:  # pylint: disable=broad-except
             error_msg = str(e)
             duration_ms = (time.time() - start_time) * 1000
 

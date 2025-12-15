@@ -2,8 +2,10 @@
 主要功能: LLM 客户端实现
 
 提供 OpenAI 兼容的 LLM 客户端，支持多提供商和自动故障转移。
+集成 LLMRouter 进行性能指标追踪。
 """
 
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -133,13 +135,21 @@ class LLMClient:
         temperature: float = 0.3,
         max_tokens: int = 4096,
     ) -> LLMResponse:
-        """发送聊天请求"""
+        """发送聊天请求
+
+        集成 LLMRouter 进行性能指标追踪。
+        """
+        # 延迟导入避免循环依赖
+        from src.agent.pipeline.router import get_router
+
         primary_conf, fallback_conf = self._get_config()
+        router = get_router()
 
         # 尝试主提供商
+        start_time = time.time()
         try:
             client = self._get_client(primary_conf)
-            return await self._call_completion(
+            response = await self._call_completion(
                 client,
                 primary_conf,
                 messages,
@@ -148,14 +158,23 @@ class LLMClient:
                 temperature,
                 max_tokens,
             )
+            # 记录成功调用指标
+            latency_ms = (time.time() - start_time) * 1000
+            router.record_call(primary_conf.model, latency_ms, success=True)
+            return response
+
         except Exception as e:
+            # 记录失败调用指标
+            latency_ms = (time.time() - start_time) * 1000
+            router.record_call(primary_conf.model, latency_ms, success=False)
             logger.warning(f"主提供商调用失败: {primary_conf.provider}, 错误: {e}")
 
             # 尝试备用提供商
             logger.info("尝试使用备用提供商...")
+            start_time = time.time()
             try:
                 client = self._get_client(fallback_conf)
-                return await self._call_completion(
+                response = await self._call_completion(
                     client,
                     fallback_conf,
                     messages,
@@ -164,7 +183,14 @@ class LLMClient:
                     temperature,
                     max_tokens,
                 )
+                # 记录备用调用成功
+                latency_ms = (time.time() - start_time) * 1000
+                router.record_call(fallback_conf.model, latency_ms, success=True)
+                return response
+
             except Exception as e2:
+                latency_ms = (time.time() - start_time) * 1000
+                router.record_call(fallback_conf.model, latency_ms, success=False)
                 logger.error(f"备用提供商调用失败: {e2}")
                 raise e
 

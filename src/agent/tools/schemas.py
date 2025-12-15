@@ -1,4 +1,4 @@
-"""模块名称: schemas
+﻿"""模块名称: schemas
 主要功能: Excalidraw 工具参数 Schema 定义
 
 所有 AI 工具的 Pydantic 参数模型定义。

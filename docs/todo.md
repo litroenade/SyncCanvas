@@ -1,6 +1,6 @@
 # SyncCanvas 开发计划
 
-> 更新时间: 2025-12-12
+> 更新时间: 2025-12-15
 
 ---
 
@@ -16,19 +16,21 @@
 
 ### 已完成
 
-| 模块         | 功能                                 | 文件                   |
-| ------------ | ------------------------------------ | ---------------------- |
-| ReAct 循环   | Think → Act → Observe 完整实现       | `agent.py`             |
-| 房间锁       | 防止同房间多 Agent 冲突              | `RoomLockManager`      |
-| 任务委托     | Planner → Canvaser 自动委托          | `planner.py`           |
-| 批量创建     | `batch_create_elements` 一次性创建   | `elements.py`          |
-| CRDT 持久化  | Commit + Update 的 Git 式存储        | `sync.py`, `ystore.py` |
-| 消息路由     | 发布/订阅 + 异步队列                 | `message_router.py`    |
-| LLM 故障转移 | 主备自动切换                         | `llm.py`               |
-| 配置系统     | Pydantic 模型 + ExtraField UI 元数据 | `config.py`            |
-| Prompt 模板  | Jinja2 动态渲染                      | `prompts/`             |
-| 状态机       | Agent 执行状态追踪                   | `state_machine.py`     |
-| 错误恢复     | 自动重试 + 超时控制                  | `error_recovery.py`    |
+| 模块           | 功能                                 | 文件                    |
+| -------------- | ------------------------------------ | ----------------------- |
+| ReAct 循环     | Think → Act → Observe 完整实现       | `base.py`               |
+| 房间锁         | 防止同房间多 Agent 冲突              | `base.py`               |
+| 任务委托       | Planner → Canvaser 自动委托          | `planner.py`            |
+| 批量创建       | `batch_create_elements` 一次性创建   | `tools/elements.py`     |
+| CRDT 持久化    | Commit + Update 的 Git 式存储        | `ws/sync.py`, `ystore.py` |
+| 消息路由       | 发布/订阅 + 异步队列                 | `ws/message_router.py`  |
+| LLM 故障转移   | 主备自动切换                         | `llm.py`                |
+| 配置系统       | Pydantic 模型 + ExtraField UI 元数据 | `config.py`             |
+| Prompt 模板    | Jinja2 动态渲染                      | `prompts/`              |
+| 状态机         | Agent 执行状态追踪                   | `base.py` (内联)        |
+| 错误恢复       | 自动重试 + 超时控制                  | `base.py` (内联)        |
+| **5-Phase Pipeline** | 完整执行管道                   | `pipeline/`             |
+| **Canvas Model**     | 元素模型 + 控制命令            | `canvas/`               |
 
 ### 核心问题
 
@@ -133,10 +135,10 @@
 
 **目标**: 根据任务类型和实时性能选择最优模型。
 
-- [ ] 创建 `src/agent/core/llm_router.py`
-  - [ ] 实现 `PerformanceMonitor`: 追踪延迟、错误率
-  - [ ] 实现动态路由逻辑: `select_model(task, constraints)`
-- [ ] 任务类型与分级定义
+- [x] 创建 `src/agent/pipeline/router.py` ✅ 已实现
+  - [x] 实现 `PerformanceMonitor`: 追踪延迟、错误率
+  - [x] 实现动态路由逻辑: `select_model(task, constraints)`
+- [x] 任务类型与分级定义
 
   - `Tier 1`: Router / Mutator (Local/Small)
   - `Tier 2`: Generator / Reasoner (Large)
@@ -156,16 +158,16 @@
 
 #### 3.1 图摘要生成 (新增)
 
-- [ ] 创建 `src/agent/core/graph_summary.py`
+- [x] 创建 `src/agent/pipeline/cognition.py` ✅ 已实现
 
-  - [ ] `summarize_graph(ydoc)`: 全量摘要
-  - [ ] `get_delta_summary(prev, curr)`: 差分摘要 **(Enhanced)**
+  - [x] `summarize_graph(ydoc)`: 全量摘要
+  - [ ] `get_delta_summary(prev, curr)`: 差分摘要 **(待增强)**
 
 - [ ] 修改 Prompt 模板注入 `{{delta_summary}}`
 
 #### 3.2 增量图认知 (创新点 3)
 
-- [ ] 创建 `src/agent/core/graph_cognition.py`
+- [x] 创建 `src/agent/pipeline/cognition.py` ✅ 已实现 (GraphCognition)
   - [ ] 监听 Yjs 变更事件
   - [ ] 实现 **延迟更新 (Lazy Update)** 策略
   - [ ] 实现 **增量推送 (Incremental Push)** 到前端
@@ -182,18 +184,18 @@
   - 输出操作序列 `List[Op]`，无坐标
   - 支持 `add_node`, `delete_edge` 等原子操作
 
-#### 4.2 LayoutEngine (新增)
+#### 4.2 LayoutEngine ✅ 已实现
 
-- [ ] 创建 `src/agent/core/layout_engine.py`
-  - [ ] 集成 **Force-directed** (力导向) 算法
-  - [ ] 实现 **Cognitive Map Preservation** (认知地图保持): 最小化节点移动
+- [x] 创建 `src/agent/pipeline/layout.py`
+  - [x] 集成 **Force-directed** (力导向) 算法
+  - [x] 实现 **Cognitive Map Preservation** (认知地图保持): 最小化节点移动
   - [ ] 实现 **Dynamic Spatial Partitioning**:
     - 集成热力图分析 (User Heatmap)
     - 动态计算 "冷区" (Cold Zone)
 
-#### 4.3 多模型集成 (Enhanced)
+#### 4.3 多模型集成 (待实现)
 
-- [ ] 创建 `src/agent/core/ensemble.py`
+- [ ] 创建 `src/agent/pipeline/ensemble.py`
   - [ ] 实现 **Parallel Execution**: 并行调用生成与逻辑模型
   - [ ] 实现 **Voting Mechanism**: 拓扑一致性检查与融合
 
@@ -220,11 +222,12 @@
 
 **目标**: 智能防止冲突，多模态检测。
 
-- [ ] 创建 `src/agent/core/semantic_transaction.py`
+- [x] 创建 `src/agent/pipeline/transaction.py` ✅ 已实现 (SemanticTransaction)
+  - [x] 实现基础冲突检测 (Conflict Detection)
   - [ ] 实现 **Predictive Conflict Detection**: 基于历史模式预测
   - [ ] 实现 **Multi-modal Detection**: 语义 + 空间 + 属性
-- [ ] 冲突解决策略
-  - [ ] Auto-fix (力导向弹开)
+- [x] 冲突解决策略 (基础)
+  - [x] Auto-fix (力导向弹开)
   - [ ] Re-reason (重推理)
   - [ ] Rollback (回滚)
 

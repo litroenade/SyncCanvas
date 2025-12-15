@@ -1,4 +1,4 @@
-"""模块名称: canvas
+﻿"""模块名称: canvas
 主要功能: 画布状态工具
 
 提供画布状态查询:
@@ -9,8 +9,8 @@ from typing import Dict, Any
 
 from pycrdt import Map
 
-from src.agent.core.agent import AgentContext
-from src.agent.core.tools import registry, ToolCategory
+from src.agent.base import AgentContext
+from src.agent.registry import registry, ToolCategory
 from src.agent.tools.schemas import GetCanvasBoundsArgs
 from src.agent.tools.helpers import require_room_id, get_room_and_doc
 from src.logger import get_logger

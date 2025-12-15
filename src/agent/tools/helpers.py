@@ -1,4 +1,4 @@
-"""模块名称: helpers
+﻿"""模块名称: helpers
 主要功能: Excalidraw 工具辅助函数
 
 提供元素操作的通用辅助函数:
@@ -14,7 +14,7 @@ from typing import Dict, Any, Tuple
 
 from pycrdt import Array, Map
 
-from src.agent.core.agent import AgentContext
+from src.agent.base import AgentContext
 from src.ws.sync import websocket_server
 from src.logger import get_logger
 

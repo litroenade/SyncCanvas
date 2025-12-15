@@ -14,11 +14,15 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import re
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar
+
+from json_repair import repair_json
 
 from src.logger import get_logger
 
@@ -573,3 +577,76 @@ def create_llm_timeout_error(provider: str, model: str, timeout: float) -> LLMEr
         model=model,
         details={"timeout": timeout},
     )
+
+
+# ==================== JSON 解析 ====================
+
+
+def extract_json_from_text(text: str) -> Optional[str]:
+    """从文本中提取 JSON 块"""
+    if not text:
+        return None
+
+    # 尝试提取 markdown 代码块
+    code_block_pattern = r"```(?:json)?\s*\n?([\s\S]*?)\n?```"
+    matches = re.findall(code_block_pattern, text, re.IGNORECASE)
+    if matches:
+        return max(matches, key=len).strip()
+
+    # 尝试提取 JSON 对象
+    obj_pattern = r"\{[\s\S]*\}"
+    obj_matches = re.findall(obj_pattern, text)
+    if obj_matches:
+        return max(obj_matches, key=len).strip()
+
+    # 尝试提取 JSON 数组
+    arr_pattern = r"\[[\s\S]*\]"
+    arr_matches = re.findall(arr_pattern, text)
+    if arr_matches:
+        return max(arr_matches, key=len).strip()
+
+    return None
+
+
+def parse_json_safe(text: str, default: Any = None) -> Any:
+    """安全解析 JSON (带 json_repair 容错)
+
+    Args:
+        text: JSON 字符串
+        default: 解析失败时的默认值
+
+    Returns:
+        解析结果，失败返回 default
+    """
+    if not text:
+        return default
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    try:
+        repaired = repair_json(text, return_objects=True)
+        return repaired
+    except Exception as e:  # pylint: disable=broad-except
+        logger.warning("JSON 修复失败: %s", e)
+        return default
+
+
+def parse_tool_call_args(args_str: str) -> Dict[str, Any]:
+    """解析工具调用参数
+
+    LLM 返回的工具调用参数可能格式不规范，使用 json_repair 修复。
+
+    Args:
+        args_str: 参数 JSON 字符串
+
+    Returns:
+        解析后的参数字典
+    """
+    if not args_str:
+        return {}
+
+    parsed = parse_json_safe(args_str, default={})
+    return parsed if isinstance(parsed, dict) else {}

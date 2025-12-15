@@ -1,4 +1,4 @@
-"""模块名称: flowchart
+﻿"""模块名称: flowchart
 主要功能: 流程图工具
 
 提供流程图节点创建和连接功能:
@@ -9,8 +9,8 @@
 import random
 from typing import Optional, Dict, Any
 
-from src.agent.core.agent import AgentContext
-from src.agent.core.tools import registry, ToolCategory
+from src.agent.base import AgentContext
+from src.agent.registry import registry, ToolCategory
 from src.agent.tools.schemas import CreateFlowchartNodeArgs, ConnectNodesArgs
 from src.agent.tools.helpers import (
     require_room_id,

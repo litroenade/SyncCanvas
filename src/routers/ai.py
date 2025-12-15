@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 from sqlmodel import Session
-from src.agent.core.agent import RoomLockManager, ReActStep
-from src.agent.core.tools import registry
+from src.agent.base import RoomLockManager, ReActStep
+from src.agent.registry import registry
 from src.agent.prompts import prompt_manager
 from src.db.database import get_session
 from src.logger import get_logger

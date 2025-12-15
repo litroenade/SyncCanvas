@@ -1,4 +1,4 @@
-"""模块名称: web_tools
+﻿"""模块名称: web_tools
 主要功能: 网页爬取和信息检索工具
 
 提供网页内容获取、文本提取等功能，支持 Agent 获取外部信息。
@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 import httpx
 from pydantic import BaseModel, Field
 
-from src.agent.core.tools import registry, ToolCategory
+from src.agent.registry import registry, ToolCategory
 from src.logger import get_logger
 
 logger = get_logger(__name__)

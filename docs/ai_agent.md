@@ -1,6 +1,6 @@
 # SyncCanvas AI Agent 架构文档
 
-> 更新时间: 2025-12-12
+> 更新时间: 2025-12-15
 
 ---
 
@@ -94,25 +94,27 @@ User Input
 
 ### 3.1 已实现组件
 
-| 组件                       | 文件                | 功能                   |
-| -------------------------- | ------------------- | ---------------------- |
-| **BaseAgent**              | `agent.py`          | ReAct 循环、重试、超时 |
-| **RoomLockManager**        | `agent.py`          | 房间级并发锁           |
-| **PlannerAgent**           | `planner.py`        | 意图识别、任务委托     |
-| **CanvaserAgent**          | `canvaser.py`       | 批量创建、布局计算     |
-| **LLMClient**              | `llm.py`            | 主备故障转移           |
-| **WebSocketMessageRouter** | `message_router.py` | 发布/订阅              |
+| 组件                       | 文件                    | 功能                   |
+| -------------------------- | ----------------------- | ---------------------- |
+| **BaseAgent**              | `base.py`               | ReAct 循环、状态机、重试 |
+| **RoomLockManager**        | `base.py`               | 房间级并发锁           |
+| **PlannerAgent**           | `planner.py`            | 意图识别、任务委托     |
+| **CanvaserAgent**          | `canvaser.py`           | 批量创建、布局计算     |
+| **LLMClient**              | `llm.py`                | 主备故障转移           |
+| **AgentPipeline**          | `pipeline/executor.py`  | 5-Phase 执行编排       |
+| **GraphCognition**         | `pipeline/cognition.py` | 画布状态水合           |
+| **CanvasReasoner**         | `pipeline/reasoning.py` | 推理引擎               |
+| **LayoutEngine**           | `pipeline/layout.py`    | 布局求解               |
+| **SemanticTransaction**    | `pipeline/transaction.py`| 事务提交              |
+| **WebSocketMessageRouter** | `ws/message_router.py`  | 发布/订阅              |
 
 ### 3.2 待实现增强组件
 
-| 组件                  | 模块                  | 增强功能                         |
-| --------------------- | --------------------- | -------------------------------- |
-| **DynamicLLMRouter**  | `core/router.py`      | 性能评分、动态权重、任务分级调度 |
-| **GraphCognition**    | `core/cognition.py`   | 增量更新、图摘要缓存、Diff 计算  |
-| **LayoutEngine**      | `core/layout.py`      | 力导向、认知地图保持、增量布局   |
-| **SemanticMonitor**   | `core/semantic.py`    | 预测性冲突检测、多模态冲突识别   |
-| **SpeculativeEngine** | `core/speculative.py` | 历史行为预测、推测执行、回滚机制 |
-| **EnsembleManager**   | `core/ensemble.py`    | 多模型结果投票、加权融合         |
+| 组件                  | 模块                      | 增强功能                         |
+| --------------------- | ------------------------- | -------------------------------- |
+| **DynamicLLMRouter**  | `pipeline/router.py`      | 性能评分、动态权重、任务分级调度 |
+| **SpeculativeEngine** | `pipeline/speculative.py` | 历史行为预测、推测执行、回滚机制 |
+| **EnsembleManager**   | `pipeline/ensemble.py`    | 多模型结果投票、加权融合         |
 
 ---
 

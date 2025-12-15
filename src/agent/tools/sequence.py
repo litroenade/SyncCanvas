@@ -1,4 +1,4 @@
-"""模块名称: sequence
+﻿"""模块名称: sequence
 主要功能: 时序图工具
 
 提供时序图创建功能:
@@ -12,8 +12,8 @@ from typing import Dict, Any, List
 
 from pydantic import BaseModel, Field
 
-from src.agent.core.agent import AgentContext
-from src.agent.core.tools import registry, ToolCategory
+from src.agent.base import AgentContext
+from src.agent.registry import registry, ToolCategory
 from src.agent.tools.helpers import (
     require_room_id,
     generate_element_id,

@@ -20,26 +20,32 @@ SyncCanvas/
 │   ├── deps.py             # FastAPI 依赖注入
 │   │
 │   ├── agent/              # AI Agent 模块 ⭐
-│   │   ├── __init__.py
-│   │   ├── agents/         # Agent 实现
-│   │   │   ├── planner.py  # PlannerAgent (主协调)
-│   │   │   └── canvaser.py # CanvaserAgent (绘图专家)
-│   │   ├── core/           # 核心组件
-│   │   │   ├── agent.py    # BaseAgent 基类
-│   │   │   ├── llm.py      # LLM 客户端
-│   │   │   ├── tools.py    # 工具注册器
-│   │   │   ├── errors.py   # 错误定义
-│   │   │   ├── json_parser.py
-│   │   │   ├── state_machine.py
-│   │   │   └── error_recovery.py
+│   │   ├── base.py         # BaseAgent 基类 + 状态机
+│   │   ├── llm.py          # LLM 客户端
+│   │   ├── errors.py       # 错误定义 + JSON 解析
+│   │   ├── registry.py     # 工具注册表
+│   │   ├── planner.py      # PlannerAgent (主协调)
+│   │   ├── canvaser.py     # CanvaserAgent (绘图专家)
+│   │   │
+│   │   ├── pipeline/       # 5-Phase 执行管道
+│   │   │   ├── executor.py # 主编排器
+│   │   │   ├── cognition.py# 状态水合
+│   │   │   ├── router.py   # 意图路由
+│   │   │   ├── reasoning.py# 推理层
+│   │   │   ├── layout.py   # 布局引擎
+│   │   │   └── transaction.py
+│   │   │
+│   │   ├── canvas/         # 画布模型
+│   │   │   ├── model.py    # 元素模型
+│   │   │   └── commands.py # 控制命令
+│   │   │
 │   │   ├── prompts/        # Prompt 模板 (Jinja2)
 │   │   └── tools/          # 画布操作工具
-│   │       ├── canvas.py   # 画布查询
 │   │       ├── elements.py # 元素操作
-│   │       ├── flowchart.py# 流程图节点
+│   │       ├── flowchart.py# 流程图
 │   │       ├── architecture.py
-│   │       ├── auto_layout.py
-│   │       └── presets.py
+│   │       ├── sequence.py # 时序图
+│   │       └── auto_layout.py
 │   │
 │   ├── auth/               # 认证模块
 │   │   ├── router.py       # 认证路由
@@ -162,3 +168,9 @@ Build output goes to `frontend/dist/`, served automatically by backend.
 - Yjs + y-websocket (CRDT 客户端)
 - Zustand (状态管理)
 - Tailwind CSS
+
+
+synvcanvas is maybe a  try of natural language to get the better task . We don't take attention to the llm's activity to transform the language to mermaid or the tuple . We want it can control the canvas that have existed by returning the elements, thus we need to refactor the way to the excalidraw to save . This sound like the drawio , it usually use mycell to store all the information in the canvas , so what we build may be like it .Of course , drawio is not supported to mutilple people to sync work in together , so we solve this as the same time . 
+
+control elements and not generate.
+

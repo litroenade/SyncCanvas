@@ -6,11 +6,11 @@
 
 from typing import Optional, TYPE_CHECKING
 
-from src.agent.core.agent import BaseAgent, AgentContext, AgentConfig
-from src.agent.core.llm import LLMClient
-from src.agent.core.tools import registry
+from src.agent.base import BaseAgent, AgentContext, AgentConfig
+from src.agent.llm import LLMClient
+from src.agent.registry import registry
 from src.agent.prompts import prompt_manager
-from src.agent.agents.canvaser import CanvaserAgent
+from src.agent.canvaser import CanvaserAgent
 from src.logger import get_logger
 
 

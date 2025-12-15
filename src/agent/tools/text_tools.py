@@ -1,4 +1,4 @@
-"""模块名称: text_tools
+﻿"""模块名称: text_tools
 主要功能: 文本分析和转换工具
 
 提供文本到结构化数据的转换，支持:
@@ -12,7 +12,7 @@ from typing import Dict, Any, List, Optional
 
 from pydantic import BaseModel, Field
 
-from src.agent.core.tools import registry, ToolCategory
+from src.agent.registry import registry, ToolCategory
 from src.logger import get_logger
 
 logger = get_logger(__name__)

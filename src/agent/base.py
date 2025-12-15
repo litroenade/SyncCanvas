@@ -1,19 +1,3 @@
-"""模块名称: agent
-主要功能: AI Engine 核心 Agent 基类
-
-实现标准的 ReAct (Reasoning + Acting) 架构:
-- Thought: Agent 推理当前情况和下一步计划
-- Action: 选择并执行工具
-- Observation: 获取工具执行结果并反馈给 Agent
-- 循环直到任务完成
-
-增强特性:
-- 重试机制: LLM 调用和工具执行失败自动重试
-- 超时控制: 防止任务无限期执行
-- 并发锁: 防止同一房间同时多个 Agent 操作
-- 执行指标: 详细的性能统计
-"""
-
 from __future__ import annotations
 
 import inspect
@@ -21,21 +5,20 @@ import asyncio
 import json
 import time
 import traceback
+import random
 from abc import ABC
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set, TYPE_CHECKING
+from enum import Enum, auto
+from typing import Any, Callable, Dict, List, Optional, Set, TYPE_CHECKING, TypeVar
 
 from pydantic import BaseModel, Field
 
 from openai.types.chat import ChatCompletionMessageParam
 
 from src.ws.sync import websocket_server
-from src.agent.core.llm import LLMClient, LLMResponse
-from src.agent.core.json_parser import parse_tool_call_args
-from src.agent.core.state_machine import AgentState, AgentStateMachine
-from src.agent.core.error_recovery import ErrorRecoveryManager, RetryPolicy
+from src.agent.llm import LLMClient, LLMResponse
+from src.agent.errors import parse_tool_call_args
 from src.logger import get_logger
 
 if TYPE_CHECKING:
@@ -43,8 +26,174 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+T = TypeVar("T")
 
-# ==================== 房间锁管理 ====================
+
+# ==================== Agent 状态机 ====================
+
+
+class AgentState(Enum):
+    """Agent 状态"""
+
+    IDLE = auto()
+    INITIALIZING = auto()
+    THINKING = auto()
+    PLANNING = auto()
+    ACTING = auto()
+    WAITING = auto()
+    RECOVERING = auto()
+    COMPLETED = auto()
+    FAILED = auto()
+    CANCELLED = auto()
+
+
+@dataclass
+class StateTransition:
+    """状态转换记录"""
+
+    from_state: AgentState
+    to_state: AgentState
+    timestamp: float
+    reason: str = ""
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+VALID_TRANSITIONS: Dict[AgentState, Set[AgentState]] = {
+    AgentState.IDLE: {AgentState.INITIALIZING, AgentState.CANCELLED},
+    AgentState.INITIALIZING: {
+        AgentState.THINKING,
+        AgentState.PLANNING,
+        AgentState.FAILED,
+        AgentState.CANCELLED,
+    },
+    AgentState.THINKING: {
+        AgentState.ACTING,
+        AgentState.COMPLETED,
+        AgentState.RECOVERING,
+        AgentState.FAILED,
+        AgentState.CANCELLED,
+    },
+    AgentState.PLANNING: {
+        AgentState.THINKING,
+        AgentState.ACTING,
+        AgentState.FAILED,
+        AgentState.CANCELLED,
+    },
+    AgentState.ACTING: {
+        AgentState.THINKING,
+        AgentState.RECOVERING,
+        AgentState.FAILED,
+        AgentState.CANCELLED,
+    },
+    AgentState.WAITING: {AgentState.THINKING, AgentState.CANCELLED, AgentState.FAILED},
+    AgentState.RECOVERING: {
+        AgentState.THINKING,
+        AgentState.ACTING,
+        AgentState.FAILED,
+        AgentState.CANCELLED,
+    },
+    AgentState.COMPLETED: set(),
+    AgentState.FAILED: set(),
+    AgentState.CANCELLED: set(),
+}
+
+
+class AgentStateMachine:
+    """Agent 状态机"""
+
+    def __init__(self, initial_state: AgentState = AgentState.IDLE):
+        self._state = initial_state
+        self._history: List[StateTransition] = []
+        self._enter_hooks: Dict[AgentState, List[Callable]] = {}
+        self._exit_hooks: Dict[AgentState, List[Callable]] = {}
+
+    @property
+    def state(self) -> AgentState:
+        return self._state
+
+    @property
+    def is_terminal(self) -> bool:
+        return self._state in {
+            AgentState.COMPLETED,
+            AgentState.FAILED,
+            AgentState.CANCELLED,
+        }
+
+    def transition(
+        self, to_state: AgentState, reason: str = "", force: bool = False
+    ) -> bool:
+        valid_targets = VALID_TRANSITIONS.get(self._state, set())
+        if not force and to_state not in valid_targets:
+            logger.warning("无效状态转换: %s -> %s", self._state.name, to_state.name)
+            return False
+
+        from_state = self._state
+        self._history.append(StateTransition(from_state, to_state, time.time(), reason))
+        self._state = to_state
+        logger.debug("状态转换: %s -> %s (%s)", from_state.name, to_state.name, reason)
+        return True
+
+    def reset(self) -> None:
+        self._state = AgentState.IDLE
+        self._history.clear()
+
+    def get_summary(self) -> Dict[str, Any]:
+        return {
+            "current_state": self._state.name,
+            "transition_count": len(self._history),
+        }
+
+
+# ==================== 重试策略 ====================
+
+
+@dataclass
+class RetryPolicy:
+    """重试策略"""
+
+    max_retries: int = 3
+    base_delay: float = 1.0
+    max_delay: float = 60.0
+    exponential_base: float = 2.0
+    jitter: bool = True
+
+    def get_delay(self, attempt: int) -> float:
+        delay = min(self.base_delay * (self.exponential_base**attempt), self.max_delay)
+        if self.jitter:
+            delay = delay * (1 + random.random() * 0.5)
+        return delay
+
+
+class ErrorRecoveryManager:
+    """错误恢复管理器"""
+
+    def __init__(self, default_policy: Optional[RetryPolicy] = None):
+        self.default_policy = default_policy or RetryPolicy()
+
+    async def execute_with_recovery(
+        self,
+        func: Callable[..., T],
+        *args,
+        policy: Optional[RetryPolicy] = None,
+        **kwargs,
+    ) -> T:
+        policy = policy or self.default_policy
+        last_error: Optional[Exception] = None
+        for attempt in range(policy.max_retries + 1):
+            try:
+                if asyncio.iscoroutinefunction(func):
+                    return await func(*args, **kwargs)
+                else:
+                    return func(*args, **kwargs)
+            except Exception as e:
+                last_error = e
+                if attempt < policy.max_retries:
+                    delay = policy.get_delay(attempt)
+                    logger.info(
+                        "重试 %d/%d, 延迟 %.1fs", attempt + 1, policy.max_retries, delay
+                    )
+                    await asyncio.sleep(delay)
+        raise last_error or Exception("未知错误")
 
 
 class RoomLockManager:
@@ -106,9 +255,6 @@ class RoomLockManager:
     def get_active_rooms(cls) -> list:
         """获取所有活跃房间列表"""
         return list(cls._active_rooms)
-
-
-# ==================== 状态和数据结构 ====================
 
 
 class AgentStatus(Enum):
@@ -882,9 +1028,6 @@ class BaseAgent(ABC):
     def _build_system_prompt(self) -> str:
         """构建完整的系统提示词"""
         return self.system_prompt
-
-
-# ==================== PlanningAgent ====================
 
 
 class PlanningAgent(BaseAgent):

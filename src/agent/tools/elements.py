@@ -1,4 +1,4 @@
-"""模块名称: elements
+﻿"""模块名称: elements
 主要功能: 基础元素操作工具
 
 提供 Excalidraw 元素的 CRUD 操作:
@@ -15,8 +15,8 @@ from typing import Optional, List, Dict, Any
 
 from pycrdt import Map
 
-from src.agent.core.agent import AgentContext
-from src.agent.core.tools import registry, ToolCategory
+from src.agent.base import AgentContext
+from src.agent.registry import registry, ToolCategory
 from src.agent.tools.schemas import (
     CreateExcalidrawElementArgs,
     ListElementsArgs,
