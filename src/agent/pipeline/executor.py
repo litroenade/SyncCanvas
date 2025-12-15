@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 
 from src.agent.pipeline.cognition import GraphCognition, CanvasState, get_cognition
 from src.agent.canvas import CanvasModel
@@ -149,6 +149,7 @@ class AgentPipeline:
         router: Optional[LLMRouter] = None,
         layout: Optional[LayoutEngine] = None,
         transaction: Optional[SemanticTransaction] = None,
+        step_callback: Optional[Callable] = None,
     ):
         self.llm = llm_client
         self.cognition = cognition or get_cognition()
@@ -156,6 +157,29 @@ class AgentPipeline:
         self.reasoner = CanvasReasoner(llm_client)
         self.layout = layout or get_layout_engine()
         self.transaction = transaction or get_transaction()
+        self._step_callback = step_callback
+
+    def set_step_callback(self, callback: Callable) -> None:
+        """设置步骤回调
+
+        Args:
+            callback: 回调函数，接收 (phase: str, data: dict) 参数
+        """
+        self._step_callback = callback
+
+    async def _emit_step(self, phase: str, data: Dict[str, Any]) -> None:
+        """发送步骤事件"""
+        if not self._step_callback:
+            return
+        try:
+            import asyncio
+
+            result = self._step_callback(phase, data)
+            if asyncio.iscoroutine(result):
+                await result
+        except Exception as e:
+            logger.warning("[Pipeline] 步骤回调失败: %s", e)
+
 
     async def execute(
         self,
@@ -185,6 +209,7 @@ class AgentPipeline:
 
         try:
             # ==================== Phase 1: State Hydration ====================
+            await self._emit_step("hydration", {"status": "started"})
             phase_start = time.time()
 
             # 读取画布状态摘要
@@ -196,17 +221,32 @@ class AgentPipeline:
 
             metrics.hydration_ms = (time.time() - phase_start) * 1000
 
+            await self._emit_step("hydration", {
+                "status": "completed",
+                "element_count": canvas_model.element_count,
+                "duration_ms": round(metrics.hydration_ms, 2),
+            })
+
             logger.debug(
                 "[Pipeline] Phase 1 完成: %d 元素",
                 canvas_model.element_count,
             )
 
             # ==================== Phase 2: Intent Routing ====================
+            await self._emit_step("routing", {"status": "started"})
             phase_start = time.time()
             task, model_config = self.router.classify_and_select(
                 user_input, canvas_state
             )
             metrics.routing_ms = (time.time() - phase_start) * 1000
+
+            await self._emit_step("routing", {
+                "status": "completed",
+                "tier": task.tier.value,
+                "intent": task.intent.value,
+                "complexity": round(task.complexity, 2),
+                "model": model_config.model,
+            })
 
             logger.info(
                 "[Pipeline] Phase 2 完成: tier=%s, complexity=%.2f",

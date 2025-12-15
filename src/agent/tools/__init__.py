@@ -1,46 +1,62 @@
 ﻿"""包名称: tools
 功能说明: Agent 可用工具集
 
-包含 Agent 可调用的各类画布和通用工具。
+核心工具模块:
+- flowchart: create_flowchart_node, connect_nodes (2)
+- elements: list_elements, delete_elements, batch_create_elements... (7)
+- canvas: get_canvas_bounds (1)
+- general_tools: get_current_time, calculate (2)
+- web_tools: fetch_webpage (1)
 
-工具模块:
-- flowchart: 流程图节点和连接
-- elements: 基础元素 CRUD
-- canvas: 画布状态查询
-- architecture: 架构图容器和组件
-- presets: 元素预设和批量操作
-- general_tools: 通用工具
-- web_tools: 网络工具
-- text_tools: 文本工具
-- auto_layout: 自动布局
-- sequence: 时序图工具
+总计约 13 个工具
 """
 
-# 导入工具模块以触发 @registry.register 装饰器
+# 画布工具
 from src.agent.tools import flowchart  # noqa: F401
 from src.agent.tools import elements  # noqa: F401
 from src.agent.tools import canvas  # noqa: F401
-from src.agent.tools import architecture  # noqa: F401
-from src.agent.tools import presets  # noqa: F401
+
+# 通用工具
 from src.agent.tools import general_tools  # noqa: F401
 from src.agent.tools import web_tools  # noqa: F401
-from src.agent.tools import text_tools  # noqa: F401
-from src.agent.tools import auto_layout  # noqa: F401
-from src.agent.tools import sequence  # noqa: F401
 
-# 导出预设
-from src.agent.tools.presets import ELEMENT_PRESETS
+# 元素预设常量
+ELEMENT_PRESETS = {
+    "flowchart_start": {
+        "node_type": "ellipse",
+        "width": 120,
+        "height": 50,
+        "stroke_color": "#1e1e1e",
+        "bg_color": "#e6f7ff",
+    },
+    "flowchart_end": {
+        "node_type": "ellipse",
+        "width": 120,
+        "height": 50,
+        "stroke_color": "#1e1e1e",
+        "bg_color": "#fff1f0",
+    },
+    "flowchart_process": {
+        "node_type": "rectangle",
+        "width": 160,
+        "height": 70,
+        "stroke_color": "#1e1e1e",
+        "bg_color": "#ffffff",
+    },
+    "flowchart_decision": {
+        "node_type": "diamond",
+        "width": 120,
+        "height": 120,
+        "stroke_color": "#1e1e1e",
+        "bg_color": "#fff7e6",
+    },
+}
 
 __all__ = [
     "flowchart",
     "elements",
     "canvas",
-    "architecture",
-    "presets",
     "general_tools",
     "web_tools",
-    "text_tools",
-    "auto_layout",
-    "sequence",
     "ELEMENT_PRESETS",
 ]

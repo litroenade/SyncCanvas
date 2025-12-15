@@ -90,35 +90,9 @@ class PlannerAgent(BaseAgent):
 
     Attributes:
         canvaser: Canvaser Agent 实例
+        router: LLM 路由器
         run_service: Agent 运行记录服务
     """
-
-    # 绘图相关关键词
-    DRAW_KEYWORDS = [
-        "draw",
-        "diagram",
-        "flowchart",
-        "sketch",
-        "layout",
-        "uml",
-        "erd",
-        "graph",
-        "visualize",
-        "paint",
-        "illustrate",
-        "chart",
-        "画",
-        "绘制",
-        "绘图",
-        "流程图",
-        "数据流图",
-        "架构图",
-        "示意图",
-        "思维导图",
-        "关系图",
-        "时序图",
-        "类图",
-    ]
 
     # Planner 专用配置
     PLANNER_CONFIG = AgentConfig(
@@ -142,6 +116,11 @@ class PlannerAgent(BaseAgent):
             run_service: Agent 运行记录服务 (可选)
             config: 自定义配置 (可选)
         """
+        # 初始化路由器
+        from src.agent.pipeline.router import get_router
+
+        self.router = get_router()
+
         # 构建系统提示词
         system_prompt = self._build_prompt_from_template()
 
@@ -225,18 +204,6 @@ class PlannerAgent(BaseAgent):
 
         logger.info("Planner Agent 已注册 %s 个工具", len(self.tools))
 
-    def _should_delegate_to_canvaser(self, text: str) -> bool:
-        """判断是否应该委托给 Canvaser Agent
-
-        Args:
-            text: 用户输入文本
-
-        Returns:
-            bool: 是否应该委托
-        """
-        lowered = text.lower()
-        return any(keyword in lowered for keyword in self.DRAW_KEYWORDS)
-
     async def run(
         self,
         context: AgentContext,
@@ -245,7 +212,10 @@ class PlannerAgent(BaseAgent):
     ) -> str:
         """执行任务
 
-        根据用户输入判断是否委托给 Canvaser Agent。
+        使用 Router 智能分类任务，根据 TaskIntent 分发:
+        - GENERATE: 委托给 CanvaserAgent (已集成 Pipeline)
+        - MODIFY/DELETE/LAYOUT: 使用 Pipeline CONTROL 模式
+        - QUERY/其他: 使用 ReAct 循环
 
         Args:
             context: Agent 上下文
@@ -255,22 +225,48 @@ class PlannerAgent(BaseAgent):
         Returns:
             str: 执行结果
         """
-        # 如果是绘图相关请求，委托给 Canvaser
-        if self._should_delegate_to_canvaser(user_input):
-            logger.info(
-                "检测到绘图请求，委托给 Canvaser Agent",
-                extra={"run_id": context.run_id, "session_id": context.session_id},
-            )
+        from src.agent.pipeline import create_pipeline
+        from src.agent.pipeline.cognition import get_cognition
+        from src.agent.pipeline.router import TaskIntent
+        from src.agent.pipeline.reasoning import ReasoningMode
 
-            # 记录委托行为
+        # Phase 1: 获取画布状态
+        cognition = get_cognition()
+        canvas_state = await cognition.hydrate(context)
+
+        # Phase 2: 使用 Router 分类任务
+        task, _ = self.router.classify_and_select(user_input, canvas_state)
+
+        logger.info(
+            "任务分类: intent=%s, tier=%s, complexity=%.2f",
+            task.intent.value,
+            task.tier.value,
+            task.complexity,
+            extra={"run_id": context.run_id},
+        )
+
+        # 根据 Intent 分发任务
+        if task.intent == TaskIntent.GENERATE:
+            # 创建任务 -> 委托给 Canvaser (已集成 Pipeline)
             await self._log_action(
                 context,
                 "delegate",
-                {"target": "canvaser", "reason": "drawing_request"},
+                {"target": "canvaser", "intent": task.intent.value},
                 {"status": "delegated"},
             )
-
             return await self.canvaser.run(context, user_input, temperature=0.2)
 
-        # 否则自己处理
-        return await super().run(context, user_input, temperature)
+        elif task.intent in (TaskIntent.MODIFY, TaskIntent.DELETE, TaskIntent.LAYOUT):
+            # 控制任务 -> 使用 Pipeline CONTROL 模式
+            pipeline = create_pipeline(self.llm)
+            result = await pipeline.execute(
+                context, user_input, temperature, mode=ReasoningMode.CONTROL
+            )
+            if result.success:
+                return result.message
+            else:
+                return f"执行失败: {result.message}"
+
+        else:
+            # 对话/查询 -> 使用 ReAct 循环
+            return await super().run(context, user_input, temperature)
