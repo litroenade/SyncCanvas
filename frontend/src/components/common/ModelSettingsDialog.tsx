@@ -45,6 +45,7 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
     const queryClient = useQueryClient();
     const [editingGroup, setEditingGroup] = useState<{ name: string; config: ModelGroupConfig; isNew?: boolean } | null>(null);
     const [showApiKey, setShowApiKey] = useState(false);
+    const [availableModels, setAvailableModels] = useState<string[]>([]);
 
 
     // 查询模型组

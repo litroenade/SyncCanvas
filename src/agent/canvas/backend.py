@@ -27,8 +27,6 @@ class CanvasBackend(Protocol):
         Returns:
             (doc, elements_array) 元组
         """
-        ...
-
 
 class WebSocketCanvasBackend:
     """WebSocket 实现的画布后端"""

@@ -114,7 +114,7 @@ async def list_elements(
     Returns:
         dict: 包含 status, total, elements 的结果
     """
-    room_id = require_room_id(context)
+    require_room_id(context)  # 验证
     _, elements_array = await context.get_room_and_doc()
 
     elements = []
@@ -165,7 +165,7 @@ async def get_element(
     Returns:
         dict: 包含元素详细信息的结果
     """
-    room_id = require_room_id(context)
+    require_room_id(context)  # 验证
     _, elements_array = await context.get_room_and_doc()
 
     _, element = find_element_by_id(elements_array, element_id)

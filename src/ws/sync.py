@@ -174,7 +174,7 @@ class PersistentWebsocketServer(WebsocketServer):
                     commit = session.exec(
                         select(Commit)
                         .where(Commit.room_id == room_id)
-                        .order_by(Commit.timestamp.desc())
+                        .order_by(Commit.timestamp.desc())  # pylint: disable=no-member
                         .limit(1)
                     ).first()
 
@@ -289,7 +289,7 @@ class PersistentWebsocketServer(WebsocketServer):
                 latest = session.exec(
                     select(Commit)
                     .where(Commit.room_id == room_id)
-                    .order_by(Commit.timestamp.desc())
+                    .order_by(Commit.timestamp.desc())  # pylint: disable=no-member
                     .limit(1)
                 ).first()
 

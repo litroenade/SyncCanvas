@@ -20,7 +20,6 @@ from src.agent.canvas.commands import (
     DeleteCommand,
 )
 from src.agent.errors import parse_json_safe
-from src.config import ModelConfig
 from src.logger import get_logger
 from src.agent.prompts.controller import ControllerPrompt
 
@@ -103,7 +102,6 @@ class CanvasReasoner:
         user_input: str,
         canvas_state: CanvasState,
         canvas_model: Optional[CanvasModel] = None,
-        model: Optional[ModelConfig] = None,
         temperature: float = 0.2,
         mode: ReasoningMode = ReasoningMode.HYBRID,
     ) -> ReasoningResult:

@@ -76,17 +76,14 @@ class SemanticTransaction:
         if not ydoc:
             return TransactionResult(success=False, error="无法获取 Yjs 文档")
 
-        # 1. 冲突检测
         conflicts = self._detect_conflicts(ops, ydoc)
 
-        # 2. 自动修复可修复的冲突
         fixed_ops = ops
         if conflicts:
             fixed_ops, remaining_conflicts = self._resolve_conflicts(
-                ops, conflicts, ydoc
+                ops, conflicts
             )
 
-            # 如果有无法修复的高严重度冲突,中止事务
             critical = [
                 c
                 for c in remaining_conflicts
@@ -99,7 +96,6 @@ class SemanticTransaction:
                     error=f"存在 {len(critical)} 个无法自动修复的冲突",
                 )
 
-        # 3. CRDT 原子提交
         created_ids = []
         try:
             with ydoc.transaction(origin="ai-agent/pipeline"):
@@ -121,7 +117,7 @@ class SemanticTransaction:
                 conflicts=conflicts,
             )
 
-        except Exception as e:
+        except Exception as e: # pylint: disable=broad-except
             logger.error("[SemanticTransaction] 提交失败: %s", e)
             return TransactionResult(
                 success=False,
@@ -136,7 +132,7 @@ class SemanticTransaction:
         try:
             elements_array = ydoc.get("elements", type="Array")
             existing_elements = list(elements_array)
-        except Exception as e:
+        except Exception as e: # pylint: disable=broad-except
             logger.warning("[SemanticTransaction] 获取元素列表失败: %s", e)
             existing_elements = []
 

@@ -126,6 +126,7 @@ class GraphCognition:
 
     # 单例
     _instance: Optional["GraphCognition"] = None
+    _initialized: bool = False
 
     def __new__(cls) -> "GraphCognition":
         if cls._instance is None:

@@ -238,7 +238,6 @@ class AgentPipeline:
                 user_input=user_input,
                 canvas_state=canvas_state,
                 canvas_model=canvas_model,
-                model=model_config,
                 temperature=temperature,
                 mode=mode,
             )

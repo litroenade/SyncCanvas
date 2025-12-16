@@ -309,6 +309,7 @@ class LLMRouter:
     ]
 
     _instance: Optional["LLMRouter"] = None
+    _initialized: bool = False
 
     def __new__(cls) -> "LLMRouter":
         if cls._instance is None:

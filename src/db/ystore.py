@@ -169,7 +169,7 @@ class SQLModelYStore(BaseYStore):
                     commit_stmt = (
                         select(Commit)
                         .where(Commit.room_id == self.room_id)
-                        .order_by(Commit.timestamp.desc())
+                        .order_by(Commit.timestamp.desc())  # pylint: disable=no-member
                         .limit(1)
                     )
                     commit = session.exec(commit_stmt).first()
@@ -277,7 +277,7 @@ class SQLModelYStore(BaseYStore):
                 commit_stmt = (
                     select(Commit)
                     .where(Commit.room_id == self.room_id)
-                    .order_by(Commit.timestamp.desc())
+                    .order_by(Commit.timestamp.desc())  # pylint: disable=no-member
                     .limit(1)
                 )
                 commit = session.exec(commit_stmt).first()
