@@ -34,8 +34,6 @@ frontend/public
 logs/
 *.log
 
-# Lock files
-uv.lock
 
 # Data directory - keep structure, ignore contents
 data/*.db
