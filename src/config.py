@@ -365,7 +365,8 @@ class ConfigManager:
             return
 
         try:
-            data = self._config.model_dump()
+            # exclude_none=True 过滤 None 值，TOML 不支持 None
+            data = self._config.model_dump(exclude_none=True)
             with self._config_file.open("wb") as f:
                 tomli_w.dump(data, f)
             self._last_mtime = self._config_file.stat().st_mtime

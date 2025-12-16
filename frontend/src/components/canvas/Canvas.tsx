@@ -20,7 +20,7 @@ import { useNavigate } from 'react-router-dom';
 import { HistoryPanel } from './HistoryPanel';
 import { MobileFAB } from './MobileFAB';
 import { AIAssistant } from './AIAssistant';
-import { SettingsPanel } from './SettingsPanel';
+import { ModelSettingsDialog } from '../common/ModelSettingsDialog';
 import { cn } from '../../lib/utils';
 import {
     Home,
@@ -40,7 +40,6 @@ interface CanvasProps {
 }
 
 const HISTORY_SIDEBAR_NAME = 'history-panel';
-const SETTINGS_SIDEBAR_NAME = 'settings-panel';
 
 /**
  * 改进的移动端检测 Hook
@@ -90,6 +89,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
     const isRemoteUpdateRef = useRef(false);
     const { isMobile, isTouchDevice } = useDeviceType();
     const [showAIAssistant, setShowAIAssistant] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
 
     const {
         elements,
@@ -138,9 +138,9 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
         excalidrawAPI?.toggleSidebar({ name: HISTORY_SIDEBAR_NAME });
     }, [excalidrawAPI]);
 
-    const toggleSettingsSidebar = useCallback(() => {
-        excalidrawAPI?.toggleSidebar({ name: SETTINGS_SIDEBAR_NAME });
-    }, [excalidrawAPI]);
+    const toggleSettings = useCallback(() => {
+        setShowSettings(prev => !prev);
+    }, []);
 
     /**
      * 上传图片到后端并返回文件 ID
@@ -369,8 +369,8 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
                             </MainMenu.Item>
                         )}
                         {!isGuest && (
-                            <MainMenu.Item onSelect={toggleSettingsSidebar} icon={<Settings size={16} />}>
-                                设置
+                            <MainMenu.Item onSelect={toggleSettings} icon={<Settings size={16} />}>
+                                模型设置
                             </MainMenu.Item>
                         )}
                         <MainMenu.Separator />
@@ -394,19 +394,15 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
                     </ExcalidrawSidebar>
                 )}
 
-                {/* 设置侧边栏 */}
-                {!isGuest && (
-                    <ExcalidrawSidebar name={SETTINGS_SIDEBAR_NAME}>
-                        <ExcalidrawSidebar.Header>
-                            <div className="flex items-center gap-2 px-2">
-                                <Settings size={18} />
-                                <span className="font-semibold">设置</span>
-                            </div>
-                        </ExcalidrawSidebar.Header>
-                        <SettingsPanel isDark={isDark} />
-                    </ExcalidrawSidebar>
-                )}
+
             </Excalidraw>
+
+            {/* 模型设置浮动弹窗 */}
+            <ModelSettingsDialog
+                open={showSettings}
+                onClose={() => setShowSettings(false)}
+                isDark={isDark}
+            />
         </div>
     );
 };
