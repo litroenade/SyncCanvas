@@ -215,6 +215,22 @@ class ToolRegistry:
             # 包装函数添加验证
             @wraps(func)
             async def wrapper(*args, **kwargs):
+                context = kwargs.get("context")
+                
+                # 强制检查: requires_room
+                if requires_room:
+                    if not context or not getattr(context, "session_id", None):
+                        logger.warning("[Tool] %s 需要 room 但未提供 context", name)
+                        return {"status": "error", "message": f"工具 {name} 需要房间上下文"}
+                
+                # 强制检查: dangerous 需要记录
+                if dangerous:
+                    logger.warning(
+                        "[Tool] 执行危险工具: %s, room=%s",
+                        name,
+                        getattr(context, "session_id", "N/A") if context else "N/A"
+                    )
+                
                 # 参数验证
                 if validate_args and args_schema:
                     # 过滤掉 context 参数

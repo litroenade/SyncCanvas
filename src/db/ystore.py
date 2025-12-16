@@ -166,7 +166,6 @@ class SQLModelYStore(BaseYStore):
                     commit = session.get(Commit, room.head_commit_id)
 
                 if not commit:
-                    # 降级：获取最新的 Commit
                     commit_stmt = (
                         select(Commit)
                         .where(Commit.room_id == self.room_id)
@@ -185,7 +184,6 @@ class SQLModelYStore(BaseYStore):
                     )
                     yield commit.data, b"", commit.timestamp / 1000.0
 
-                    # 2. 获取 Commit 之后的所有 Update
                     updates_stmt = (
                         select(Update)
                         .where(Update.room_id == self.room_id)
@@ -212,7 +210,6 @@ class SQLModelYStore(BaseYStore):
                     )
                     yield update.data, b"", update.timestamp / 1000.0
 
-        # 3. 返回内存缓冲区中的更新
         buffer_data = self._buffer.get_copy()
         self.log.info("[YStore.read] 内存缓冲区: %d 个更新", len(buffer_data))
         for data, timestamp in buffer_data:

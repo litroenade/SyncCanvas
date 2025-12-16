@@ -139,4 +139,3 @@ def element_to_ymap(element: Dict[str, Any]) -> Dict[str, Any]:
         Dict: 元素字典（直接返回）
     """
     return element
-

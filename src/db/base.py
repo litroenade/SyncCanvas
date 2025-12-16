@@ -10,19 +10,6 @@ class BaseDBMixin:
     """数据库模型通用 Mixin
 
     提供通用的数据库操作方法，可被模型类继承使用。
-    注意：此类需要与 SQLModel 一起使用。
-
-    Example:
-        ```python
-        class Room(SQLModel, BaseDBMixin, table=True):
-            id: str = Field(primary_key=True)
-            name: str
-
-        # 使用 Mixin 方法
-        room = Room.get_by_id(session, "room-123")
-        all_rooms = Room.get_all(session, limit=10)
-        room.save(session)
-        ```
     """
 
     @classmethod
