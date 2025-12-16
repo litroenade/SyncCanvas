@@ -14,10 +14,6 @@ from src.logger import get_logger
 
 logger = get_logger(__name__)
 
-
-# ==================== 基础异常类 ====================
-
-
 class AIEngineError(Exception):
     """AI Engine 基础异常类
 
@@ -150,10 +146,6 @@ class TransactionError(AIEngineError):
         super().__init__(message, details=details, **kwargs)
         self.operation = operation
         self.affected_ids = affected_ids or []
-
-
-# ==================== JSON 解析工具 ====================
-
 
 def extract_json_from_text(text: str) -> Optional[str]:
     """从文本中提取 JSON 块"""

@@ -17,15 +17,8 @@ from src.logger import get_logger
 
 logger = get_logger(__name__)
 
-
-# ==================== 常量 ====================
-
 METRICS_WINDOW_SIZE = 100
 DEFAULT_MAX_LATENCY_MS = 5000
-
-
-# ==================== 任务分级 ====================
-
 
 class TaskTier(Enum):
     """任务分级
@@ -229,10 +222,6 @@ class TaskClassifier:
 
         return max(0.0, min(1.0, score))
 
-
-# ==================== 性能指标 ====================
-
-
 @dataclass
 class PerformanceMetrics:
     """模型性能指标"""
@@ -287,10 +276,6 @@ class PerformanceMetrics:
             "latency_p50": round(self.latency_p50, 2),
             "latency_p99": round(self.latency_p99, 2),
         }
-
-
-# ==================== LLM 路由器 ====================
-
 
 @dataclass
 class ModelScore:
@@ -511,10 +496,6 @@ class LLMRouter:
         else:
             self._metrics.clear()
         logger.info("[LLMRouter] 已重置指标: %s", model_name or "全部")
-
-
-# ==================== 工厂函数 ====================
-
 
 def get_router() -> LLMRouter:
     """获取 LLMRouter 单例"""

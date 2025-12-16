@@ -16,10 +16,6 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-
-# ==================== 元素类型 ====================
-
-
 class ElementType(Enum):
     """元素类型"""
 
@@ -33,10 +29,6 @@ class ElementType(Enum):
     IMAGE = "image"
     FRAME = "frame"
     GROUP = "group"
-
-
-# ==================== 几何信息 ====================
-
 
 @dataclass
 class Geometry:
@@ -92,10 +84,6 @@ class Geometry:
             angle=data.get("angle", 0.0),
         )
 
-
-# ==================== 样式信息 ====================
-
-
 @dataclass
 class Style:
     """元素样式"""
@@ -140,10 +128,6 @@ class Style:
             roughness=data.get("roughness", 1),
         )
 
-
-# ==================== 连接信息 ====================
-
-
 @dataclass
 class Binding:
     """元素绑定/连接信息"""
@@ -168,10 +152,6 @@ class Binding:
             focus=data.get("focus", 0.0),
             gap=data.get("gap", 1.0),
         )
-
-
-# ==================== 画布元素 ====================
-
 
 @dataclass
 class CanvasElement:
@@ -283,10 +263,6 @@ class CanvasElement:
             locked=data.get("locked", False),
             version=data.get("version", 1),
         )
-
-
-# ==================== 画布模型 ====================
-
 
 @dataclass
 class CanvasModel:
@@ -419,10 +395,6 @@ class CanvasModel:
             logger.warning("[CanvasModel] 从 Yjs 解析失败: %s", e)
 
         return model
-
-
-# ==================== 工厂函数 ====================
-
 
 def create_element(
     element_type: ElementType,

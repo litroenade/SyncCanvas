@@ -9,7 +9,6 @@ from src.config import config
 from src.db.database import get_session
 from src.db.user import User
 
-# 密码哈希上下文
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # JWT 配置

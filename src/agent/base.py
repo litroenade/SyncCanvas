@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 from openai.types.chat import ChatCompletionMessageParam
 
 from src.agent.prompts.reflection import SelfReflection
-from src.ws.sync import websocket_server
+from src.agent.canvas.backend import get_canvas_backend
 from src.agent.llm import LLMClient, LLMResponse
 from src.agent.errors import parse_tool_call_args
 from src.logger import get_logger
@@ -352,11 +352,27 @@ class AgentContext:
         if self._ydoc is not None:
             return self._ydoc
 
-        room = websocket_server.rooms.get(self.session_id)
-        if room:
-            self._ydoc = room.ydoc
+        try:
+            backend = get_canvas_backend()
+            doc, _ = await backend.get_room_doc(self.session_id)
+            self._ydoc = doc
             return self._ydoc
-        return None
+        except Exception as e:  # pylint: disable=broad-except
+            logger.warning("[AgentContext] 获取 ydoc 失败: %s", e)
+            return None
+
+    async def get_room_and_doc(self):
+        """获取房间文档和元素数组 (统一入口)
+        
+        Returns:
+            (doc, elements_array) 或 (None, None)
+        """
+        try:
+            backend = get_canvas_backend()
+            return await backend.get_room_doc(self.session_id)
+        except Exception as e:  # pylint: disable=broad-except
+            logger.warning("[AgentContext] 获取 room doc 失败: %s", e)
+            return None, None
 
     async def get_canvas_elements(self) -> List[Dict[str, Any]]:
         """获取画布上的所有元素

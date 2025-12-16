@@ -6,15 +6,8 @@ from typing import Optional, List, Literal, Dict, Any
 
 from pydantic import BaseModel, Field
 
-
-# ==================== 类型定义 ====================
-
 ExcalidrawShapeType = Literal["rectangle", "diamond", "ellipse", "text"]
 ComponentType = Literal["service", "database", "module", "client"]
-
-
-# ==================== 流程图参数 ====================
-
 
 class CreateFlowchartNodeArgs(BaseModel):
     """创建流程图节点的参数
@@ -61,10 +54,6 @@ class ConnectNodesArgs(BaseModel):
     )
     label: Optional[str] = Field(None, description="连线上的文字标签 (如 '是', '否')")
     stroke_color: str = Field("#1e1e1e", description="连线颜色")
-
-
-# ==================== 基础元素参数 ====================
-
 
 class CreateExcalidrawElementArgs(BaseModel):
     """创建 Excalidraw 元素的参数
@@ -163,9 +152,6 @@ class GetElementByIdArgs(BaseModel):
     element_id: str = Field(..., description="要查询的元素 ID")
 
 
-# ==================== 架构图参数 ====================
-
-
 class CreateContainerArgs(BaseModel):
     """创建容器的参数
 
@@ -216,10 +202,6 @@ class CreateComponentArgs(BaseModel):
     stroke_color: str = Field("#6b7280", description="边框颜色")
     bg_color: str = Field("#f3f4f6", description="背景颜色")
 
-
-# ==================== 预设和批量参数 ====================
-
-
 class CreatePresetElementArgs(BaseModel):
     """使用预设创建元素的参数
 
@@ -249,9 +231,6 @@ class BatchUpdateArgs(BaseModel):
     updates: List[Dict[str, Any]] = Field(
         ..., description="更新列表，每项包含 id 和要更新的属性"
     )
-
-
-# ==================== 批量创建参数 (JSON 规划层支持) ====================
 
 
 class ElementSpec(BaseModel):

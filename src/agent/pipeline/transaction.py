@@ -12,16 +12,11 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from src.agent.pipeline.layout import PositionedOp
 from src.agent.pipeline.reasoning import OpType
 from src.logger import get_logger
-from src.agent.prompts.controller import ControllerPrompt
 
 if TYPE_CHECKING:
     from src.agent.base import AgentContext
 
 logger = get_logger(__name__)
-
-
-# ==================== 冲突类型 ====================
-
 
 @dataclass
 class Conflict:
@@ -43,10 +38,6 @@ class TransactionResult:
     created_ids: List[str] = field(default_factory=list)
     conflicts: List[Conflict] = field(default_factory=list)
     error: Optional[str] = None
-
-
-# ==================== 语义事务管理器 ====================
-
 
 class SemanticTransaction:
     """语义事务管理器

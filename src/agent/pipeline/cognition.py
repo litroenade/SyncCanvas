@@ -15,10 +15,6 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-
-# ==================== 数据结构 ====================
-
-
 @dataclass
 class ElementInfo:
     """元素信息摘要"""
@@ -112,10 +108,6 @@ class DeltaChange:
     added: List[ElementInfo] = field(default_factory=list)
     removed: List[str] = field(default_factory=list)  # 存储 ID
     modified: List[tuple[str, str]] = field(default_factory=list)  # (ID, 变更描述)
-
-
-# ==================== 图认知引擎 ====================
-
 
 class GraphCognition:
     """增量图认知引擎
@@ -382,10 +374,6 @@ class GraphCognition:
         else:
             self._state_cache.clear()
         logger.info("[GraphCognition] 缓存已重置: %s", session_id or "全部")
-
-
-# ==================== 工厂函数 ====================
-
 
 def get_cognition() -> GraphCognition:
     """获取 GraphCognition 单例"""

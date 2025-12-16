@@ -479,8 +479,7 @@ async def batch_create_elements(
             # 查找节点位置
             from_node = None
             to_node = None
-            for i in range(len(elements_array)):
-                el = elements_array[i]
+            for el in elements_array:
                 if isinstance(el, Map):
                     el = dict(el)
                 if el.get("id") == from_id:

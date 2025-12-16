@@ -9,7 +9,6 @@ from typing import Dict, Any, Tuple
 from pycrdt import Array, Map
 
 from src.agent.base import AgentContext
-from src.ws.sync import websocket_server
 from src.logger import get_logger
 
 logger = get_logger(__name__)
@@ -141,17 +140,3 @@ def element_to_ymap(element: Dict[str, Any]) -> Dict[str, Any]:
     """
     return element
 
-
-async def get_room_and_doc(room_id: str):
-    """获取房间和文档对象
-
-    Args:
-        room_id: 房间 ID
-
-    Returns:
-        tuple: (room, doc, elements_array)
-    """
-    room = await websocket_server.get_room(room_id)
-    doc = room.ydoc
-    elements_array = get_elements_array(doc)
-    return room, doc, elements_array

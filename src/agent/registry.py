@@ -17,9 +17,6 @@ from src.logger import get_logger
 logger = get_logger(__name__)
 
 
-# ==================== 工具分类 ====================
-
-
 class ToolCategory(Enum):
     """工具分类"""
 
@@ -28,10 +25,6 @@ class ToolCategory(Enum):
     GENERAL = "general"  # 通用工具
     SYSTEM = "system"  # 系统工具
     DANGEROUS = "dangerous"  # 危险操作 (需要确认)
-
-
-# ==================== 工具元数据 ====================
-
 
 class ToolMetadata:
     """工具元数据
@@ -60,10 +53,6 @@ class ToolMetadata:
         self.timeout = timeout
         self.retries = retries
         self.dangerous = dangerous
-
-
-# ==================== 参数验证 ====================
-
 
 class ToolValidator:
     """工具参数验证器"""
@@ -166,10 +155,6 @@ class ToolValidator:
                     cls.validate_string(value, key)
 
         return args
-
-
-# ==================== 工具注册表 ====================
-
 
 class ToolRegistry:
     """工具注册表
@@ -398,8 +383,5 @@ class ToolRegistry:
             }
             for name, meta in self._metadata.items()
         ]
-
-
-# ==================== 全局注册表实例 ====================
 
 registry = ToolRegistry()

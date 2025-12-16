@@ -14,10 +14,6 @@ from src.logger import get_logger
 
 logger = get_logger(__name__)
 
-
-# ==================== 布局配置 ====================
-
-
 @dataclass
 class LayoutConfig:
     """布局配置"""

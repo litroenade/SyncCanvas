@@ -14,7 +14,6 @@ from src.agent.tools.helpers import (
     base_excalidraw_element,
     find_element_by_id,
     element_to_ymap,
-    get_room_and_doc,
 )
 from src.logger import get_logger
 
@@ -55,7 +54,7 @@ async def create_flowchart_node(
         dict: 包含 status, element_id, text_id 的结果
     """
     room_id = require_room_id(context)
-    _, doc, elements_array = await get_room_and_doc(room_id)
+    doc, elements_array = await context.get_room_and_doc()
 
     # 根据节点类型调整尺寸
     if node_type == "diamond":
@@ -163,7 +162,7 @@ async def connect_nodes(
         dict: 包含 status, arrow_id, label_id 的结果
     """
     room_id = require_room_id(context)
-    _, doc, elements_array = await get_room_and_doc(room_id)
+    doc, elements_array = await context.get_room_and_doc()
 
     # 查找起始和结束节点
     _, start_node = find_element_by_id(elements_array, from_id)

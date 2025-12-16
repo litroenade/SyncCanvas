@@ -1,14 +1,6 @@
 """包名称: pipeline
 功能说明: 5-Phase Agent 执行管道
-
-编排 Agent 执行流程:
-1. State Hydration - 画布状态认知
-2. Intent Routing - 意图路由
-3. Reasoning - 推理
-4. Layout - 布局计算
-5. Transaction - 事务提交
 """
-
 from src.agent.pipeline.executor import (
     AgentPipeline,
     PipelineResult,

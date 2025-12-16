@@ -4,25 +4,18 @@
 
 from dataclasses import dataclass, asdict
 import json
-from typing import Dict, List, Any, Optional, TYPE_CHECKING
+from typing import Dict, List, Any, Optional
 
 from src.agent.base import PlanningAgent, AgentContext, AgentConfig
 from src.agent.llm import LLMClient
 from src.agent.registry import registry
 from src.agent.prompts import prompt_manager
 from src.logger import get_logger
-
-# 确保工具被加载
 import src.agent.tools  # noqa: F401  # pylint: disable=unused-import
-
-if TYPE_CHECKING:
-    from src.services.agent_runs import AgentRunService
+from src.services.agent_runs import AgentRunService
+from src.agent.pipeline import AgentPipeline
 
 logger = get_logger(__name__)
-
-
-# ==================== 布局常量 ====================
-
 
 @dataclass
 class LayoutConfig:
@@ -41,9 +34,6 @@ class LayoutConfig:
     def to_dict(self) -> Dict[str, int]:
         """转换为字典 (用于 Jinja2 模板)"""
         return asdict(self)
-
-
-# ==================== 系统提示词 ====================
 
 CANVASER_SYSTEM_PROMPT = """你是一个专业的图形绘制助手 (Canvaser Agent)，专门负责在 Excalidraw 白板上绘制流程图、数据流图、架构图等技术图表。
 
@@ -351,8 +341,6 @@ class CanvaserAgent(PlanningAgent):
         Returns:
             str: 执行结果描述
         """
-        # 导入 Pipeline
-        from src.agent.pipeline import AgentPipeline
 
         # 重置节点注册表
         self.node_registry = {}

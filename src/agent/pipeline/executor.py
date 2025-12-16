@@ -33,10 +33,6 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-
-# ==================== Pipeline 结果 ====================
-
-
 @dataclass
 class PipelineMetrics:
     """Pipeline 执行指标"""
@@ -110,10 +106,6 @@ class PipelineResult:
 
     # 创建的元素
     created_ids: List[str] = field(default_factory=list)
-
-
-# ==================== Agent Pipeline ====================
-
 
 class AgentPipeline:
     """Agent Pipeline
@@ -196,7 +188,6 @@ class AgentPipeline:
         )
 
         try:
-            # ==================== Phase 1: State Hydration ====================
             await self._emit_step("hydration", {"status": "started"})
             phase_start = time.time()
 
@@ -220,7 +211,6 @@ class AgentPipeline:
                 canvas_model.element_count,
             )
 
-            # ==================== Phase 2: Intent Routing ====================
             await self._emit_step("routing", {"status": "started"})
             phase_start = time.time()
             task, model_config = self.router.classify_and_select(
@@ -242,7 +232,6 @@ class AgentPipeline:
                 task.complexity,
             )
 
-            # ==================== Phase 3: Reasoning ====================
             phase_start = time.time()
 
             reasoning_result = await self.reasoner.reason(
@@ -275,7 +264,6 @@ class AgentPipeline:
                 len(reasoning_result.operations),
             )
 
-            # ==================== Phase 4: Command Execution / Layout ====================
             phase_start = time.time()
 
             command_results: List[CommandResult] = []
@@ -302,7 +290,6 @@ class AgentPipeline:
                 len(positioned_ops),
             )
 
-            # ==================== Phase 5: Transaction ====================
             phase_start = time.time()
 
             created_ids: List[str] = []
@@ -323,7 +310,6 @@ class AgentPipeline:
 
             metrics.transaction_ms = (time.time() - phase_start) * 1000
 
-            # ==================== 完成 ====================
             metrics.end_time = time.time()
 
             message = self._build_response_message(
@@ -432,10 +418,6 @@ class AgentPipeline:
                 parts.append(f"自动解决了 {auto_fixed} 个冲突。")
 
         return "\n".join(parts) if parts else "操作完成"
-
-
-# ==================== 工厂函数 ====================
-
 
 def create_pipeline(llm_client: LLMClient) -> AgentPipeline:
     """创建 Pipeline 实例"""

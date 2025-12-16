@@ -20,10 +20,6 @@ from src.agent.canvas.model import create_element
 
 logger = get_logger(__name__)
 
-
-# ==================== 命令类型 ====================
-
-
 class CommandType(Enum):
     """命令类型"""
 
@@ -61,10 +57,6 @@ class CommandType(Enum):
     CLEAR = "clear"
     UNDO = "undo"
     REDO = "redo"
-
-
-# ==================== 命令基类 ====================
-
 
 @dataclass
 class Command(ABC):
@@ -119,10 +111,6 @@ class CommandResult:
     message: str = ""
     affected_ids: List[str] = field(default_factory=list)
     changes: Dict[str, Any] = field(default_factory=dict)
-
-
-# ==================== 选择命令 ====================
-
 
 @dataclass
 class SelectCommand(Command):
@@ -210,10 +198,6 @@ class DeselectCommand(Command):
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "DeselectCommand":
         return cls()
-
-
-# ==================== 变换命令 ====================
-
 
 @dataclass
 class MoveCommand(Command):
@@ -330,10 +314,6 @@ class ResizeCommand(Command):
             scale=data.get("scale"),
         )
 
-
-# ==================== 连接命令 ====================
-
-
 @dataclass
 class ConnectCommand(Command):
     """连接元素命令"""
@@ -382,9 +362,6 @@ class ConnectCommand(Command):
             to_id=data.get("to_id", data.get("to", "")),
             label=data.get("label", ""),
         )
-
-
-# ==================== 修改命令 ====================
 
 
 @dataclass
@@ -472,10 +449,6 @@ class DeleteCommand(Command):
             target_ids=data.get("target_ids", data.get("targets", [])),
         )
 
-
-# ==================== 创建命令 (保留生成能力) ====================
-
-
 @dataclass
 class CreateCommand(Command):
     """创建元素命令"""
@@ -540,10 +513,6 @@ class CreateCommand(Command):
             style=data.get("style", {}),
         )
 
-
-# ==================== 分组命令 ====================
-
-
 @dataclass
 class GroupCommand(Command):
     """分组命令"""
@@ -578,10 +547,6 @@ class GroupCommand(Command):
         return cls(
             target_ids=data.get("target_ids", data.get("targets", [])),
         )
-
-
-# ==================== 对齐命令 ====================
-
 
 @dataclass
 class AlignCommand(Command):
@@ -636,10 +601,6 @@ class AlignCommand(Command):
             alignment=data.get("alignment", "center"),
         )
 
-
-# ==================== 命令解析器 ====================
-
-
 def parse_commands(data: Union[Dict, List]) -> List[Command]:
     """解析命令列表"""
     if isinstance(data, dict):
@@ -654,9 +615,6 @@ def parse_commands(data: Union[Dict, List]) -> List[Command]:
             logger.warning("[Commands] 解析命令失败: %s, %s", item, e)
 
     return commands
-
-
-# ==================== 命令执行器 ====================
 
 
 class CommandExecutor:

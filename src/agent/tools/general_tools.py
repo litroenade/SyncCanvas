@@ -15,10 +15,6 @@ from src.logger import get_logger
 
 logger = get_logger(__name__)
 
-
-# ==================== 参数 Schema ====================
-
-
 class GetCurrentTimeArgs(BaseModel):
     """获取当前时间的参数"""
     format: str = Field("%Y-%m-%d %H:%M:%S", description="时间格式")
@@ -27,10 +23,6 @@ class GetCurrentTimeArgs(BaseModel):
 class CalculateArgs(BaseModel):
     """计算的参数"""
     expression: str = Field(..., description="数学表达式，如 '2+3*4', 'sqrt(16)'")
-
-
-# ==================== 工具实现 ====================
-
 
 @registry.register(
     "get_current_time",
