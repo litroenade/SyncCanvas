@@ -340,7 +340,7 @@ class AgentPipeline:
                 metrics=metrics,
             )
 
-        except Exception as e:
+        except Exception as e: # pylint: disable=broad-except
             logger.error("[Pipeline] 执行失败: %s", e, exc_info=True)
             metrics.end_time = time.time()
 
