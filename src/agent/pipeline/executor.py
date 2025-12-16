@@ -25,7 +25,7 @@ from src.agent.pipeline.transaction import (
     TransactionResult,
     get_transaction,
 )
-from src.agent.llm import LLMClient
+
 from src.logger import get_logger
 
 if TYPE_CHECKING:
@@ -126,13 +126,15 @@ class AgentPipeline:
 
     def __init__(
         self,
-        llm_client: LLMClient,
+        llm_client: "LLMClient",
         cognition: Optional[GraphCognition] = None,
         router: Optional[LLMRouter] = None,
         layout: Optional[LayoutEngine] = None,
         transaction: Optional[SemanticTransaction] = None,
         step_callback: Optional[Callable] = None,
     ):
+        
+        from src.agent.llm import LLMClient
         self.llm = llm_client
         self.cognition = cognition or get_cognition()
         self.router = router or get_router()
@@ -418,6 +420,7 @@ class AgentPipeline:
 
         return "\n".join(parts) if parts else "操作完成"
 
-def create_pipeline(llm_client: LLMClient) -> AgentPipeline:
+def create_pipeline(llm_client: "LLMClient") -> AgentPipeline:
     """创建 Pipeline 实例"""
+    from src.agent.llm import LLMClient
     return AgentPipeline(llm_client)
