@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -335,7 +336,6 @@ class LayoutEngine:
         original_ops: List[LogicalOp],
     ) -> List[PositionedOp]:
         """生成有坐标的操作"""
-        import uuid
 
         positioned: List[PositionedOp] = []
         id_mapping: Dict[str, str] = {}  # temp_id -> real_id

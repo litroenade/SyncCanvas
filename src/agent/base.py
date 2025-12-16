@@ -29,10 +29,6 @@ logger = get_logger(__name__)
 
 T = TypeVar("T")
 
-
-# ==================== Agent 状态机 ====================
-
-
 class AgentState(Enum):
     """Agent 状态"""
 
@@ -186,7 +182,7 @@ class ErrorRecoveryManager:
                     return await func(*args, **kwargs)
                 else:
                     return func(*args, **kwargs)
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
                 last_error = e
                 if attempt < policy.max_retries:
                     delay = policy.get_delay(attempt)
@@ -465,10 +461,6 @@ class ReActStep:
     success: bool = True
     latency_ms: float = 0.0
 
-
-# ==================== Agent 配置 ====================
-
-
 class AgentConfig(BaseModel):
     """Agent 配置
 
@@ -506,10 +498,6 @@ class AgentConfig(BaseModel):
         title="反思间隔",
         description="每隔多少轮进行一次自反思 (1=每轮, 2=第2/4/6轮)",
     )
-
-
-# ==================== Agent 基类 ====================
-
 
 class BaseAgent(ABC):
     """ReAct Agent 抽象基类
@@ -988,7 +976,6 @@ class BaseAgent(ABC):
                             )
                             current_step.success = False
 
-                        # ========== OBSERVE ==========
                         self._status = AgentStatus.OBSERVING
                         current_step.observation = result_str
 
@@ -1008,7 +995,6 @@ class BaseAgent(ABC):
                         if asyncio.iscoroutine(result):
                             await result
 
-                    # ========== SELF-REFLECTION ==========
                     # 按间隔进行自反思，帮助 Agent 评估进度
                     if (
                         self.config.enable_self_reflection
@@ -1026,7 +1012,6 @@ class BaseAgent(ABC):
 
                     continue
 
-                # ========== COMPLETE ==========
                 current_step.latency_ms = (time.time() - step_start) * 1000
                 self._steps.append(current_step)
                 if self._on_step_callback:

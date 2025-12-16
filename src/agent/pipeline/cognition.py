@@ -201,7 +201,7 @@ class GraphCognition:
         try:
             elements_array = ydoc.get("elements", type="Array")
             raw_elements = list(elements_array)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             logger.warning("[GraphCognition] 获取 elements 失败: %s", e)
             return state
 

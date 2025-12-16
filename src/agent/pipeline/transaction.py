@@ -144,7 +144,8 @@ class SemanticTransaction:
         try:
             elements_array = ydoc.get("elements", type="Array")
             existing_elements = list(elements_array)
-        except Exception:
+        except Exception as e:
+            logger.warning("[SemanticTransaction] 获取元素列表失败: %s", e)
             existing_elements = []
 
         existing_by_id = {e.get("id", ""): e for e in existing_elements}
@@ -315,7 +316,7 @@ class SemanticTransaction:
 
         except Exception as e:
             logger.error("[SemanticTransaction] 应用操作失败: %s", e)
-            return None
+            raise  # 不再静默返回 None
 
     def _create_excalidraw_element(
         self,
@@ -367,7 +368,6 @@ class SemanticTransaction:
         height: float,
     ) -> Dict[str, Any]:
         """创建绑定文本元素"""
-        import time
 
         text_id = str(uuid.uuid4())
 
@@ -416,7 +416,6 @@ class SemanticTransaction:
         label: str = "",
     ) -> Dict[str, Any]:
         """创建箭头元素"""
-        import time
 
         return {
             "id": arrow_id,

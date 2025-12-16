@@ -74,12 +74,10 @@ class Command(ABC):
     @abstractmethod
     def execute(self, model: CanvasModel) -> CommandResult:
         """执行命令"""
-        pass
 
     @abstractmethod
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
-        pass
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Command":
@@ -652,7 +650,7 @@ def parse_commands(data: Union[Dict, List]) -> List[Command]:
         try:
             cmd = Command.from_dict(item)
             commands.append(cmd)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             logger.warning("[Commands] 解析命令失败: %s, %s", item, e)
 
     return commands

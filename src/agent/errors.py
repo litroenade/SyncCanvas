@@ -25,6 +25,8 @@ class AIEngineError(Exception):
         message: 错误消息
         details: 详细信息
         cause: 原始异常
+        is_retryable: 是否可重试
+        user_message: 用户可见消息
     """
 
     def __init__(
@@ -32,11 +34,15 @@ class AIEngineError(Exception):
         message: str,
         details: Optional[Dict[str, Any]] = None,
         cause: Optional[Exception] = None,
+        is_retryable: bool = False,
+        user_message: Optional[str] = None,
     ):
         super().__init__(message)
         self.message = message
         self.details = details or {}
         self.cause = cause
+        self.is_retryable = is_retryable
+        self.user_message = user_message or message
 
     def __str__(self) -> str:
         return self.message
@@ -116,6 +122,34 @@ class AgentError(AIEngineError):
         super().__init__(message, details=details, **kwargs)
         self.agent_name = agent_name
         self.run_id = run_id
+
+
+class TransactionError(AIEngineError):
+    """事务提交异常 (CRDT 操作失败)
+
+    Attributes:
+        operation: 失败的操作类型
+        affected_ids: 受影响的元素 ID
+    """
+
+    def __init__(
+        self,
+        message: str,
+        operation: Optional[str] = None,
+        affected_ids: Optional[list] = None,
+        **kwargs,
+    ):
+        # 事务冲突通常可重试
+        kwargs.setdefault("is_retryable", True)
+        kwargs.setdefault("user_message", "操作冲突，请稍后重试")
+        details = kwargs.pop("details", {})
+        if operation:
+            details["operation"] = operation
+        if affected_ids:
+            details["affected_ids"] = affected_ids
+        super().__init__(message, details=details, **kwargs)
+        self.operation = operation
+        self.affected_ids = affected_ids or []
 
 
 # ==================== JSON 解析工具 ====================

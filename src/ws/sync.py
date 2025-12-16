@@ -69,7 +69,7 @@ class PersistentWebsocketServer(WebsocketServer):
                     logger.exception("WebSocket 服务异常 [%s]: %s", name, exc)
             else:
                 logger.debug("客户端断开连接: %s", name)
-        except Exception as exception: # pylint: disable=broad-except
+        except Exception as exception:   # pylint: disable=broad-except
             if not self._is_disconnect_error(exception):
                 logger.exception("WebSocket 异常 [%s]: %s", name, exception)
             else:

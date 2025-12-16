@@ -388,8 +388,9 @@ class AgentPipeline:
                         elem = model.get_element(eid)
                         if elem:
                             # 更新 Yjs 中对应元素
-                            for yelem in enumerate(elements_array):
-                                if yelem.get("id") == eid:
+                            for yelem in elements_array:  # 修复: 移除错误的 enumerate
+                                elem_id = yelem.get("id") if hasattr(yelem, "get") else None
+                                if elem_id == eid:
                                     yelem["x"] = elem.geometry.x
                                     yelem["y"] = elem.geometry.y
                                     yelem["width"] = elem.geometry.width
@@ -399,7 +400,8 @@ class AgentPipeline:
                                     break
 
         except Exception as e:
-            logger.warning("[Pipeline] 提交命令结果失败: %s", e)
+            logger.error("[Pipeline] 提交命令结果失败: %s", e)
+            raise  # 不再静默吞掉错误
 
     def _build_response_message(
         self,
