@@ -415,7 +415,7 @@ class CanvasModel:
                 if isinstance(elem_data, dict):
                     elem = CanvasElement.from_excalidraw(elem_data)
                     model.add_element(elem)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             logger.warning("[CanvasModel] 从 Yjs 解析失败: %s", e)
 
         return model

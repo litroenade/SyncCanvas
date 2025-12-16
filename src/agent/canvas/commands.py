@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
@@ -551,7 +552,6 @@ class GroupCommand(Command):
     target_ids: List[str] = field(default_factory=list)
 
     def execute(self, model: CanvasModel) -> CommandResult:
-        import uuid
 
         group_id = str(uuid.uuid4())
 

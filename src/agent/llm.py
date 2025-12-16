@@ -159,7 +159,7 @@ class LLMClient:
             router.record_call(primary_conf.model, latency_ms, success=True)
             return response
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             # 记录失败调用指标
             latency_ms = (time.time() - start_time) * 1000
             router.record_call(primary_conf.model, latency_ms, success=False)
@@ -184,7 +184,7 @@ class LLMClient:
                 router.record_call(fallback_conf.model, latency_ms, success=True)
                 return response
 
-            except Exception as e2:
+            except Exception as e2:  # pylint: disable=broad-except
                 latency_ms = (time.time() - start_time) * 1000
                 router.record_call(fallback_conf.model, latency_ms, success=False)
                 logger.error("备用提供商调用失败: %s", e2)

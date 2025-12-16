@@ -22,14 +22,12 @@ from src.agent.canvas.commands import (
 from src.agent.errors import parse_json_safe
 from src.config import ModelConfig
 from src.logger import get_logger
+from src.agent.prompts.controller import ControllerPrompt
 
 if TYPE_CHECKING:
     from src.agent.llm import LLMClient
 
 logger = get_logger(__name__)
-
-
-# ==================== 推理模式 ====================
 
 
 class ReasoningMode(Enum):
@@ -38,10 +36,6 @@ class ReasoningMode(Enum):
     CONTROL = "control"  # 控制已有元素
     CREATE = "create"  # 创建新元素
     HYBRID = "hybrid"  # 混合模式 (默认)
-
-
-# ==================== 旧版逻辑操作 (兼容) ====================
-
 
 class OpType(Enum):
     """操作类型 (兼容旧版)"""
@@ -75,10 +69,6 @@ class LogicalOp:
         params = {k: v for k, v in data.items() if k not in ("type", "id", "temp_id")}
         return cls(type=op_type, temp_id=temp_id, params=params)
 
-
-# ==================== 推理结果 ====================
-
-
 @dataclass
 class ReasoningResult:
     """推理结果"""
@@ -94,10 +84,6 @@ class ReasoningResult:
     mode: ReasoningMode = ReasoningMode.HYBRID
     success: bool = True
     error: Optional[str] = None
-
-
-# ==================== 推理器 ====================
-
 
 class CanvasReasoner:
     """画布推理器
@@ -166,7 +152,7 @@ class CanvasReasoner:
                 success=True,
             )
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             logger.error("[CanvasReasoner] 推理失败: %s", e)
             return ReasoningResult(success=False, error=str(e))
 
@@ -189,7 +175,6 @@ class CanvasReasoner:
                 elements.append(desc)
             element_list = "\n".join(elements)
 
-        from src.agent.prompts.controller import ControllerPrompt
         return ControllerPrompt(
             canvas_summary=canvas_summary,
             element_list=element_list,
@@ -224,10 +209,10 @@ class CanvasReasoner:
                             cmd = self._parse_command(cmd_data, canvas_model)
                             if cmd:
                                 commands.append(cmd)
-                        except Exception as e:
+                        except Exception as e:  # pylint: disable=broad-except
                             logger.warning("[CanvasReasoner] 解析命令失败: %s", e)
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             logger.warning("[CanvasReasoner] JSON 解析失败: %s", e)
             thought = content[:500]
 
@@ -315,9 +300,4 @@ class CanvasReasoner:
 
         return errors
 
-
-# ==================== 兼容旧版 ====================
-
-
-# 保留旧版 LogicalReasoner 作为别名
 LogicalReasoner = CanvasReasoner

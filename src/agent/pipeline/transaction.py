@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from src.agent.pipeline.layout import PositionedOp
 from src.agent.pipeline.reasoning import OpType
 from src.logger import get_logger
+from src.agent.prompts.controller import ControllerPrompt
 
 if TYPE_CHECKING:
     from src.agent.base import AgentContext
@@ -467,16 +468,12 @@ class SemanticTransaction:
         self, elements_array: Any, element_id: str, arrow_id: str
     ) -> None:
         """更新元素的 boundElements"""
-        for i, elem in enumerate(elements_array):
+        for elem in enumerate(elements_array):
             if elem.get("id") == element_id:
                 bound = elem.get("boundElements", []) or []
                 bound.append({"id": arrow_id, "type": "arrow"})
                 elem["boundElements"] = bound
                 break
-
-
-# ==================== 工厂函数 ====================
-
 
 def get_transaction() -> SemanticTransaction:
     """获取语义事务管理器"""

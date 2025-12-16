@@ -165,7 +165,7 @@ class AgentPipeline:
             result = self._step_callback(phase, data)
             if asyncio.iscoroutine(result):
                 await result
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             logger.warning("[Pipeline] 步骤回调失败: %s", e)
 
 
