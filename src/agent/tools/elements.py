@@ -23,7 +23,6 @@ from src.agent.tools.helpers import (
     base_excalidraw_element,
     find_element_by_id,
     element_to_ymap,
-    get_room_and_doc,
 )
 from src.logger import get_logger
 
@@ -64,7 +63,7 @@ async def create_element(
         dict: 包含 status, element_id 的结果
     """
     room_id = require_room_id(context)
-    _, doc, elements_array = await get_room_and_doc(room_id)
+    doc, elements_array = await context.get_room_and_doc()
 
     element = base_excalidraw_element(
         element_type, x, y, width, height, stroke_color, bg_color
@@ -116,7 +115,7 @@ async def list_elements(
         dict: 包含 status, total, elements 的结果
     """
     room_id = require_room_id(context)
-    _, _, elements_array = await get_room_and_doc(room_id)
+    _, elements_array = await context.get_room_and_doc()
 
     elements = []
     for i in range(min(len(elements_array), limit)):
@@ -167,7 +166,7 @@ async def get_element(
         dict: 包含元素详细信息的结果
     """
     room_id = require_room_id(context)
-    _, _, elements_array = await get_room_and_doc(room_id)
+    _, elements_array = await context.get_room_and_doc()
 
     _, element = find_element_by_id(elements_array, element_id)
 
@@ -225,7 +224,7 @@ async def update_element(
         dict: 包含 status, updated_fields 的结果
     """
     room_id = require_room_id(context)
-    _, doc, elements_array = await get_room_and_doc(room_id)
+    doc, elements_array = await context.get_room_and_doc()
 
     index, current = find_element_by_id(elements_array, element_id)
     if index < 0:
@@ -296,7 +295,7 @@ async def delete_elements(
         dict: 包含 status, removed 的结果
     """
     room_id = require_room_id(context)
-    _, doc, elements_array = await get_room_and_doc(room_id)
+    doc, elements_array = await context.get_room_and_doc()
 
     removed = []
     id_set = set(element_ids)
@@ -342,7 +341,7 @@ async def clear_canvas(
         return {"status": "cancelled", "message": "操作已取消"}
 
     room_id = require_room_id(context)
-    _, doc, elements_array = await get_room_and_doc(room_id)
+    doc, elements_array = await context.get_room_and_doc()
 
     count = len(elements_array)
 
@@ -381,7 +380,7 @@ async def batch_create_elements(
         dict: 包含 status, created_elements, created_edges 的结果
     """
     room_id = require_room_id(context)
-    _, doc, elements_array = await get_room_and_doc(room_id)
+    doc, elements_array = await context.get_room_and_doc()
 
     edges = edges or []
 

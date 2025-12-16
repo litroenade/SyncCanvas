@@ -11,6 +11,7 @@ from src.db.ystore import SQLModelYStore
 from src.db.database import engine
 from src.db.models import Commit, Update, Room
 from src.logger import get_logger
+from src.agent.canvas.backend import init_canvas_backend
 
 logger = get_logger(__name__)
 
@@ -485,8 +486,8 @@ class PersistentWebsocketServer(WebsocketServer):
 
 # 创建带持久化的 WebsocketServer 实例
 websocket_server = PersistentWebsocketServer()
+init_canvas_backend(websocket_server)
 
-# 创建 ASGI 应用，可以作为子应用挂载到 FastAPI
 asgi_server = ASGIServer(websocket_server)
 
 

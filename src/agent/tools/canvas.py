@@ -9,7 +9,7 @@ from pycrdt import Map
 from src.agent.base import AgentContext
 from src.agent.registry import registry, ToolCategory
 from src.agent.tools.schemas import GetCanvasBoundsArgs
-from src.agent.tools.helpers import require_room_id, get_room_and_doc
+from src.agent.tools.helpers import require_room_id
 from src.logger import get_logger
 
 logger = get_logger(__name__)
@@ -34,7 +34,7 @@ async def get_canvas_bounds(context: AgentContext = None) -> Dict[str, Any]:
         dict: 包含边界信息和建议绘图位置
     """
     room_id = require_room_id(context)
-    _, _, elements_array = await get_room_and_doc(room_id)
+    _, elements_array = await context.get_room_and_doc()
 
     if len(elements_array) == 0:
         return {
