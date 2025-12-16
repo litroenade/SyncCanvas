@@ -1,0 +1,49 @@
+{# 模块名称: reflection.jinja2
+   主要功能: ReAct 循环自反思模板
+
+   用于在 ReAct 循环中帮助 Agent 评估当前进度和规划下一步。
+   遵循项目的宏定义规范。
+#}
+
+{% macro self_reflection(current_iteration, max_iterations, tool_results, created_element_ids) %}
+[Self-Reflection 第{{ current_iteration }}轮]
+
+## 执行进度
+
+| 指标 | 当前值 |
+|------|--------|
+| 迭代轮数 | {{ current_iteration }} / {{ max_iterations }} |
+| 工具调用 | {{ tool_results | length }} 次 |
+| 已创建元素 | {{ created_element_ids | length }} 个 |
+
+{% if tool_results %}
+## 最近操作
+
+{% for result in tool_results[-3:] %}
+{% set status = "✓" if result.result is defined and result.result.status is defined and result.result.status == "success" else "✗" %}
+{{ loop.index }}. `{{ result.tool }}` {{ status }}
+{% endfor %}
+{% endif %}
+
+## 请自评
+
+请回答以下问题，然后决定下一步行动:
+
+1. **任务是否完成?** 用户要求的所有元素是否已创建并连接?
+2. **剩余工作?** 如果未完成，还需要哪些操作?
+3. **潜在问题?** 是否存在节点重叠、遗漏连接等问题?
+
+如果任务已完成，请返回最终答案总结成果。
+如果任务未完成，请继续执行下一步操作。
+{% endmacro %}
+
+
+{% macro progress_summary(tool_results, created_element_ids) %}
+## 当前进度
+
+- 工具调用: {{ tool_results | length }} 次
+- 已创建元素: {{ created_element_ids | length }} 个
+{% if created_element_ids %}
+- 元素 ID: {{ created_element_ids | join(", ") | truncate(100) }}
+{% endif %}
+{% endmacro %}

@@ -1,14 +1,5 @@
 """模块名称: commands
 主要功能: 元素控制命令系统
-
-定义 Agent 可以返回的控制命令:
-- 选择命令: select, deselect
-- 变换命令: move, resize, rotate
-- 连接命令: connect, disconnect
-- 修改命令: update, delete, duplicate
-- 分组命令: group, ungroup
-- 对齐命令: align, distribute
-- 创建命令: create (保留生成能力)
 """
 
 from __future__ import annotations
@@ -20,11 +11,11 @@ from typing import Any, Dict, List, Optional, Union
 
 from src.agent.canvas.model import (
     CanvasModel,
-    CanvasElement,
     ElementType,
-    Geometry,
 )
 from src.logger import get_logger
+
+from src.agent.canvas.model import create_element
 
 logger = get_logger(__name__)
 
@@ -500,14 +491,12 @@ class CreateCommand(Command):
     style: Dict[str, Any] = field(default_factory=dict)
 
     def execute(self, model: CanvasModel) -> CommandResult:
-        import uuid
 
         try:
             elem_type = ElementType(self.element_type)
         except ValueError:
             elem_type = ElementType.RECTANGLE
 
-        from src.agent.canvas.model import create_element
 
         element = create_element(
             element_type=elem_type,

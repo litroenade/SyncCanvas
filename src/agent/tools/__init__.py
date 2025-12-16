@@ -1,14 +1,5 @@
 ﻿"""包名称: tools
 功能说明: Agent 可用工具集
-
-核心工具模块:
-- flowchart: create_flowchart_node, connect_nodes (2)
-- elements: list_elements, delete_elements, batch_create_elements... (7)
-- canvas: get_canvas_bounds (1)
-- general_tools: get_current_time, calculate (2)
-- web_tools: fetch_webpage (1)
-
-总计约 13 个工具
 """
 
 # 画布工具

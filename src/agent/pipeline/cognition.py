@@ -1,22 +1,12 @@
 """模块名称: cognition
 主要功能: 增量图认知 (Graph Cognition)
-
-Phase 1 核心组件 - 提供画布状态的增量认知能力:
-- 状态水合 (State Hydration): 解析画布当前状态
-- 差分摘要 (Delta Summary): 仅描述自上次交互以来的变更
-- Prompt 注入: 将画布上下文注入系统提示词
-
-设计理念:
-- 降低 Token 消耗: 增量而非全量
-- 提供语义摘要而非原始 JSON
-- 缓存上一状态用于 Diff 计算
 """
 
 from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from src.logger import get_logger
 

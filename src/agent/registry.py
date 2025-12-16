@@ -1,11 +1,5 @@
 """模块名称: tools
 主要功能: AI Engine 工具注册和管理
-
-管理 Agent 可用的工具函数，支持:
-- 自动生成 OpenAI Function Calling JSON Schema
-- 参数验证
-- 安全检查
-- 工具分类和权限控制
 """
 
 from __future__ import annotations

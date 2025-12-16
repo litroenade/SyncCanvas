@@ -1,11 +1,5 @@
 ﻿"""模块名称: helpers
 主要功能: Excalidraw 工具辅助函数
-
-提供元素操作的通用辅助函数:
-- 房间 ID 获取
-- 元素 ID 生成
-- 基础元素结构创建
-- Y.Array 操作
 """
 
 import uuid

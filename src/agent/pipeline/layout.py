@@ -1,15 +1,5 @@
 """模块名称: layout
 主要功能: 符号化布局引擎
-
-Phase 4 核心组件 - 将纯逻辑操作转换为有坐标的操作:
-- 分层布局算法 (Hierarchical Layout)
-- 认知地图保持 (Mental Map Preservation)
-- 避让现有元素
-
-设计理念:
-- 几何计算由符号化引擎完成,而非 LLM
-- 增量布局: 仅计算新元素位置
-- 保持用户习惯布局
 """
 
 from __future__ import annotations

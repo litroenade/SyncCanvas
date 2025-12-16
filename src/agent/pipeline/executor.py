@@ -1,20 +1,10 @@
 """模块名称: executor
 主要功能: Agent Pipeline 执行器
-
-核心编排器 - 协调执行流程:
-1. State Hydration (状态水合) - 读取画布状态
-2. Intent Routing (意图路由) - 动态模型选择
-3. Reasoning (推理) - 输出控制命令或创建指令
-4. Command Execution (命令执行) - 执行控制命令
-5. Transaction (事务) - CRDT 原子提交
-
-支持两种模式:
-- 控制模式: 操作已有元素
-- 创建模式: 生成新元素
 """
 
 from __future__ import annotations
 
+import asyncio
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
@@ -172,8 +162,6 @@ class AgentPipeline:
         if not self._step_callback:
             return
         try:
-            import asyncio
-
             result = self._step_callback(phase, data)
             if asyncio.iscoroutine(result):
                 await result
@@ -400,7 +388,7 @@ class AgentPipeline:
                         elem = model.get_element(eid)
                         if elem:
                             # 更新 Yjs 中对应元素
-                            for i, yelem in enumerate(elements_array):
+                            for yelem in enumerate(elements_array):
                                 if yelem.get("id") == eid:
                                     yelem["x"] = elem.geometry.x
                                     yelem["y"] = elem.geometry.y

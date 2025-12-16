@@ -1,19 +1,10 @@
 """模块名称: transaction
 主要功能: 语义事务层
-
-Phase 5 核心组件 - 原子化提交操作:
-- 冲突检测: 预测性 + 即时冲突
-- 自动修复: 位置避让、引用更新
-- CRDT 提交: 原子化写入 Yjs 文档
-
-设计理念:
-- 语义冲突检测 (不只是 ID 冲突)
-- 分级修复策略
-- 事务原子性
 """
 
 from __future__ import annotations
 
+import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
@@ -229,7 +220,7 @@ class SemanticTransaction:
         return overlaps
 
     def _resolve_conflicts(
-        self, ops: List[PositionedOp], conflicts: List[Conflict], ydoc: Any
+        self, ops: List[PositionedOp], conflicts: List[Conflict],
     ) -> tuple[List[PositionedOp], List[Conflict]]:
         """解决冲突"""
         remaining = []
@@ -337,7 +328,6 @@ class SemanticTransaction:
         label: str = "",
     ) -> Dict[str, Any]:
         """创建 Excalidraw 元素"""
-        import time
 
         return {
             "id": element_id,

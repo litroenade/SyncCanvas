@@ -1,8 +1,5 @@
 """模块名称: llm
 主要功能: LLM 客户端实现
-
-提供 OpenAI 兼容的 LLM 客户端，支持多提供商和自动故障转移。
-集成 LLMRouter 进行性能指标追踪。
 """
 
 import time
@@ -14,6 +11,7 @@ from openai.types.chat import ChatCompletionMessageParam
 
 from src.config import config
 from src.logger import get_logger
+from src.agent.pipeline.router import get_router
 
 logger = get_logger(__name__)
 
@@ -119,7 +117,7 @@ class LLMClient:
         cache_key = f"{cfg.base_url}:{cfg.api_key[-6:] if len(cfg.api_key) > 6 else cfg.api_key}"
 
         if cache_key not in self._clients:
-            logger.debug(f"创建新的 OpenAI Client: {cfg.base_url}")
+            logger.debug("创建新的 OpenAI Client: %s", cfg.base_url)
             self._clients[cache_key] = AsyncOpenAI(
                 api_key=cfg.api_key,
                 base_url=cfg.base_url,
@@ -139,8 +137,6 @@ class LLMClient:
 
         集成 LLMRouter 进行性能指标追踪。
         """
-        # 延迟导入避免循环依赖
-        from src.agent.pipeline.router import get_router
 
         primary_conf, fallback_conf = self._get_config()
         router = get_router()
@@ -167,7 +163,7 @@ class LLMClient:
             # 记录失败调用指标
             latency_ms = (time.time() - start_time) * 1000
             router.record_call(primary_conf.model, latency_ms, success=False)
-            logger.warning(f"主提供商调用失败: {primary_conf.provider}, 错误: {e}")
+            logger.warning("主提供商调用失败: %s, 错误: %s", primary_conf.provider, e)
 
             # 尝试备用提供商
             logger.info("尝试使用备用提供商...")
@@ -191,8 +187,7 @@ class LLMClient:
             except Exception as e2:
                 latency_ms = (time.time() - start_time) * 1000
                 router.record_call(fallback_conf.model, latency_ms, success=False)
-                logger.error(f"备用提供商调用失败: {e2}")
-                raise e
+                logger.error("备用提供商调用失败: %s", e2)
 
     async def _call_completion(
         self,

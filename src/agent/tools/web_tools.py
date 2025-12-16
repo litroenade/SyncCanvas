@@ -1,8 +1,5 @@
 ﻿"""模块名称: web_tools
 主要功能: 网页获取工具
-
-提供:
-- fetch_webpage: 获取网页内容
 """
 
 import re

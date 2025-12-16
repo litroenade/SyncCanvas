@@ -1,9 +1,5 @@
 ﻿"""模块名称: flowchart
 主要功能: 流程图工具
-
-提供流程图节点创建和连接功能:
-- create_flowchart_node: 创建流程图节点
-- connect_nodes: 用箭头连接节点
 """
 
 import random

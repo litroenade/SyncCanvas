@@ -1,8 +1,5 @@
 ﻿"""模块名称: canvas
 主要功能: 画布状态工具
-
-提供画布状态查询:
-- get_canvas_bounds: 获取画布边界和建议绘图位置
 """
 
 from typing import Dict, Any

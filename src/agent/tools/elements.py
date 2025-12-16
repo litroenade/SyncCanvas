@@ -1,13 +1,5 @@
 ﻿"""模块名称: elements
 主要功能: 基础元素操作工具
-
-提供 Excalidraw 元素的 CRUD 操作:
-- create_element: 创建基础元素
-- list_elements: 列出元素
-- get_element: 获取元素详情
-- update_element: 更新元素
-- delete_elements: 删除元素
-- clear_canvas: 清空画布
 """
 
 import random

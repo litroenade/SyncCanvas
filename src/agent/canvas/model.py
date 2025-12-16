@@ -1,15 +1,10 @@
 """模块名称: canvas_model
-主要功能: 画布元素模型 (类似 DrawIO 的 mxCell)
-
-提供画布元素的统一数据结构:
-- CanvasElement: 单个元素
-- Geometry: 几何信息
-- CanvasModel: 画布整体模型
-- 支持从 Excalidraw/Yjs 解析和序列化
+主要功能: 画布元素模型
 """
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING
@@ -439,7 +434,6 @@ def create_element(
     **style_kwargs: Any,
 ) -> CanvasElement:
     """创建新元素"""
-    import uuid
 
     return CanvasElement(
         id=str(uuid.uuid4()),

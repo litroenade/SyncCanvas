@@ -1,7 +1,5 @@
 """模块名称: planner
-主要功能: Planner Agent - 主要的协调 Agent
-
-负责理解用户意图，管理对话流程，并将绘图任务委托给 Canvaser Agent。
+主要功能: Planner Agent - 主要的协调 Agent。
 """
 
 from typing import Optional, TYPE_CHECKING
@@ -13,73 +11,16 @@ from src.agent.prompts import prompt_manager
 from src.agent.canvaser import CanvaserAgent
 from src.logger import get_logger
 
+from src.agent.pipeline.router import get_router
+from src.agent.pipeline import create_pipeline
+from src.agent.pipeline.cognition import get_cognition
+from src.agent.pipeline.router import TaskIntent
+from src.agent.pipeline.reasoning import ReasoningMode
 
 if TYPE_CHECKING:
     from src.services.agent_runs import AgentRunService
 
 logger = get_logger(__name__)
-
-PLANNER_SYSTEM_PROMPT = """你是 SyncCanvas 的 AI 助手，一个多功能的智能白板协作平台助手。
-
-## 核心能力
-
-### 1. 智能对话
-- 回答用户问题，提供清晰、专业的解释
-- 理解上下文，进行多轮对话
-- 帮助用户理解复杂概念
-
-### 2. 白板绘图
-- 在画布上绘制流程图、架构图、数据流图
-- 管理画布元素（创建、修改、删除）
-- 智能布局，避免元素重叠
-
-### 3. 信息获取
-- 获取网页内容，提取关键信息
-- 分析文本，总结要点
-- 获取当前时间，执行数学计算
-
-## 可用工具
-
-### 绘图工具
-- `get_canvas_bounds`: 获取画布边界和建议绘图位置 ⚠️ 绘图前必须先调用
-- `create_flowchart_node`: 创建流程图节点 (矩形/菱形/椭圆 + 文字)
-- `connect_nodes`: 用箭头连接两个节点
-- `create_element`: 创建基础图形
-- `list_elements`: 查看画布元素
-- `update_element`: 更新元素属性
-- `delete_elements`: 删除元素
-- `clear_canvas`: 清空画布
-
-### 信息工具
-- `fetch_webpage`: 获取网页内容
-- `get_current_time`: 获取当前时间
-- `calculate`: 执行数学计算
-
-## 工作流程
-
-### 普通对话
-直接回答用户问题，提供有帮助的信息。
-
-### 绘图任务
-1. 首先调用 `get_canvas_bounds` 获取画布状态
-2. 根据 `suggested_start` 规划元素位置
-3. 依次创建节点，记录返回的 element_id
-4. 使用 connect_nodes 连接节点
-5. 确认完成
-
-### 信息查询
-1. 使用 `fetch_webpage` 获取网页内容
-2. 分析并总结关键信息
-3. 如需可视化，在白板上绘制
-
-## 注意事项
-1. 绘图前务必先获取画布边界，避免覆盖现有内容
-2. 每次创建节点后记住 element_id，用于后续连接
-3. 保持回复简洁友好
-4. 遇到复杂绘图任务，会自动委托给专业绘图助手
-
-你是用户的得力助手，随时准备帮助他们完成工作！
-"""
 
 
 class PlannerAgent(BaseAgent):
@@ -117,7 +58,6 @@ class PlannerAgent(BaseAgent):
             config: 自定义配置 (可选)
         """
         # 初始化路由器
-        from src.agent.pipeline.router import get_router
 
         self.router = get_router()
 
@@ -171,8 +111,8 @@ class PlannerAgent(BaseAgent):
                 ],
             )
         except Exception as e:  # pylint: disable=broad-except
-            logger.warning("Jinja2 模板渲染失败，使用静态 prompt: %s", e)
-            return PLANNER_SYSTEM_PROMPT
+            logger.error("Jinja2 模板渲染失败: %s", e)
+            raise
 
     def _register_default_tools(self) -> None:
         """注册默认工具
@@ -225,10 +165,6 @@ class PlannerAgent(BaseAgent):
         Returns:
             str: 执行结果
         """
-        from src.agent.pipeline import create_pipeline
-        from src.agent.pipeline.cognition import get_cognition
-        from src.agent.pipeline.router import TaskIntent
-        from src.agent.pipeline.reasoning import ReasoningMode
 
         # Phase 1: 获取画布状态
         cognition = get_cognition()

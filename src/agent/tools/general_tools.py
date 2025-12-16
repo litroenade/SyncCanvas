@@ -1,9 +1,5 @@
 ﻿"""模块名称: general_tools
 主要功能: 通用 AI 工具
-
-提供:
-- get_current_time: 获取当前时间
-- calculate: 安全数学计算
 """
 import ast
 import math

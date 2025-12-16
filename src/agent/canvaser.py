@@ -1,9 +1,5 @@
 """模块名称: canvaser
 主要功能: Canvaser Agent - 专业的图形绘制 Agent
-
-负责将用户的绘图需求转换为 Excalidraw 元素操作。
-支持流程图、数据流图、架构图等多种图表类型。
-使用 ReAct 架构进行推理和执行。
 """
 
 from dataclasses import dataclass, asdict

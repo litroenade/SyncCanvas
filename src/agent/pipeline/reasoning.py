@@ -1,14 +1,5 @@
 """模块名称: reasoning
 主要功能: Agent 推理层
-
-支持两种模式:
-1. **创建模式**: 生成新元素的拓扑操作 (add_node, connect)
-2. **控制模式**: 操作已有元素的控制命令 (select, move, resize)
-
-设计理念:
-- 控制优先: Agent 首先理解画布现有元素
-- 创建辅助: 需要新元素时才使用创建模式
-- 命令驱动: 输出结构化命令而非直接操作
 """
 
 from __future__ import annotations
@@ -105,83 +96,6 @@ class ReasoningResult:
     error: Optional[str] = None
 
 
-# ==================== 系统提示词 ====================
-
-
-CONTROL_SYSTEM_PROMPT = """你是一个画布控制助手 (Canvas Controller)。
-
-## 核心理念
-**控制元素，而不是生成元素** - 你的主要任务是操作画布上已有的元素。
-
-## 画布元素
-{canvas_summary}
-
-## 元素列表
-{element_list}
-
-## 控制命令
-
-你可以返回以下命令来控制画布元素:
-
-| 命令 | 参数 | 说明 |
-|------|------|------|
-| `select` | target_ids, by_text, by_type | 选择元素 |
-| `move` | target_ids, dx, dy | 移动元素 |
-| `resize` | target_ids, width, height, scale | 调整大小 |
-| `connect` | from_id, to_id, label | 连接元素 |
-| `update` | target_ids, properties | 更新属性 |
-| `delete` | target_ids | 删除元素 |
-| `group` | target_ids | 分组 |
-| `align` | target_ids, alignment | 对齐 |
-| `create` | element_type, value, x, y | 创建新元素 |
-
-## 输出格式
-
-```json
-{
-  "thought": "你的分析",
-  "commands": [
-    {"cmd": "select", "by_text": "登录"},
-    {"cmd": "move", "target_ids": ["id1"], "dx": 100, "dy": 0}
-  ]
-}
-```
-
-## 重要规则
-
-1. **优先控制已有元素** - 如果用户要求涉及已有元素,使用控制命令
-2. **按需创建** - 只有明确需要新元素时才使用 `create` 命令
-3. **使用真实 ID** - 操作已有元素时使用元素的真实 ID
-4. **支持文本选择** - 可以用 `by_text` 根据文本内容选择元素
-
-## 示例
-
-用户: "把登录按钮移到右边"
-```json
-{
-  "thought": "用户要移动'登录'元素,先选中再移动",
-  "commands": [
-    {"cmd": "select", "by_text": "登录"},
-    {"cmd": "move", "target_ids": ["<登录元素的ID>"], "dx": 100, "dy": 0}
-  ]
-}
-```
-
-用户: "创建一个购物车流程图"
-```json
-{
-  "thought": "需要创建新的流程图元素",
-  "commands": [
-    {"cmd": "create", "element_type": "ellipse", "value": "开始"},
-    {"cmd": "create", "element_type": "rectangle", "value": "添加商品"},
-    {"cmd": "create", "element_type": "rectangle", "value": "结算"},
-    {"cmd": "create", "element_type": "ellipse", "value": "完成"}
-  ]
-}
-```
-"""
-
-
 # ==================== 推理器 ====================
 
 
@@ -275,10 +189,11 @@ class CanvasReasoner:
                 elements.append(desc)
             element_list = "\n".join(elements)
 
-        return CONTROL_SYSTEM_PROMPT.format(
+        from src.agent.prompts.controller import ControllerPrompt
+        return ControllerPrompt(
             canvas_summary=canvas_summary,
             element_list=element_list,
-        )
+        ).render()
 
     def _parse_response(
         self, content: str, canvas_model: Optional[CanvasModel]

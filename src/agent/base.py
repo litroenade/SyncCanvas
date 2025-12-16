@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 
 from openai.types.chat import ChatCompletionMessageParam
 
+from src.agent.prompts.reflection import SelfReflection
 from src.ws.sync import websocket_server
 from src.agent.llm import LLMClient, LLMResponse
 from src.agent.errors import parse_tool_call_args
@@ -495,6 +496,15 @@ class AgentConfig(BaseModel):
     )
     enable_room_lock: bool = Field(
         default=True, title="启用房间锁", description="防止同一房间同时多个 Agent 操作"
+    )
+    enable_self_reflection: bool = Field(
+        default=True, title="启用自反思", description="每轮迭代后进行自我评估"
+    )
+    reflection_interval: int = Field(
+        default=2,
+        ge=1,
+        title="反思间隔",
+        description="每隔多少轮进行一次自反思 (1=每轮, 2=第2/4/6轮)",
     )
 
 
@@ -997,6 +1007,23 @@ class BaseAgent(ABC):
                         result = self._on_step_callback(current_step)
                         if asyncio.iscoroutine(result):
                             await result
+
+                    # ========== SELF-REFLECTION ==========
+                    # 按间隔进行自反思，帮助 Agent 评估进度
+                    if (
+                        self.config.enable_self_reflection
+                        and iteration % self.config.reflection_interval == 0
+                    ):
+                        reflection_prompt = self._build_reflection_prompt(
+                            iteration, context
+                        )
+                        messages.append(
+                            {"role": "user", "content": reflection_prompt}
+                        )
+                        logger.debug(
+                            "Self-reflection at iteration %d", iteration
+                        )
+
                     continue
 
                 # ========== COMPLETE ==========
@@ -1028,6 +1055,29 @@ class BaseAgent(ABC):
     def _build_system_prompt(self) -> str:
         """构建完整的系统提示词"""
         return self.system_prompt
+
+    def _build_reflection_prompt(
+        self, iteration: int, context: AgentContext
+    ) -> str:
+        """构建自反思提示
+
+        使用 Jinja2 模板系统渲染，遵循项目的模板规范。
+
+        Args:
+            iteration: 当前迭代轮数
+            context: Agent 上下文
+
+        Returns:
+            str: 自反思提示词
+        """
+
+        return SelfReflection(
+            current_iteration=iteration,
+            max_iterations=self.config.max_iterations,
+            tool_results=context.tool_results,
+            created_element_ids=context.created_element_ids,
+        ).render()
+
 
 
 class PlanningAgent(BaseAgent):
