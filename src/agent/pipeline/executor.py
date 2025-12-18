@@ -7,7 +7,7 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Callable, Dict, List, Optional
 
 from src.agent.pipeline.cognition import GraphCognition, CanvasState, get_cognition
 from src.agent.canvas import CanvasModel
@@ -25,11 +25,7 @@ from src.agent.pipeline.transaction import (
     TransactionResult,
     get_transaction,
 )
-from src.agent.llm import LLMClient
 from src.logger import get_logger
-
-if TYPE_CHECKING:
-    from src.agent.base import AgentContext
 
 logger = get_logger(__name__)
 
