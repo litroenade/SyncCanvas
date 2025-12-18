@@ -138,8 +138,10 @@ class SQLModelYStore(BaseYStore):
                     session.add(update)
                 session.commit()
                 # 使用 DEBUG 级别，避免刷屏
-                self.log.debug("房间 %s: 写入 %d 个更新到缓冲", self.room_id, len(buffer_data))
-        except Exception as e: # pylint: disable=broad-except
+                self.log.debug(
+                    "房间 %s: 写入 %d 个更新到缓冲", self.room_id, len(buffer_data)
+                )
+        except Exception as e:  # pylint: disable=broad-except
             self.log.error("房间 %s 刷新缓冲区失败: %s", self.room_id, e)
 
     async def read(self) -> AsyncIterator[tuple[bytes, bytes, float]]:
@@ -169,7 +171,7 @@ class SQLModelYStore(BaseYStore):
                     commit_stmt = (
                         select(Commit)
                         .where(Commit.room_id == self.room_id)
-                        .order_by(Commit.timestamp.desc())  # pylint: disable=no-member
+                        .order_by(Commit.timestamp.desc())  # type: ignore[arg-type]  # pylint: disable=no-member
                         .limit(1)
                     )
                     commit = session.exec(commit_stmt).first()
@@ -188,7 +190,7 @@ class SQLModelYStore(BaseYStore):
                         select(Update)
                         .where(Update.room_id == self.room_id)
                         .where(Update.timestamp > commit.timestamp)
-                        .order_by(Update.timestamp)
+                        .order_by(Update.timestamp)  # type: ignore[arg-type]
                     )
                 else:
                     self.log.warning("[YStore.read] 未找到 Commit，将读取所有 Update")
@@ -196,7 +198,7 @@ class SQLModelYStore(BaseYStore):
                     updates_stmt = (
                         select(Update)
                         .where(Update.room_id == self.room_id)
-                        .order_by(Update.timestamp)
+                        .order_by(Update.timestamp)  # type: ignore[arg-type]
                     )
 
                 updates = session.exec(updates_stmt).all()
@@ -238,7 +240,7 @@ class SQLModelYStore(BaseYStore):
         """丢弃缓冲区中的更改"""
         self._buffer.clear()
 
-    def stop(self) -> None:
+    async def stop(self) -> None:
         """停止 YStore，清理资源"""
         self._buffer.stop()
         self._sync_flush()
@@ -277,7 +279,7 @@ class SQLModelYStore(BaseYStore):
                 commit_stmt = (
                     select(Commit)
                     .where(Commit.room_id == self.room_id)
-                    .order_by(Commit.timestamp.desc())  # pylint: disable=no-member
+                    .order_by(Commit.timestamp.desc())  # type: ignore[arg-type]  # pylint: disable=no-member
                     .limit(1)
                 )
                 commit = session.exec(commit_stmt).first()
@@ -289,13 +291,13 @@ class SQLModelYStore(BaseYStore):
                     select(Update)
                     .where(Update.room_id == self.room_id)
                     .where(Update.timestamp > commit.timestamp)
-                    .order_by(Update.timestamp)
+                    .order_by(Update.timestamp)  # type: ignore[arg-type]
                 )
             else:
                 updates_stmt = (
                     select(Update)
                     .where(Update.room_id == self.room_id)
-                    .order_by(Update.timestamp)
+                    .order_by(Update.timestamp)  # type: ignore[arg-type]
                 )
 
             updates = session.exec(updates_stmt).all()

@@ -39,6 +39,7 @@ class TransactionResult:
     conflicts: List[Conflict] = field(default_factory=list)
     error: Optional[str] = None
 
+
 class SemanticTransaction:
     """语义事务管理器
 
@@ -80,9 +81,7 @@ class SemanticTransaction:
 
         fixed_ops = ops
         if conflicts:
-            fixed_ops, remaining_conflicts = self._resolve_conflicts(
-                ops, conflicts
-            )
+            fixed_ops, remaining_conflicts = self._resolve_conflicts(ops, conflicts)
 
             critical = [
                 c
@@ -117,7 +116,7 @@ class SemanticTransaction:
                 conflicts=conflicts,
             )
 
-        except Exception as e: # pylint: disable=broad-except
+        except Exception as e:  # pylint: disable=broad-except
             logger.error("[SemanticTransaction] 提交失败: %s", e)
             return TransactionResult(
                 success=False,
@@ -132,7 +131,7 @@ class SemanticTransaction:
         try:
             elements_array = ydoc.get("elements", type="Array")
             existing_elements = list(elements_array)
-        except Exception as e: # pylint: disable=broad-except
+        except Exception as e:  # pylint: disable=broad-except
             logger.warning("[SemanticTransaction] 获取元素列表失败: %s", e)
             existing_elements = []
 
@@ -209,7 +208,9 @@ class SemanticTransaction:
         return overlaps
 
     def _resolve_conflicts(
-        self, ops: List[PositionedOp], conflicts: List[Conflict],
+        self,
+        ops: List[PositionedOp],
+        conflicts: List[Conflict],
     ) -> tuple[List[PositionedOp], List[Conflict]]:
         """解决冲突"""
         remaining = []
@@ -455,12 +456,13 @@ class SemanticTransaction:
         self, elements_array: Any, element_id: str, arrow_id: str
     ) -> None:
         """更新元素的 boundElements"""
-        for elem in enumerate(elements_array):
+        for elem in elements_array:
             if elem.get("id") == element_id:
                 bound = elem.get("boundElements", []) or []
                 bound.append({"id": arrow_id, "type": "arrow"})
                 elem["boundElements"] = bound
                 break
+
 
 def get_transaction() -> SemanticTransaction:
     """获取语义事务管理器"""

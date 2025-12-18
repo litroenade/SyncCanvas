@@ -88,7 +88,7 @@ class BaseDBMixin:
         session.commit()
         return True
 
-    def to_dict(self, exclude: set = None) -> Dict[str, Any]:
+    def to_dict(self, exclude: Optional[set] = None) -> Dict[str, Any]:
         """转换为字典
 
         Args:
@@ -104,10 +104,6 @@ class BaseDBMixin:
                 continue
             data[key] = value
         return data
-
-
-# ==================== 时间工具 ====================
-
 
 def now_timestamp() -> int:
     """获取当前 UTC 时间戳 (秒)

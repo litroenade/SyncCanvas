@@ -418,10 +418,6 @@ class CanvaserAgent(PlanningAgent):
 
         return ""
 
-
-# ==================== 布局辅助类 ====================
-
-
 class FlowchartLayout:
     """流程图布局计算器
 

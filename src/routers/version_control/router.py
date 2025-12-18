@@ -20,10 +20,6 @@ from .models import (
 router = APIRouter(tags=["iGit"])
 logger = get_logger(__name__)
 
-
-# ==================== 版本历史 API ====================
-
-
 @router.get("/{room_id}/history", response_model=HistoryResponse)
 async def get_room_history(
     room_id: str, limit: int = 50, session: Session = Depends(get_session)
@@ -169,7 +165,7 @@ async def revert_commit(
         new_commit, target_commit = await service.revert_commit(
             room_id=room_id,
             commit_id=commit_id,
-            author_id=author_id,
+            author_id=author_id,  # type: ignore[arg-type]
             author_name=author_name,
             websocket_server=websocket_server,
         )
@@ -202,10 +198,6 @@ async def get_commits(
         HistoryResponse: 历史信息
     """
     return await get_room_history(room_id, limit, session)
-
-
-# ==================== Diff 和详情 API ====================
-
 
 @router.get("/{room_id}/commits/{commit_id}", response_model=CommitDetailResponse)
 async def get_commit_detail(

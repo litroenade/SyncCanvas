@@ -36,9 +36,6 @@ class LayoutConfig:
     margin: int = 50  # 边距
 
 
-# ==================== 有坐标的操作 ====================
-
-
 @dataclass
 class PositionedOp:
     """有坐标的操作
@@ -69,10 +66,6 @@ class PositionedOp:
             **self.params,
         }
 
-
-# ==================== 图结构辅助 ====================
-
-
 @dataclass
 class GraphNode:
     """布局图节点"""
@@ -97,10 +90,6 @@ class GraphEdge:
     from_id: str
     to_id: str
     label: str = ""
-
-
-# ==================== 布局引擎 ====================
-
 
 class LayoutEngine:
     """符号化布局引擎
@@ -387,10 +376,6 @@ class LayoutEngine:
                 )
 
         return positioned
-
-
-# ==================== 工厂函数 ====================
-
 
 def get_layout_engine(config: Optional[LayoutConfig] = None) -> LayoutEngine:
     """获取布局引擎"""

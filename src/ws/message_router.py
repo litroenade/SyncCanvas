@@ -128,7 +128,11 @@ class WebSocketMessageRouter:
             self._connections[room_id] = []
         self._connections[room_id].append(websocket)
 
-        logger.info("WebSocket 连接: room=%s, 当前连接数=%d", room_id, len(self._connections[room_id]))
+        logger.info(
+            "WebSocket 连接: room=%s, 当前连接数=%d",
+            room_id,
+            len(self._connections[room_id]),
+        )
 
     def disconnect(self, websocket: WebSocket, room_id: str) -> None:
         """断开 WebSocket 连接
@@ -152,7 +156,9 @@ class WebSocketMessageRouter:
 
         logger.info("WebSocket 断开: room=%s", room_id)
 
-    def subscribe(self, websocket: WebSocket, room_id: str, topics: List[str]) -> Set[str]:
+    def subscribe(
+        self, websocket: WebSocket, room_id: str, topics: List[str]
+    ) -> Set[str]:
         """订阅指定主题
 
         Args:
@@ -172,7 +178,9 @@ class WebSocketMessageRouter:
         logger.debug("订阅主题: room=%s, topics=%s", room_id, topics)
         return self._subscriptions[room_id][websocket]
 
-    def unsubscribe(self, websocket: WebSocket, room_id: str, topics: List[str]) -> Set[str]:
+    def unsubscribe(
+        self, websocket: WebSocket, room_id: str, topics: List[str]
+    ) -> Set[str]:
         """取消订阅指定主题
 
         Args:
@@ -286,7 +294,7 @@ class WebSocketMessageRouter:
             return False
 
         try:
-            await handler(room_id, message.get("data", {}), sender)
+            await handler(room_id, message.get("data", {}), sender)  # type: ignore[arg-type]
             return True
         except Exception as e:  # pylint: disable=broad-except
             logger.error("消息处理失败: type=%s, error=%s", message_type, e)
@@ -323,7 +331,7 @@ class WebSocketMessageRouter:
             try:
                 await ws.send_json(message)
                 sent_count += 1
-            except Exception: # pylint: disable=broad-except
+            except Exception:  # pylint: disable=broad-except
                 disconnected.append(ws)
 
         # 清理断开的连接
@@ -351,7 +359,7 @@ class WebSocketMessageRouter:
         try:
             await websocket.send_json({"type": message_type, "data": data})
             return True
-        except Exception as e: # pylint: disable=broad-except
+        except Exception as e:  # pylint: disable=broad-except
             logger.warning("发送消息失败: %s", e)
             return False
 

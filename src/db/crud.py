@@ -58,7 +58,7 @@ def get_rooms(
         statement = statement.where(Room.owner_id == user_id)
     if is_public is not None:
         statement = statement.where(Room.is_public == is_public)
-    statement = statement.order_by(desc(Room.created_at)).offset(offset).limit(limit)
+    statement = statement.order_by(desc(Room.created_at)).offset(offset).limit(limit)  # type: ignore[arg-type]
     return list(session.exec(statement))
 
 
@@ -122,9 +122,9 @@ def get_user_rooms(session: Session, user_id: int) -> List[Room]:
     """
     statement = (
         select(Room)
-        .join(RoomMember, Room.id == RoomMember.room_id)
+        .join(RoomMember, Room.id == RoomMember.room_id)  # type: ignore[arg-type]
         .where(RoomMember.user_id == user_id)
-        .order_by(desc(RoomMember.joined_at))
+        .order_by(desc(RoomMember.joined_at))  # type: ignore[arg-type]
     )
     return list(session.exec(statement))
 
@@ -216,7 +216,7 @@ def get_latest_commit(session: Session, room_id: str) -> Optional[Commit]:
     statement = (
         select(Commit)
         .where(Commit.room_id == room_id)
-        .order_by(desc(Commit.timestamp))
+        .order_by(desc(Commit.timestamp))  # type: ignore[arg-type]
         .limit(1)
     )
     return session.exec(statement).first()
@@ -251,10 +251,10 @@ def get_commits_by_room(
     statement = (
         select(Commit)
         .where(Commit.room_id == room_id)
-        .order_by(desc(Commit.timestamp))
+        .order_by(desc(Commit.timestamp))  # type: ignore[arg-type]
         .limit(limit)
     )
-    return session.exec(statement).all()
+    return list(session.exec(statement).all())
 
 
 def create_update(session: Session, update: Update) -> Update:
@@ -289,7 +289,7 @@ def get_updates_since(
     statement = (
         select(Update)
         .where(Update.room_id == room_id, Update.timestamp > since_timestamp)
-        .order_by(Update.timestamp)
+        .order_by(Update.timestamp)  # type: ignore[arg-type]
     )
     return list(session.exec(statement))
 
@@ -305,7 +305,7 @@ def get_all_updates(session: Session, room_id: str) -> List[Update]:
         List[Update]: 更新列表
     """
     statement = (
-        select(Update).where(Update.room_id == room_id).order_by(Update.timestamp)
+        select(Update).where(Update.room_id == room_id).order_by(Update.timestamp)  # type: ignore[arg-type]
     )
     return list(session.exec(statement))
 
@@ -340,10 +340,6 @@ def delete_updates_before(session: Session, room_id: str, timestamp: int):
         session.delete(update)
     session.commit()
 
-
-# ============ Agent 运行记录 ============
-
-
 def create_agent_run(session: Session, run: AgentRun) -> AgentRun:
     """创建新的 Agent 运行记录"""
 
@@ -353,7 +349,9 @@ def create_agent_run(session: Session, run: AgentRun) -> AgentRun:
     return run
 
 
-def finish_agent_run(session: Session, run_id: int, status: str, message: str = "") -> AgentRun:
+def finish_agent_run(
+    session: Session, run_id: int, status: str, message: str = ""
+) -> AgentRun:
     """更新 Agent 运行状态"""
 
     run = session.get(AgentRun, run_id)
@@ -384,6 +382,6 @@ def list_agent_actions(session: Session, run_id: int) -> List[AgentAction]:
     statement = (
         select(AgentAction)
         .where(AgentAction.run_id == run_id)
-        .order_by(AgentAction.created_at)
+        .order_by(AgentAction.created_at)  # type: ignore[arg-type]
     )
     return list(session.exec(statement))

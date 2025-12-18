@@ -2,7 +2,7 @@
 主要功能: 画布状态工具
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from pycrdt import Map
 
@@ -21,7 +21,7 @@ logger = get_logger(__name__)
     GetCanvasBoundsArgs,
     category=ToolCategory.CANVAS,
 )
-async def get_canvas_bounds(context: AgentContext = None) -> Dict[str, Any]:
+async def get_canvas_bounds(context: Optional[AgentContext] = None) -> Dict[str, Any]:
     """获取画布上现有元素的边界范围
 
     计算所有元素的包围盒，返回最小/最大坐标和建议的绘图起始位置。
@@ -33,10 +33,12 @@ async def get_canvas_bounds(context: AgentContext = None) -> Dict[str, Any]:
     Returns:
         dict: 包含边界信息和建议绘图位置
     """
+    if context is None:
+        return {"status": "error", "message": "Context is required"}
     room_id = require_room_id(context)
     _, elements_array = await context.get_room_and_doc()
 
-    if len(elements_array) == 0:
+    if elements_array is None or len(elements_array) == 0:
         return {
             "status": "success",
             "is_empty": True,

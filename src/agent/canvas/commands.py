@@ -20,6 +20,7 @@ from src.agent.canvas.model import create_element
 
 logger = get_logger(__name__)
 
+
 class CommandType(Enum):
     """命令类型"""
 
@@ -57,6 +58,7 @@ class CommandType(Enum):
     CLEAR = "clear"
     UNDO = "undo"
     REDO = "redo"
+
 
 @dataclass
 class Command(ABC):
@@ -112,6 +114,7 @@ class CommandResult:
     affected_ids: List[str] = field(default_factory=list)
     changes: Dict[str, Any] = field(default_factory=dict)
 
+
 @dataclass
 class SelectCommand(Command):
     """选择元素命令"""
@@ -163,13 +166,13 @@ class SelectCommand(Command):
     def to_dict(self) -> Dict[str, Any]:
         result = {"cmd": self.type.value}
         if self.target_ids:
-            result["target_ids"] = self.target_ids
+            result["target_ids"] = self.target_ids  # type: ignore[assignment]
         if self.by_text:
             result["by_text"] = self.by_text
         if self.by_type:
             result["by_type"] = self.by_type
         if self.in_region:
-            result["in_region"] = self.in_region
+            result["in_region"] = self.in_region  # type: ignore[assignment]
         return result
 
     @classmethod
@@ -198,6 +201,7 @@ class DeselectCommand(Command):
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "DeselectCommand":
         return cls()
+
 
 @dataclass
 class MoveCommand(Command):
@@ -313,6 +317,7 @@ class ResizeCommand(Command):
             height=data.get("height"),
             scale=data.get("scale"),
         )
+
 
 @dataclass
 class ConnectCommand(Command):
@@ -449,6 +454,7 @@ class DeleteCommand(Command):
             target_ids=data.get("target_ids", data.get("targets", [])),
         )
 
+
 @dataclass
 class CreateCommand(Command):
     """创建元素命令"""
@@ -463,12 +469,10 @@ class CreateCommand(Command):
     style: Dict[str, Any] = field(default_factory=dict)
 
     def execute(self, model: CanvasModel) -> CommandResult:
-
         try:
             elem_type = ElementType(self.element_type)
         except ValueError:
             elem_type = ElementType.RECTANGLE
-
 
         element = create_element(
             element_type=elem_type,
@@ -513,6 +517,7 @@ class CreateCommand(Command):
             style=data.get("style", {}),
         )
 
+
 @dataclass
 class GroupCommand(Command):
     """分组命令"""
@@ -521,7 +526,6 @@ class GroupCommand(Command):
     target_ids: List[str] = field(default_factory=list)
 
     def execute(self, model: CanvasModel) -> CommandResult:
-
         group_id = str(uuid.uuid4())
 
         for eid in self.target_ids:
@@ -547,6 +551,7 @@ class GroupCommand(Command):
         return cls(
             target_ids=data.get("target_ids", data.get("targets", [])),
         )
+
 
 @dataclass
 class AlignCommand(Command):
@@ -600,6 +605,7 @@ class AlignCommand(Command):
             target_ids=data.get("target_ids", data.get("targets", [])),
             alignment=data.get("alignment", "center"),
         )
+
 
 def parse_commands(data: Union[Dict, List]) -> List[Command]:
     """解析命令列表"""

@@ -20,6 +20,7 @@ logger = get_logger(__name__)
 METRICS_WINDOW_SIZE = 100
 DEFAULT_MAX_LATENCY_MS = 5000
 
+
 class TaskTier(Enum):
     """任务分级
 
@@ -50,10 +51,6 @@ class Task:
     complexity: float = 0.5  # 0.0-1.0
     keywords: List[str] = field(default_factory=list)
     constraints: Dict[str, Any] = field(default_factory=dict)
-
-
-# ==================== 任务分类器 ====================
-
 
 class TaskClassifier:
     """任务分类器
@@ -222,6 +219,7 @@ class TaskClassifier:
 
         return max(0.0, min(1.0, score))
 
+
 @dataclass
 class PerformanceMetrics:
     """模型性能指标"""
@@ -276,6 +274,7 @@ class PerformanceMetrics:
             "latency_p50": round(self.latency_p50, 2),
             "latency_p99": round(self.latency_p99, 2),
         }
+
 
 @dataclass
 class ModelScore:
@@ -365,7 +364,7 @@ class LLMRouter:
 
         # 如果没有配置，使用默认
         if not models:
-            default = ModelConfig(
+            default = ModelConfig(  # type: ignore[call-arg]
                 provider=config.llm_provider,
                 model=config.llm_model,
                 base_url=config.llm_base_url,
@@ -374,7 +373,7 @@ class LLMRouter:
             models.append(default)
 
             if config.llm_fallback_api_key:
-                fallback = ModelConfig(
+                fallback = ModelConfig(  # type: ignore[call-arg]
                     provider=config.llm_fallback_provider,
                     model=config.llm_fallback_model,
                     base_url=config.llm_fallback_base_url,
@@ -497,6 +496,7 @@ class LLMRouter:
         else:
             self._metrics.clear()
         logger.info("[LLMRouter] 已重置指标: %s", model_name or "全部")
+
 
 def get_router() -> LLMRouter:
     """获取 LLMRouter 单例"""

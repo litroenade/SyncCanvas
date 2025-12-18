@@ -57,20 +57,20 @@ class PersistentWebsocketServer(WebsocketServer):
             await super().serve(websocket)
         except get_cancelled_exc_class():
             # 客户端正常断开，不需要处理
-            logger.debug("客户端主动取消: %s", name )
-        except Exception as eg: # pylint: disable=broad-except
+            logger.debug("客户端主动取消: %s", name)
+        except Exception as eg:  # pylint: disable=broad-except
             # 展开异常组，判断是否存在真实错误
             unhandled = [
                 exc
                 for exc in self._iter_exceptions(eg)
-                if not self._is_disconnect_error(exc)
+                if not self._is_disconnect_error(exc)  # type: ignore[arg-type]
             ]
             if unhandled:
                 for exc in unhandled:
                     logger.exception("WebSocket 服务异常 [%s]: %s", name, exc)
             else:
                 logger.debug("客户端断开连接: %s", name)
-        except Exception as exception:   # pylint: disable=broad-except
+        except Exception as exception:  # pylint: disable=broad-except
             if not self._is_disconnect_error(exception):
                 logger.exception("WebSocket 异常 [%s]: %s", name, exception)
             else:
@@ -82,10 +82,10 @@ class PersistentWebsocketServer(WebsocketServer):
             except asyncio.CancelledError:
                 # 服务器关闭时忽略
                 pass
-            except Exception as e: # pylint: disable=broad-except
+            except Exception as e:  # pylint: disable=broad-except
                 logger.debug("断开处理异常: %s", e)
 
-    def _is_disconnect_error(self, exception: Exception) -> bool:
+    def _is_disconnect_error(self, exception: BaseException) -> bool:
         """检查是否是断开连接相关的错误"""
         error_str = str(exception).lower()
         disconnect_keywords = [
@@ -104,9 +104,9 @@ class PersistentWebsocketServer(WebsocketServer):
     ) -> list[BaseException]:
         """展开 BaseExceptionGroup，返回所有底层异常"""
         # 检查是否是 ExceptionGroup（有 exceptions 属性）
-        if hasattr(exception, 'exceptions') and exception.exceptions:
+        if hasattr(exception, "exceptions") and exception.exceptions:  # type: ignore[union-attr]
             exceptions: list[BaseException] = []
-            for inner in exception.exceptions:
+            for inner in exception.exceptions:  # type: ignore[union-attr]
                 exceptions.extend(self._iter_exceptions(inner))
             return exceptions
         return [exception]
@@ -174,7 +174,7 @@ class PersistentWebsocketServer(WebsocketServer):
                     commit = session.exec(
                         select(Commit)
                         .where(Commit.room_id == room_id)
-                        .order_by(Commit.timestamp.desc())  # pylint: disable=no-member
+                        .order_by(Commit.timestamp.desc())  # type: ignore[arg-type]  # pylint: disable=no-member
                         .limit(1)
                     ).first()
 
@@ -196,14 +196,14 @@ class PersistentWebsocketServer(WebsocketServer):
                         select(Update)
                         .where(Update.room_id == room_id)
                         .where(Update.timestamp > commit.timestamp)
-                        .order_by(Update.timestamp)
+                        .order_by(Update.timestamp)  # type: ignore[arg-type]
                     ).all()
                 else:
                     # 没有 Commit，获取所有 Updates
                     updates = session.exec(
                         select(Update)
                         .where(Update.room_id == room_id)
-                        .order_by(Update.timestamp)
+                        .order_by(Update.timestamp)  # type: ignore[arg-type]
                     ).all()
 
                 # 应用 Updates
@@ -227,7 +227,7 @@ class PersistentWebsocketServer(WebsocketServer):
                 else:
                     logger.debug("[加载数据] 房间 %s: 无历史数据", room_id)
 
-        except Exception as e: # pylint: disable=broad-except
+        except Exception as e:  # pylint: disable=broad-except
             logger.error("[加载数据] 房间 %s 加载失败: %s", room_id, e)
 
     async def _on_client_disconnect(self, name: str) -> None:
@@ -266,7 +266,7 @@ class PersistentWebsocketServer(WebsocketServer):
             # 先刷新缓冲区
             if name in self._ystores:
                 ystore = self._ystores[name]
-                ystore.stop()
+                await ystore.stop()
 
             # 等待一小段时间确保数据已写入
             await asyncio.sleep(0.5)
@@ -289,7 +289,7 @@ class PersistentWebsocketServer(WebsocketServer):
                 latest = session.exec(
                     select(Commit)
                     .where(Commit.room_id == room_id)
-                    .order_by(Commit.timestamp.desc())  # pylint: disable=no-member
+                    .order_by(Commit.timestamp.desc())  # type: ignore[arg-type]  # pylint: disable=no-member
                     .limit(1)
                 ).first()
 
@@ -299,13 +299,13 @@ class PersistentWebsocketServer(WebsocketServer):
                         select(Update)
                         .where(Update.room_id == room_id)
                         .where(Update.timestamp > latest.timestamp)
-                        .order_by(Update.timestamp)
+                        .order_by(Update.timestamp)  # type: ignore[arg-type]
                     ).all()
                 else:
                     updates = session.exec(
                         select(Update)
                         .where(Update.room_id == room_id)
-                        .order_by(Update.timestamp)
+                        .order_by(Update.timestamp)  # type: ignore[arg-type]
                     ).all()
 
                 if not updates:
@@ -341,13 +341,13 @@ class PersistentWebsocketServer(WebsocketServer):
                 session.add(room)
 
                 # 清理 updates
-                session.exec(delete(Update).where(Update.room_id == room_id))
+                session.exec(delete(Update).where(Update.room_id == room_id))  # type: ignore[arg-type]
                 session.commit()
 
                 logger.info("自动提交: 房间 %s, 哈希 %s", room_id, commit_hash)
                 return True
 
-        except Exception as e: # pylint: disable=broad-except
+        except Exception as e:  # pylint: disable=broad-except
             logger.debug("自动提交跳过: 房间 %s, 原因: %s", room_id, e)
             return False
 
@@ -398,7 +398,7 @@ class PersistentWebsocketServer(WebsocketServer):
             ystore = self._ystores[name]
             try:
                 # 停止缓冲区定时器并刷新
-                ystore.stop()
+                await ystore.stop()
 
                 # 创建自动提交
                 await self._create_auto_commit(room_id, "Auto save on room close")
@@ -456,7 +456,7 @@ class PersistentWebsocketServer(WebsocketServer):
             if discard_changes:
                 ystore.discard()
             # stop 会触发 flush，但如果已经 discard 了，就只会 flush 空缓冲
-            ystore.stop()
+            await ystore.stop()
             del self._ystores[target_name]
 
         if target_name in self.rooms:

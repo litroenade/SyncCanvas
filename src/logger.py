@@ -11,9 +11,6 @@ from rich.theme import Theme
 
 RICH_AVAILABLE = True
 
-
-# ==================== 日志分类 ====================
-
 # 前端相关模块 (WebSocket, 实时同步等) - 可被单独过滤
 FRONTEND_MODULES = frozenset(
     {
@@ -40,10 +37,6 @@ AGENT_MODULES = frozenset(
     }
 )
 
-
-# ==================== 过滤器 ====================
-
-
 class FrontendFilter(logging.Filter):
     """过滤前端相关日志
 
@@ -68,7 +61,7 @@ class FrontendFilter(logging.Filter):
 class ModuleLevelFilter(logging.Filter):
     """按模块设置不同日志级别"""
 
-    def __init__(self, module_levels: Dict[str, int] = None):
+    def __init__(self, module_levels: Optional[Dict[str, int]] = None):
         super().__init__()
         self.module_levels = module_levels or {}
 
@@ -77,9 +70,6 @@ class ModuleLevelFilter(logging.Filter):
             if record.name.startswith(prefix):
                 return record.levelno >= level
         return True
-
-
-# ==================== Rich 主题 ====================
 
 CUSTOM_THEME = Theme(
     {
@@ -95,10 +85,6 @@ CUSTOM_THEME = Theme(
         "backend": "bold cyan",
     }
 )
-
-
-# ==================== 自定义格式化器 ====================
-
 
 class SimpleColorFormatter(logging.Formatter):
     """简单的颜色格式化器 (不使用 rich 时的备选)"""
@@ -152,10 +138,6 @@ class SimpleColorFormatter(logging.Formatter):
         time_str = self.formatTime(record, "%H:%M:%S")
 
         return f"{time_str} {level_str} {name_str} {record.getMessage()}"
-
-
-# ==================== 配置状态 ====================
-
 
 class _LoggerState:
     """日志配置状态"""
@@ -316,10 +298,6 @@ def get_console() -> Optional[Console]:
         setup_logging()
     return _state.console
 
-
-# ==================== 便捷函数 ====================
-
-
 def log_agent_thinking(logger: logging.Logger, thought: str, step: int = 0) -> None:
     """记录 Agent 思考过程
 
@@ -335,7 +313,7 @@ def log_agent_thinking(logger: logging.Logger, thought: str, step: int = 0) -> N
 
 
 def log_agent_action(
-    logger: logging.Logger, action: str, args: Dict[str, Any] = None
+    logger: logging.Logger, action: str, args: Optional[Dict[str, Any]] = None
 ) -> None:
     """记录 Agent 动作
 

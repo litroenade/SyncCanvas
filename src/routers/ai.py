@@ -11,10 +11,6 @@ from src.services.ai_service import ai_service
 router = APIRouter(prefix="/ai", tags=["AI"])
 logger = get_logger(__name__)
 
-
-# ==================== 请求/响应模型 ====================
-
-
 class GenerateRequest(BaseModel):
     """AI 生成请求模型
 
@@ -57,10 +53,6 @@ class RunHistoryRequest(BaseModel):
 
     room_id: str = Field(..., description="房间 ID")
     limit: int = Field(20, description="返回数量限制", ge=1, le=100)
-
-
-# ==================== API 路由 ====================
-
 
 @router.post("/generate", response_model=GenerateResponse)
 async def generate_shapes(
@@ -151,10 +143,6 @@ async def get_run_detail(run_id: int, session: Session = Depends(get_session)):
         )
 
     return result
-
-
-# ==================== 管理 API ====================
-
 
 @router.get("/tools")
 async def list_tools():
@@ -310,10 +298,6 @@ async def enable_tool(tool_name: str):
     """
     return ai_service.enable_tool(tool_name)
 
-
-# ==================== 模板 API ====================
-
-
 @router.get("/templates")
 async def list_templates():
     """列出所有可用的 Prompt 模板
@@ -352,10 +336,6 @@ class RenderTemplateRequest(BaseModel):
 
     template_name: str = Field(..., description="模板名称")
     variables: dict = Field(default_factory=dict, description="模板变量")
-
-
-# ==================== WebSocket 流式响应 ====================
-
 
 class AIWebSocketManager:
     """AI WebSocket 连接管理器

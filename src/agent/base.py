@@ -30,6 +30,7 @@ logger = get_logger(__name__)
 
 T = TypeVar("T")
 
+
 class RoomLockManager:
     """房间级别的并发锁管理器
 
@@ -115,6 +116,7 @@ class ReActStep:
     success: bool = True
     latency_ms: float = 0.0
 
+
 class AgentConfig(BaseModel):
     """Agent 配置
 
@@ -152,6 +154,7 @@ class AgentConfig(BaseModel):
         title="反思间隔",
         description="每隔多少轮进行一次自反思 (1=每轮, 2=第2/4/6轮)",
     )
+
 
 class BaseAgent(ABC):
     """ReAct Agent 抽象基类
@@ -515,7 +518,6 @@ class BaseAgent(ABC):
                 step_start = time.time()
                 current_step = ReActStep(step_number=iteration)
 
-                # ========== THINK: 调用 LLM ==========
                 self._status = AgentStatus.THINKING
                 self._state_machine.transition(
                     AgentState.THINKING, reason=f"迭代 {iteration}"
@@ -546,9 +548,8 @@ class BaseAgent(ABC):
                         {"id": tc["id"], "type": "function", "function": tc["function"]}
                         for tc in response.tool_calls
                     ]
-                messages.append(assistant_message)
+                messages.append(assistant_message)  # type: ignore[arg-type]
 
-                # ========== ACT: 执行工具 ==========
                 if response.tool_calls:
                     self._status = AgentStatus.ACTING
                     self._state_machine.transition(
@@ -645,9 +646,9 @@ class BaseAgent(ABC):
                     current_step.latency_ms = (time.time() - step_start) * 1000
                     self._steps.append(current_step)
                     if self._on_step_callback:
-                        result = self._on_step_callback(current_step)
-                        if asyncio.iscoroutine(result):
-                            await result
+                        callback_result = self._on_step_callback(current_step)
+                        if asyncio.iscoroutine(callback_result):
+                            await callback_result  # type: ignore[misc]
 
                     # 按间隔进行自反思，帮助 Agent 评估进度
                     if (
@@ -657,21 +658,19 @@ class BaseAgent(ABC):
                         reflection_prompt = self._build_reflection_prompt(
                             iteration, context
                         )
-                        messages.append(
+                        messages.append(  # type: ignore[arg-type]
                             {"role": "user", "content": reflection_prompt}
                         )
-                        logger.debug(
-                            "Self-reflection at iteration %d", iteration
-                        )
+                        logger.debug("Self-reflection at iteration %d", iteration)
 
                     continue
 
                 current_step.latency_ms = (time.time() - step_start) * 1000
                 self._steps.append(current_step)
                 if self._on_step_callback:
-                    result = self._on_step_callback(current_step)
-                    if asyncio.iscoroutine(result):
-                        await result
+                    callback_result = self._on_step_callback(current_step)
+                    if asyncio.iscoroutine(callback_result):
+                        await callback_result  # type: ignore[misc]
 
                 final_response = response.content or ""
                 break
@@ -695,9 +694,7 @@ class BaseAgent(ABC):
         """构建完整的系统提示词"""
         return self.system_prompt
 
-    def _build_reflection_prompt(
-        self, iteration: int, context: AgentContext
-    ) -> str:
+    def _build_reflection_prompt(self, iteration: int, context: AgentContext) -> str:
         """构建自反思提示
 
         使用 Jinja2 模板系统渲染，遵循项目的模板规范。
@@ -716,7 +713,6 @@ class BaseAgent(ABC):
             tool_results=context.tool_results,
             created_element_ids=context.created_element_ids,
         ).render()
-
 
 
 class PlanningAgent(BaseAgent):

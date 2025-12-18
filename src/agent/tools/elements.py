@@ -44,7 +44,7 @@ async def create_element(
     text: str = "",
     stroke_color: str = "#1e1e1e",
     bg_color: str = "transparent",
-    context: AgentContext = None,
+    context: Optional[AgentContext] = None,
 ) -> Dict[str, Any]:
     """创建单个 Excalidraw 元素
 
@@ -62,8 +62,12 @@ async def create_element(
     Returns:
         dict: 包含 status, element_id 的结果
     """
+    if context is None:
+        return {"status": "error", "message": "Context is required"}
     room_id = require_room_id(context)
     doc, elements_array = await context.get_room_and_doc()
+    if doc is None or elements_array is None:
+        return {"status": "error", "message": "Failed to get room doc"}
 
     element = base_excalidraw_element(
         element_type, x, y, width, height, stroke_color, bg_color
@@ -103,7 +107,7 @@ async def create_element(
 )
 async def list_elements(
     limit: int = 30,
-    context: AgentContext = None,
+    context: Optional[AgentContext] = None,
 ) -> Dict[str, Any]:
     """获取画布上的元素列表摘要
 
@@ -114,8 +118,12 @@ async def list_elements(
     Returns:
         dict: 包含 status, total, elements 的结果
     """
+    if context is None:
+        return {"status": "error", "message": "Context is required"}
     require_room_id(context)  # 验证
     _, elements_array = await context.get_room_and_doc()
+    if elements_array is None:
+        return {"status": "error", "message": "Failed to get elements array"}
 
     elements = []
     for i in range(min(len(elements_array), limit)):
@@ -154,7 +162,7 @@ async def list_elements(
 )
 async def get_element(
     element_id: str,
-    context: AgentContext = None,
+    context: Optional[AgentContext] = None,
 ) -> Dict[str, Any]:
     """获取指定元素的详细信息
 
@@ -165,8 +173,12 @@ async def get_element(
     Returns:
         dict: 包含元素详细信息的结果
     """
+    if context is None:
+        return {"status": "error", "message": "Context is required"}
     require_room_id(context)  # 验证
     _, elements_array = await context.get_room_and_doc()
+    if elements_array is None:
+        return {"status": "error", "message": "Failed to get elements array"}
 
     _, element = find_element_by_id(elements_array, element_id)
 
@@ -205,7 +217,7 @@ async def update_element(
     text: Optional[str] = None,
     stroke_color: Optional[str] = None,
     bg_color: Optional[str] = None,
-    context: AgentContext = None,
+    context: Optional[AgentContext] = None,
 ) -> Dict[str, Any]:
     """更新已存在元素的属性
 
@@ -223,8 +235,12 @@ async def update_element(
     Returns:
         dict: 包含 status, updated_fields 的结果
     """
+    if context is None:
+        return {"status": "error", "message": "Context is required"}
     room_id = require_room_id(context)
     doc, elements_array = await context.get_room_and_doc()
+    if doc is None or elements_array is None:
+        return {"status": "error", "message": "Failed to get room doc"}
 
     index, current = find_element_by_id(elements_array, element_id)
     if index < 0:
@@ -283,7 +299,7 @@ async def update_element(
 )
 async def delete_elements(
     element_ids: List[str],
-    context: AgentContext = None,
+    context: Optional[AgentContext] = None,
 ) -> Dict[str, Any]:
     """删除指定 ID 的元素
 
@@ -294,8 +310,12 @@ async def delete_elements(
     Returns:
         dict: 包含 status, removed 的结果
     """
+    if context is None:
+        return {"status": "error", "message": "Context is required"}
     room_id = require_room_id(context)
     doc, elements_array = await context.get_room_and_doc()
+    if doc is None or elements_array is None:
+        return {"status": "error", "message": "Failed to get room doc"}
 
     removed = []
     id_set = set(element_ids)
@@ -305,7 +325,7 @@ async def delete_elements(
             el = elements_array[i]
             el_id = el.get("id") if isinstance(el, Map) else el.get("id")
             if el_id in id_set:
-                elements_array.delete(i, 1)
+                elements_array.delete(i, 1)  # type: ignore[attr-defined]
                 removed.append(el_id)
 
     logger.info("删除元素: %d 个", len(removed), extra={"room": room_id})
@@ -326,7 +346,7 @@ async def delete_elements(
 )
 async def clear_canvas(
     confirm: bool = True,
-    context: AgentContext = None,
+    context: Optional[AgentContext] = None,
 ) -> Dict[str, Any]:
     """清空画布上的所有元素
 
@@ -340,20 +360,21 @@ async def clear_canvas(
     if not confirm:
         return {"status": "cancelled", "message": "操作已取消"}
 
+    if context is None:
+        return {"status": "error", "message": "Context is required"}
     room_id = require_room_id(context)
     doc, elements_array = await context.get_room_and_doc()
+    if doc is None or elements_array is None:
+        return {"status": "error", "message": "Failed to get room doc"}
 
     count = len(elements_array)
 
     with doc.transaction(origin="ai-engine/clear_canvas"):
-        elements_array.delete(0, count)
+        elements_array.delete(0, count)  # type: ignore[attr-defined]
 
     logger.info("清空画布: 删除了 %d 个元素", count, extra={"room": room_id})
 
     return {"status": "success", "message": f"已清空画布 (删除了 {count} 个元素)"}
-
-
-# ==================== 批量创建工具 (JSON 规划层支持) ====================
 
 
 @registry.register(
@@ -364,8 +385,8 @@ async def clear_canvas(
 )
 async def batch_create_elements(
     elements: list,
-    edges: list = None,
-    context: AgentContext = None,
+    edges: Optional[list] = None,
+    context: Optional[AgentContext] = None,
 ) -> Dict[str, Any]:
     """批量创建元素和连接线
 
@@ -379,8 +400,12 @@ async def batch_create_elements(
     Returns:
         dict: 包含 status, created_elements, created_edges 的结果
     """
+    if context is None:
+        return {"status": "error", "message": "Context is required"}
     room_id = require_room_id(context)
     doc, elements_array = await context.get_room_and_doc()
+    if doc is None or elements_array is None:
+        return {"status": "error", "message": "Failed to get room doc"}
 
     edges = edges or []
 

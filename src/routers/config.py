@@ -11,9 +11,6 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/config", tags=["Config"])
 
 
-# ==================== 请求/响应模型 ====================
-
-
 class UpdateConfigRequest(BaseModel):
     value: Any
 
@@ -70,8 +67,6 @@ class ModelsResponse(BaseModel):
     total: int
 
 
-# ==================== 常用供应商 ====================
-
 COMMON_PROVIDERS = [
     {"name": "SiliconFlow", "url": "https://api.siliconflow.cn/v1"},
     {"name": "OpenAI", "url": "https://api.openai.com/v1"},
@@ -85,9 +80,6 @@ COMMON_PROVIDERS = [
         "url": "https://generativelanguage.googleapis.com/v1beta/openai",
     },
 ]
-
-
-# ==================== 全局配置 API ====================
 
 
 @router.get("/list")
@@ -129,9 +121,6 @@ async def update_config(
     config._save()
 
     return {"status": "success"}
-
-
-# ==================== 模型组 API ====================
 
 
 @router.get("/models")
@@ -199,9 +188,6 @@ async def get_model_types():
             "color": "warning",
         },
     ]
-
-
-# ==================== AI 设置 API (原 settings.py) ====================
 
 
 @router.get("/ai", response_model=AIConfigResponse)
@@ -334,9 +320,6 @@ async def get_available_models(
         raise HTTPException(500, f"获取模型失败: {str(e)}") from e
 
 
-# ==================== 辅助函数 ====================
-
-
 def _get_config_items(model: BaseModel) -> List[Dict[str, Any]]:
     """将 Pydantic 模型转换为前端可用的配置项列表"""
     items = []
@@ -346,7 +329,8 @@ def _get_config_items(model: BaseModel) -> List[Dict[str, Any]]:
         if name == "model_groups":
             continue
 
-        extra = field.json_schema_extra or {}
+        _extra = field.json_schema_extra
+        extra = _extra if isinstance(_extra, dict) else {}
         if extra.get("is_hidden"):
             continue
 

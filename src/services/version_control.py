@@ -114,6 +114,7 @@ class IGitService:
         )
         self.session.add(commit)
         self.session.flush()  # 获取 commit.id
+        assert commit.id is not None
 
         # 生成哈希
         commit.hash = generate_commit_hash(commit.id, current_time)
@@ -139,7 +140,7 @@ class IGitService:
 
         # 清理 Update 表 (已经合并到 Commit 中了)
         # 注意：只清理数据库中已有的 Update，内存中的 mem_updates 已经被清空且合并
-        delete_stmt = delete(Update).where(Update.room_id == room_id)
+        delete_stmt = delete(Update).where(Update.room_id == room_id)  # type: ignore[arg-type]
         self.session.exec(delete_stmt)
 
         self.session.commit()
@@ -173,7 +174,7 @@ class IGitService:
             raise ValueError("提交不存在")
 
         # 清理所有 Update (未提交的更改会丢失)
-        delete_update_stmt = delete(Update).where(Update.room_id == room_id)
+        delete_update_stmt = delete(Update).where(Update.room_id == room_id)  # type: ignore[arg-type]
         self.session.exec(delete_update_stmt)
 
         # 将 Commit 数据写入 Update 表，让 YStore 能够读取
@@ -242,11 +243,12 @@ class IGitService:
         )
         self.session.add(new_commit)
         self.session.flush()
+        assert new_commit.id is not None
 
         new_commit.hash = generate_commit_hash(new_commit.id, current_time)
 
         # 清理 Update 表
-        delete_update_stmt = delete(Update).where(Update.room_id == room_id)
+        delete_update_stmt = delete(Update).where(Update.room_id == room_id)  # type: ignore[arg-type]
         self.session.exec(delete_update_stmt)
 
         # 写入新的 Update 确保 YStore 读取正确状态
@@ -287,8 +289,8 @@ class IGitService:
 
         commit_infos = [
             CommitInfo(
-                id=c.id,
-                hash=c.hash or generate_commit_hash(c.id, c.timestamp),
+                id=c.id,  # type: ignore[arg-type]
+                hash=c.hash or generate_commit_hash(c.id, c.timestamp),  # type: ignore[arg-type]
                 parent_id=c.parent_id,
                 author_id=c.author_id,
                 author_name=c.author_name,
@@ -349,8 +351,8 @@ class IGitService:
         )
 
         commit_info = CommitInfo(
-            id=commit.id,
-            hash=commit.hash or generate_commit_hash(commit.id, commit.timestamp),
+            id=commit.id,  # type: ignore[arg-type]
+            hash=commit.hash or generate_commit_hash(commit.id, commit.timestamp),  # type: ignore[arg-type]
             parent_id=commit.parent_id,
             author_id=commit.author_id,
             author_name=commit.author_name,
@@ -391,9 +393,9 @@ class IGitService:
         from_commit_info = None
         if from_commit:
             from_commit_info = CommitInfo(
-                id=from_commit.id,
+                id=from_commit.id,  # type: ignore[arg-type]
                 hash=from_commit.hash
-                or generate_commit_hash(from_commit.id, from_commit.timestamp),
+                or generate_commit_hash(from_commit.id, from_commit.timestamp),  # type: ignore[arg-type]
                 parent_id=from_commit.parent_id,
                 author_id=from_commit.author_id,
                 author_name=from_commit.author_name,
@@ -403,9 +405,9 @@ class IGitService:
             )
 
         to_commit_info = CommitInfo(
-            id=to_commit.id,
+            id=to_commit.id,  # type: ignore[arg-type]
             hash=to_commit.hash
-            or generate_commit_hash(to_commit.id, to_commit.timestamp),
+            or generate_commit_hash(to_commit.id, to_commit.timestamp),  # type: ignore[arg-type]
             parent_id=to_commit.parent_id,
             author_id=to_commit.author_id,
             author_name=to_commit.author_name,

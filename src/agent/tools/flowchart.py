@@ -35,7 +35,7 @@ async def create_flowchart_node(
     height: float = 70,
     stroke_color: str = "#1e1e1e",
     bg_color: str = "#ffffff",
-    context: AgentContext = None,
+    context: Optional[AgentContext] = None,
 ) -> Dict[str, Any]:
     """创建流程图节点，包含形状和绑定的文本
 
@@ -53,8 +53,12 @@ async def create_flowchart_node(
     Returns:
         dict: 包含 status, element_id, text_id 的结果
     """
+    if context is None:
+        return {"status": "error", "message": "Context is required"}
     room_id = require_room_id(context)
     doc, elements_array = await context.get_room_and_doc()
+    if doc is None or elements_array is None:
+        return {"status": "error", "message": "Failed to get room doc"}
 
     # 根据节点类型调整尺寸
     if node_type == "diamond":
@@ -147,7 +151,7 @@ async def connect_nodes(
     to_id: str,
     label: Optional[str] = None,
     stroke_color: str = "#1e1e1e",
-    context: AgentContext = None,
+    context: Optional[AgentContext] = None,
 ) -> Dict[str, Any]:
     """用绑定箭头连接两个节点
 
@@ -161,8 +165,12 @@ async def connect_nodes(
     Returns:
         dict: 包含 status, arrow_id, label_id 的结果
     """
+    if context is None:
+        return {"status": "error", "message": "Context is required"}
     room_id = require_room_id(context)
     doc, elements_array = await context.get_room_and_doc()
+    if doc is None or elements_array is None:
+        return {"status": "error", "message": "Failed to get room doc"}
 
     # 查找起始和结束节点
     _, start_node = find_element_by_id(elements_array, from_id)

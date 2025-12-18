@@ -25,7 +25,7 @@ class User(SQLModel, table=True):
         last_login_at (int): 最后登录时间戳 (秒)
     """
 
-    __tablename__ = "users"
+    __tablename__ = "users"  # type: ignore[assignment]
 
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(max_length=64, unique=True, index=True)

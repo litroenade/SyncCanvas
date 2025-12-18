@@ -15,10 +15,6 @@ from src.agent.pipeline.router import get_router
 
 logger = get_logger(__name__)
 
-
-# ==================== 数据结构 ====================
-
-
 @dataclass
 class LLMConfig:
     """LLM 配置
@@ -51,10 +47,6 @@ class LLMResponse:
     tool_calls: Optional[List[Dict[str, Any]]] = None
     finish_reason: str = "stop"
     usage: Dict[str, int] = field(default_factory=dict)
-
-
-# ==================== LLM 客户端 ====================
-
 
 class LLMClient:
     """OpenAI 兼容的 LLM 客户端
@@ -188,6 +180,7 @@ class LLMClient:
                 latency_ms = (time.time() - start_time) * 1000
                 router.record_call(fallback_conf.model, latency_ms, success=False)
                 logger.error("备用提供商调用失败: %s", e2)
+                raise RuntimeError("所有 LLM 提供商均调用失败") from e2
 
     async def _call_completion(
         self,

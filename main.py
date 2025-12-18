@@ -86,7 +86,7 @@ app.include_router(config_router, prefix="/api")
 
 
 # 挂载 pycrdt-websocket 的 ASGI 服务器到 /ws 路径
-app.mount("/ws", asgi_server)
+app.mount("/ws", asgi_server)  # type: ignore[arg-type]
 
 
 # 图片上传目录

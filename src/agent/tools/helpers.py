@@ -4,7 +4,7 @@
 
 import uuid
 import random
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 
 from pycrdt import Array, Map
 
@@ -14,7 +14,7 @@ from src.logger import get_logger
 logger = get_logger(__name__)
 
 
-def require_room_id(context: AgentContext) -> str:
+def require_room_id(context: Optional[AgentContext]) -> str:
     """从 AgentContext 获取房间 ID
 
     Args:

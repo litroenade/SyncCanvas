@@ -14,6 +14,7 @@ from src.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 class AIEngineError(Exception):
     """AI Engine 基础异常类
 
@@ -77,23 +78,23 @@ class ToolError(AIEngineError):
 
     Attributes:
         tool_name: 工具名称
-        args: 调用参数
+        tool_args: 调用参数
     """
 
     def __init__(
         self,
         message: str,
         tool_name: str,
-        args: Optional[Dict[str, Any]] = None,
+        tool_args: Optional[Dict[str, Any]] = None,
         **kwargs,
     ):
         details = kwargs.pop("details", {})
         details["tool_name"] = tool_name
-        if args:
-            details["args"] = {k: str(v)[:100] for k, v in args.items()}
+        if tool_args:
+            details["args"] = {k: str(v)[:100] for k, v in tool_args.items()}
         super().__init__(message, details=details, **kwargs)
         self.tool_name = tool_name
-        self.args = args
+        self.tool_args = tool_args
 
 
 class AgentError(AIEngineError):
@@ -146,6 +147,7 @@ class TransactionError(AIEngineError):
         super().__init__(message, details=details, **kwargs)
         self.operation = operation
         self.affected_ids = affected_ids or []
+
 
 def extract_json_from_text(text: str) -> Optional[str]:
     """从文本中提取 JSON 块"""

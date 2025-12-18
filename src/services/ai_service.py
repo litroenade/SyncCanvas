@@ -14,10 +14,6 @@ from src.db.database import engine
 
 logger = get_logger(__name__)
 
-
-# ==================== 服务状态 ====================
-
-
 @dataclass
 class ServiceStats:
     """服务统计信息"""
@@ -65,10 +61,6 @@ class ServiceStats:
             "total_elements_created": self.total_elements_created,
             "avg_response_time_ms": round(self.avg_response_time_ms, 2),
         }
-
-
-# ==================== AI 服务 ====================
-
 
 class AIService:
     """AI 服务
@@ -125,6 +117,7 @@ class AIService:
             prompt=user_input,
             model=self.llm_client.current_config.model,
         )
+        assert run.id is not None, "Run ID should be set after creation"
 
         # 初始化上下文
         context = AgentContext(run_id=run.id, session_id=session_id, user_id=user_id)
@@ -230,7 +223,7 @@ class AIService:
         self,
         user_input: str,
         session_id: str,
-        step_callback: Callable = None,
+        step_callback: Optional[Callable] = None,
         user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """处理用户 AI 请求 (支持流式步骤回调)
@@ -259,6 +252,7 @@ class AIService:
                 model=self.llm_client.current_config.model,
             )
             run_id = run.id
+        assert run_id is not None, "Run ID should be set after creation"
 
         # 初始化上下文
         context = AgentContext(run_id=run_id, session_id=session_id, user_id=user_id)
@@ -285,7 +279,7 @@ class AIService:
                 except Exception as e:  # pylint: disable=broad-except
                     logger.warning(f"步骤回调失败: {e}")
 
-            planner.set_step_callback(async_callback)
+            planner.set_step_callback(async_callback)  # type: ignore[arg-type]
 
         try:
             response = await planner.run(context, user_input)

@@ -13,10 +13,6 @@ logger = get_logger(__name__)
 CONFIG_DIR = Path(__file__).resolve().parents[1] / "config"
 CONFIG_FILE = CONFIG_DIR / "config.toml"
 
-
-# ==================== 配置字段元数据 ====================
-
-
 class ExtraField(BaseModel):
     """配置字段扩展元数据
 
@@ -49,10 +45,6 @@ class ExtraField(BaseModel):
     is_need_restart: bool = False  # 修改后需要重启服务
     sub_item_name: str = ""  # 列表项名称 (用于数组字段)
     enum: Optional[List[str]] = None  # 枚举值列表 (下拉选择)
-
-
-# ==================== 配置模型 ====================
-
 
 class SecurityConfig(BaseModel):
     """安全配置"""
@@ -385,8 +377,6 @@ class ConfigManager:
             self._load()
         return self._config  # type: ignore
 
-    # ==================== 配置节访问 ====================
-
     @property
     def security(self) -> SecurityConfig:
         return self.config.security
@@ -406,8 +396,6 @@ class ConfigManager:
     @property
     def logging(self) -> LoggingConfig:
         return self.config.logging
-
-    # ==================== 便捷属性 (兼容旧代码) ====================
 
     @property
     def version(self) -> str:

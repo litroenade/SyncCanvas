@@ -53,7 +53,7 @@ class ErrorRecoveryManager:
                 if asyncio.iscoroutinefunction(func):
                     return await func(*args, **kwargs)
                 else:
-                    return func(*args, **kwargs)
+                    return func(*args, **kwargs)  # type: ignore[return-value]
             except Exception as e:  # pylint: disable=broad-except
                 last_error = e
                 if attempt < policy.max_retries:

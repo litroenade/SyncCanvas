@@ -49,10 +49,6 @@ def verify_password(password: str, password_hash: str) -> bool:
     except ValueError:
         return False
 
-
-# ==================== 请求/响应模型 ====================
-
-
 class RoomCreate(BaseModel):
     """创建房间请求
 
@@ -133,10 +129,6 @@ class InviteLinkResponse(BaseModel):
 
     room_id: str
     invite_url: str
-
-
-# ==================== API 路由 ====================
-
 
 @router.get("", response_model=RoomListResponse)
 async def list_rooms(
@@ -228,7 +220,7 @@ async def create_room(
 
     # 如果有用户，自动加入房间
     if current_user:
-        member = RoomMember(room_id=room.id, user_id=current_user.id, role="owner")
+        member = RoomMember(room_id=room.id, user_id=current_user.id, role="owner")  # type: ignore[arg-type]
         crud.add_room_member(session, member)
 
     return RoomResponse(
@@ -301,7 +293,7 @@ async def join_room(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="房间不存在")
 
     # 检查是否已是成员
-    existing_member = crud.get_room_member(session, room_id, current_user.id)
+    existing_member = crud.get_room_member(session, room_id, current_user.id)  # type: ignore[arg-type]
     if existing_member:
         return {"status": "already_member", "room_id": room_id}
 
@@ -322,7 +314,7 @@ async def join_room(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="房间已满员")
 
     # 加入房间
-    member = RoomMember(room_id=room_id, user_id=current_user.id, role="editor")
+    member = RoomMember(room_id=room_id, user_id=current_user.id, role="editor")  # type: ignore[arg-type]
     crud.add_room_member(session, member)
     logger.info("用户 %s 加入房间 %s", current_user.username, room_id)
 
@@ -407,7 +399,7 @@ async def leave_room(
             status_code=status.HTTP_403_FORBIDDEN, detail="房主不能离开房间，请删除房间"
         )
 
-    removed = crud.remove_room_member(session, room_id, current_user.id)
+    removed = crud.remove_room_member(session, room_id, current_user.id)  # type: ignore[arg-type]
     if not removed:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="您不是此房间成员"
@@ -452,7 +444,7 @@ async def get_my_rooms(
     Returns:
         RoomListResponse: 房间列表响应
     """
-    rooms = crud.get_user_rooms(session, current_user.id)
+    rooms = crud.get_user_rooms(session, current_user.id)  # type: ignore[arg-type]
 
     room_responses = []
     for room in rooms:

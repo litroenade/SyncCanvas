@@ -1,4 +1,3 @@
-
 import time
 from typing import Any, Dict, List, Optional
 from sqlmodel import Session, select
@@ -27,11 +26,7 @@ class AgentRunService:
         self.session = session
 
     def create_run(
-        self,
-        room_id: str,
-        prompt: str,
-        model: str = "",
-        user_id: Optional[int] = None
+        self, room_id: str, prompt: str, model: str = "", user_id: Optional[int] = None
     ) -> AgentRun:
         """创建新的 Agent 运行记录
 
@@ -49,25 +44,20 @@ class AgentRunService:
             prompt=prompt,
             model=model,
             status="running",
-            created_at=int(time.time() * 1000)
+            created_at=int(time.time() * 1000),
         )
         self.session.add(run)
         self.session.commit()
         self.session.refresh(run)
 
-        logger.info("Agent 运行已创建", extra={
-            "run_id": run.id,
-            "room_id": room_id,
-            "model": model
-        })
+        logger.info(
+            "Agent 运行已创建",
+            extra={"run_id": run.id, "room_id": room_id, "model": model},
+        )
         return run
 
     async def create_run_async(
-        self,
-        room_id: str,
-        prompt: str,
-        model: str = "",
-        user_id: Optional[int] = None
+        self, room_id: str, prompt: str, model: str = "", user_id: Optional[int] = None
     ) -> AgentRun:
         """异步创建新的 Agent 运行记录
 
@@ -83,11 +73,7 @@ class AgentRunService:
         return self.create_run(room_id, prompt, model, user_id)
 
     def log_action(
-        self,
-        run_id: int,
-        tool: str,
-        arguments: Dict[str, Any],
-        result: Dict[str, Any]
+        self, run_id: int, tool: str, arguments: Dict[str, Any], result: Dict[str, Any]
     ) -> AgentAction:
         """记录工具调用
 
@@ -105,24 +91,17 @@ class AgentRunService:
             tool=tool,
             arguments=arguments or {},
             result=result or {},
-            created_at=int(time.time() * 1000)
+            created_at=int(time.time() * 1000),
         )
         self.session.add(action)
         self.session.commit()
         self.session.refresh(action)
 
-        logger.debug("Agent 动作已记录", extra={
-            "run_id": run_id,
-            "tool": tool
-        })
+        logger.debug("Agent 动作已记录", extra={"run_id": run_id, "tool": tool})
         return action
 
     async def log_action_async(
-        self,
-        run_id: int,
-        tool: str,
-        arguments: Dict[str, Any],
-        result: Dict[str, Any]
+        self, run_id: int, tool: str, arguments: Dict[str, Any], result: Dict[str, Any]
     ) -> AgentAction:
         """异步记录工具调用
 
@@ -138,10 +117,7 @@ class AgentRunService:
         return self.log_action(run_id, tool, arguments, result)
 
     def complete_run(
-        self,
-        run_id: int,
-        message: str = "",
-        output: Optional[str] = None
+        self, run_id: int, message: str = "", output: Optional[str] = None
     ) -> AgentRun:
         """标记运行为完成状态
 
@@ -165,17 +141,11 @@ class AgentRunService:
         self.session.commit()
         self.session.refresh(run)
 
-        logger.info("Agent 运行已完成", extra={
-            "run_id": run_id,
-            "status": "completed"
-        })
+        logger.info("Agent 运行已完成", extra={"run_id": run_id, "status": "completed"})
         return run
 
     async def complete_run_async(
-        self,
-        run_id: int,
-        message: str = "",
-        output: Optional[str] = None
+        self, run_id: int, message: str = "", output: Optional[str] = None
     ) -> AgentRun:
         """异步标记运行为完成状态
 
@@ -189,11 +159,7 @@ class AgentRunService:
         """
         return self.complete_run(run_id, message, output)
 
-    def fail_run(
-        self,
-        run_id: int,
-        error: str = ""
-    ) -> AgentRun:
+    def fail_run(self, run_id: int, error: str = "") -> AgentRun:
         """标记运行为失败状态
 
         Args:
@@ -215,17 +181,10 @@ class AgentRunService:
         self.session.commit()
         self.session.refresh(run)
 
-        logger.error("Agent 运行失败", extra={
-            "run_id": run_id,
-            "error": error
-        })
+        logger.error("Agent 运行失败", extra={"run_id": run_id, "error": error})
         return run
 
-    async def fail_run_async(
-        self,
-        run_id: int,
-        error: str = ""
-    ) -> AgentRun:
+    async def fail_run_async(self, run_id: int, error: str = "") -> AgentRun:
         """异步标记运行为失败状态
 
         Args:
@@ -260,7 +219,7 @@ class AgentRunService:
         statement = (
             select(AgentAction)
             .where(AgentAction.run_id == run_id)
-            .order_by(AgentAction.created_at)
+            .order_by(AgentAction.created_at)  # type: ignore[arg-type]
         )
         return list(self.session.exec(statement).all())
 
@@ -300,11 +259,7 @@ class AgentRunService:
             ],
         }
 
-    def get_room_runs(
-        self,
-        room_id: str,
-        limit: int = 20
-    ) -> List[AgentRun]:
+    def get_room_runs(self, room_id: str, limit: int = 20) -> List[AgentRun]:
         """获取房间的运行历史
 
         Args:
@@ -317,7 +272,7 @@ class AgentRunService:
         statement = (
             select(AgentRun)
             .where(AgentRun.room_id == room_id)
-            .order_by(AgentRun.created_at.desc())
+            .order_by(AgentRun.created_at.desc())  # type: ignore[arg-type]
             .limit(limit)
         )
         return list(self.session.exec(statement).all())

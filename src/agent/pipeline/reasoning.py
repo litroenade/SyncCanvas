@@ -36,6 +36,7 @@ class ReasoningMode(Enum):
     CREATE = "create"  # 创建新元素
     HYBRID = "hybrid"  # 混合模式 (默认)
 
+
 class OpType(Enum):
     """操作类型 (兼容旧版)"""
 
@@ -68,6 +69,7 @@ class LogicalOp:
         params = {k: v for k, v in data.items() if k not in ("type", "id", "temp_id")}
         return cls(type=op_type, temp_id=temp_id, params=params)
 
+
 @dataclass
 class ReasoningResult:
     """推理结果"""
@@ -83,6 +85,7 @@ class ReasoningResult:
     mode: ReasoningMode = ReasoningMode.HYBRID
     success: bool = True
     error: Optional[str] = None
+
 
 class CanvasReasoner:
     """画布推理器
@@ -128,7 +131,7 @@ class CanvasReasoner:
 
         try:
             response = await self.llm.chat_completion(
-                messages=messages,
+                messages=messages,  # type: ignore[arg-type]
                 tools=None,
                 temperature=temperature,
             )
@@ -297,5 +300,6 @@ class CanvasReasoner:
                     errors.append("connect 命令缺少 from_id 或 to_id")
 
         return errors
+
 
 LogicalReasoner = CanvasReasoner
