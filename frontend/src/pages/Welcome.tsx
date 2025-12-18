@@ -50,13 +50,11 @@ export const Welcome: React.FC = () => {
     const { theme, toggleTheme } = useThemeStore()
 
     const handleGetStarted = () => {
-        const token = localStorage.getItem('token')
-        const isGuest = localStorage.getItem('isGuest')
-        if (token || isGuest) {
-            navigate('/rooms')
-        } else {
-            navigate('/login')
-        }
+        // [修改说明]：
+        // 删除了这里的 localStorage 检查和自动跳转。
+        // 这样点击“开始使用”会总是跳转到 login 页面，
+        // 解决了无法进入登录页的问题，也避免了在欢迎页进行无验证的盲目跳转。
+        navigate('/login')
     }
 
     const handleQuickStart = () => {
