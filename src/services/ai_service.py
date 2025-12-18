@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 import asyncio
 import time
 from sqlmodel import Session
-from src.agent.planner import PlannerAgent
+from src.agent.canvas_agent import CanvasAgent
 from src.agent.base import AgentContext, RoomLockManager
 from src.agent.llm import LLMClient
 from src.agent.registry import registry
@@ -13,6 +13,7 @@ from src.db.database import get_sync_session
 from src.db.database import engine
 
 logger = get_logger(__name__)
+
 
 @dataclass
 class ServiceStats:
@@ -61,6 +62,7 @@ class ServiceStats:
             "total_elements_created": self.total_elements_created,
             "avg_response_time_ms": round(self.avg_response_time_ms, 2),
         }
+
 
 class AIService:
     """AI 服务
@@ -126,11 +128,11 @@ class AIService:
         self._active_contexts[run.id] = context
 
         # 初始化 Planner Agent
-        planner = PlannerAgent(self.llm_client, run_service)
+        agent = CanvasAgent(self.llm_client, run_service)
 
         try:
             # 执行 Agent
-            response = await planner.run(context, user_input)
+            response = await agent.run(context, user_input)
 
             # 计算耗时
             duration_ms = (time.time() - start_time) * 1000
@@ -165,8 +167,8 @@ class AIService:
                 "tools_used": [r["tool"] for r in context.tool_results],
                 "metrics": {
                     "duration_ms": round(duration_ms, 2),
-                    "iterations": len(planner.steps),
-                    **planner.metrics.to_dict(),
+                    "iterations": len(agent.steps),
+                    **agent.metrics.to_dict(),
                 },
             }
 
@@ -265,8 +267,8 @@ class AIService:
         stream_session = Session(engine)
         stream_run_service = AgentRunService(stream_session)
 
-        # 初始化 Planner Agent (传递 run_service 以记录工具调用)
-        planner = PlannerAgent(self.llm_client, stream_run_service)
+        # 初始化 Canvas Agent (传递 run_service 以记录工具调用)
+        agent = CanvasAgent(self.llm_client, stream_run_service)
 
         # 设置步骤回调
         if step_callback:
@@ -279,10 +281,10 @@ class AIService:
                 except Exception as e:  # pylint: disable=broad-except
                     logger.warning(f"步骤回调失败: {e}")
 
-            planner.set_step_callback(async_callback)  # type: ignore[arg-type]
+            agent.set_step_callback(async_callback)  # type: ignore[arg-type]
 
         try:
-            response = await planner.run(context, user_input)
+            response = await agent.run(context, user_input)
             duration_ms = (time.time() - start_time) * 1000
 
             # 更新运行状态
@@ -316,8 +318,8 @@ class AIService:
                 "tools_used": [r["tool"] for r in context.tool_results],
                 "metrics": {
                     "duration_ms": round(duration_ms, 2),
-                    "iterations": len(planner.steps),
-                    **planner.metrics.to_dict(),
+                    "iterations": len(agent.steps),
+                    **agent.metrics.to_dict(),
                 },
             }
 

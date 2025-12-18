@@ -11,9 +11,9 @@ from openai.types.chat import ChatCompletionMessageParam
 
 from src.config import config
 from src.logger import get_logger
-from src.agent.pipeline.router import get_router
 
 logger = get_logger(__name__)
+
 
 @dataclass
 class LLMConfig:
@@ -47,6 +47,7 @@ class LLMResponse:
     tool_calls: Optional[List[Dict[str, Any]]] = None
     finish_reason: str = "stop"
     usage: Dict[str, int] = field(default_factory=dict)
+
 
 class LLMClient:
     """OpenAI 兼容的 LLM 客户端
@@ -131,7 +132,6 @@ class LLMClient:
         """
 
         primary_conf, fallback_conf = self._get_config()
-        router = get_router()
 
         # 尝试主提供商
         start_time = time.time()
@@ -148,14 +148,20 @@ class LLMClient:
             )
             # 记录成功调用指标
             latency_ms = (time.time() - start_time) * 1000
-            router.record_call(primary_conf.model, latency_ms, success=True)
+            logger.debug(
+                "LLM 调用成功: model=%s, latency=%.1fms", primary_conf.model, latency_ms
+            )
             return response
 
         except Exception as e:  # pylint: disable=broad-except
             # 记录失败调用指标
             latency_ms = (time.time() - start_time) * 1000
-            router.record_call(primary_conf.model, latency_ms, success=False)
-            logger.warning("主提供商调用失败: %s, 错误: %s", primary_conf.provider, e)
+            logger.warning(
+                "主提供商调用失败: %s, latency=%.1fms, 错误: %s",
+                primary_conf.provider,
+                latency_ms,
+                e,
+            )
 
             # 尝试备用提供商
             logger.info("尝试使用备用提供商...")
@@ -173,13 +179,16 @@ class LLMClient:
                 )
                 # 记录备用调用成功
                 latency_ms = (time.time() - start_time) * 1000
-                router.record_call(fallback_conf.model, latency_ms, success=True)
+                logger.debug(
+                    "备用 LLM 调用成功: model=%s, latency=%.1fms",
+                    fallback_conf.model,
+                    latency_ms,
+                )
                 return response
 
             except Exception as e2:  # pylint: disable=broad-except
                 latency_ms = (time.time() - start_time) * 1000
-                router.record_call(fallback_conf.model, latency_ms, success=False)
-                logger.error("备用提供商调用失败: %s", e2)
+                logger.error("备用提供商调用失败: %s, latency=%.1fms", e2, latency_ms)
                 raise RuntimeError("所有 LLM 提供商均调用失败") from e2
 
     async def _call_completion(
