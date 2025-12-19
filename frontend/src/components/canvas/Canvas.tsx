@@ -32,6 +32,8 @@ import {
     Loader2,
     Sparkles,
     Settings,
+    Sun,
+    Moon,
 } from 'lucide-react';
 
 interface CanvasProps {
@@ -430,29 +432,64 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
                 {/* PC 端主菜单 */}
                 {!isMobile && (
                     <MainMenu>
-                        <MainMenu.DefaultItems.LoadScene />
-                        <MainMenu.DefaultItems.SaveToActiveFile />
-                        <MainMenu.DefaultItems.Export />
-                        <MainMenu.DefaultItems.SaveAsImage />
+                        {/* 文件操作区 (Excalidraw 原生) */}
+                        <MainMenu.DefaultItems.LoadScene />      {/* 打开 */}
+                        <MainMenu.DefaultItems.SaveToActiveFile /> {/* 保存到... */}
+                        <MainMenu.DefaultItems.Export />         {/* 导出... (弹窗) */}
+                        <MainMenu.DefaultItems.SaveAsImage />    {/* 另存为图片 */}
+                        
                         <MainMenu.Separator />
-                        <MainMenu.DefaultItems.ClearCanvas />
+
+                        {/* 画布操作区 */}
+                        <MainMenu.DefaultItems.ClearCanvas />    {/* 重置画布 */}
+                        
                         <MainMenu.Separator />
-                        <MainMenu.Item onSelect={handleBackToRooms} icon={<Home size={16} />}>
+
+                        {/* 自定义核心功能区 */}
+                        <MainMenu.Item 
+                            onSelect={() => navigate('/rooms')} 
+                            icon={<Home size={16} />}
+                        >
                             返回房间列表
                         </MainMenu.Item>
+
+                        {/* 历史版本 (仅在非游客模式且在房间中显示) */}
                         {!isGuest && roomId && (
-                            <MainMenu.Item onSelect={toggleHistorySidebar} icon={<History size={16} />}>
+                            <MainMenu.Item 
+                                // 这里假设你代码里定义了 HISTORY_SIDEBAR_NAME 常量，如果没有，请把 name 改为 'history'
+                                onSelect={() => excalidrawAPI?.toggleSidebar({ name: HISTORY_SIDEBAR_NAME })} 
+                                icon={<History size={16} />}
+                            >
                                 历史版本
                             </MainMenu.Item>
                         )}
+
+                        {/* 模型设置 (仅非游客显示) */}
                         {!isGuest && (
-                            <MainMenu.Item onSelect={toggleSettings} icon={<Settings size={16} />}>
+                            <MainMenu.Item 
+                                onSelect={toggleSettings} 
+                                icon={<Settings size={16} />}
+                            >
                                 模型设置
                             </MainMenu.Item>
                         )}
+
                         <MainMenu.Separator />
-                        <MainMenu.DefaultItems.ToggleTheme />
-                        <MainMenu.DefaultItems.ChangeCanvasBackground />
+
+                        {/* 外观设置区 */}
+
+                        {/* 深色模式 (自定义按钮，与全局同步) */}
+                        <MainMenu.Item
+                            onSelect={() => toggleTheme()}
+                            icon={isDark ? <Sun size={16} /> : <Moon size={16} />}
+                            shortcut="Shift+Alt+D   "
+                        >
+                            {isDark ? "浅色模式" : "深色模式"}
+                        </MainMenu.Item>
+
+                        {/* 画布背景 */}
+                        <MainMenu.DefaultItems.ChangeCanvasBackground /> 
+
                     </MainMenu>
                 )}
 
