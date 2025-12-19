@@ -26,6 +26,8 @@ import {
     Image,
     Database,
     ChevronDown,
+    RefreshCw,
+    AlertCircle
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -156,6 +158,87 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
         });
         setActiveSlot('chat_model');
     };
+
+    // 模型列表获取状态
+    const [modelList, setModelList] = useState<{ id: string }[]>([]);
+    const [fetchingModels, setFetchingModels] = useState(false);
+    const [fetchError, setFetchError] = useState('');
+
+    // 获取模型列表
+    const fetchModels = async () => {
+        if (!editingGroup) return;
+        const config = editingGroup[activeSlot];
+        if (!config || !config.base_url || !config.api_key) return;
+
+        setFetchingModels(true);
+        setFetchError('');
+        setModelList([]);
+
+        try {
+            let baseUrl = config.base_url.replace(/\/+$/, '');
+            let endpoints = [];
+            if (baseUrl.endsWith('/v1')) {
+                endpoints.push(`${baseUrl}/models`);
+            } else {
+                endpoints.push(`${baseUrl}/v1/models`);
+                endpoints.push(`${baseUrl}/models`);
+            }
+
+            let success = false;
+            let models: { id: string }[] = [];
+
+            for (const url of endpoints) {
+                try {
+                    const res = await fetch(url, {
+                        headers: {
+                            'Authorization': `Bearer ${config.api_key}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.data && Array.isArray(data.data)) {
+                            models = data.data;
+                            success = true;
+                            break;
+                        }
+                    } else if (res.status === 401) {
+                        throw new Error("API Key 无效 (401)");
+                    } else if (res.status === 403) {
+                        throw new Error("余额不足或无权限 (403)");
+                    }
+                } catch (e) {
+                    // ignore and try next
+                    console.warn(`Failed to fetch from ${url}:`, e);
+                    if (e instanceof Error && (e.message.includes('401') || e.message.includes('403'))) {
+                        setFetchError(e.message);
+                        setFetchingModels(false);
+                        return; // 明确的认证错误直接停止
+                    }
+                }
+            }
+
+            if (success) {
+                setModelList(models);
+            } else {
+                setFetchError('无法连接到 API 或未找到模型列表');
+            }
+
+        } catch (e) {
+            setFetchError(e instanceof Error ? e.message : '获取失败');
+        } finally {
+            setFetchingModels(false);
+        }
+    };
+
+    // 此前重置状态
+    useEffect(() => {
+        if (editingGroup) {
+            setModelList([]);
+            setFetchError('');
+        }
+    }, [editingGroup, activeSlot]);
 
     const handleSave = () => {
         if (!editingGroup?.name.trim()) return;
@@ -362,15 +445,60 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
                                         </div>
                                     </div>
 
-                                    <div>
-                                        <label className="block text-sm mb-1.5 opacity-70">模型名称</label>
-                                        <input
-                                            type="text"
-                                            value={activeConfig.model}
-                                            onChange={(e) => updateActiveSlotConfig({ model: e.target.value })}
-                                            className={cn('w-full px-3 py-2.5 rounded-lg border text-sm font-mono', inputBg, borderColor)}
-                                            placeholder="gpt-4o"
-                                        />
+                                    {/* 模型名称 (带自动完成) */}
+                                    <div className="relative">
+                                        <label className="block text-sm mb-1.5 opacity-70">
+                                            模型名称
+                                            {modelList.length > 0 && (
+                                                <span className="ml-2 text-xs opacity-50">
+                                                    (已加载 {modelList.length} 个模型)
+                                                </span>
+                                            )}
+                                        </label>
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                value={activeConfig.model}
+                                                onChange={(e) => updateActiveSlotConfig({ model: e.target.value })}
+                                                className={cn('w-full px-3 py-2.5 rounded-lg border text-sm font-mono pr-24', inputBg, borderColor)}
+                                                placeholder="gpt-4o"
+                                                list="model-list-suggestions"
+                                            />
+
+                                            {/* 获取模型列表按钮 */}
+                                            <button
+                                                type="button"
+                                                onClick={fetchModels}
+                                                disabled={fetchingModels || !activeConfig.base_url || !activeConfig.api_key}
+                                                className={cn(
+                                                    "absolute right-1 top-1 bottom-1 px-3 rounded text-xs font-medium transition-colors flex items-center gap-1.5",
+                                                    isDark ? "hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200" : "hover:bg-zinc-100 text-zinc-500 hover:text-zinc-800",
+                                                    (fetchingModels || !activeConfig.base_url || !activeConfig.api_key) && "opacity-50 cursor-not-allowed"
+                                                )}
+                                                title="测试连接并获取模型列表"
+                                            >
+                                                {fetchingModels ? (
+                                                    <Loader2 size={14} className="animate-spin" />
+                                                ) : (
+                                                    <RefreshCw size={14} />
+                                                )}
+                                                {fetchingModels ? '获取中...' : '刷新列表'}
+                                            </button>
+                                        </div>
+
+                                        {/* 浏览器原生 datalist 实现简单的自动补全 */}
+                                        <datalist id="model-list-suggestions">
+                                            {modelList.map(model => (
+                                                <option key={model.id} value={model.id} />
+                                            ))}
+                                        </datalist>
+
+                                        {fetchError && (
+                                            <div className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                                                <AlertCircle size={12} />
+                                                {fetchError}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}
