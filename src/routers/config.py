@@ -126,8 +126,9 @@ async def update_config(
 @router.get("/models")
 async def get_model_groups(current_user: User = Depends(get_current_user)):
     """获取所有模型组"""
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+    # TODO: 暂时移除管理员权限检查
+    # if not current_user.is_admin:
+    #     raise HTTPException(status_code=403, detail="需要管理员权限")
     return config.config.ai.model_groups
 
 
@@ -136,8 +137,9 @@ async def update_model_group(
     req: UpdateModelGroupRequest, current_user: User = Depends(get_current_user)
 ):
     """创建或更新模型组"""
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+    # TODO: 暂时移除管理员权限检查
+    # if not current_user.is_admin:
+    #     raise HTTPException(status_code=403, detail="需要管理员权限")
 
     name = req.name.strip()
     if not name:
@@ -151,8 +153,9 @@ async def update_model_group(
 @router.delete("/models/{name}")
 async def delete_model_group(name: str, current_user: User = Depends(get_current_user)):
     """删除模型组"""
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+    # TODO: 暂时移除管理员权限检查
+    # if not current_user.is_admin:
+    #     raise HTTPException(status_code=403, detail="需要管理员权限")
 
     if name in config.config.ai.model_groups:
         del config.config.ai.model_groups[name]

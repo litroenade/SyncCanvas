@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { configApi, ModelGroupConfig, ModelType } from '../../services/api/config';
+import { configApi, ModelGroupConfig } from '../../services/api/config';
 import {
     Cpu,
     Plus,
@@ -38,16 +38,11 @@ export function SettingsPanel({ isDark = false }: SettingsPanelProps) {
     const [editingGroup, setEditingGroup] = useState<{ name: string; config: ModelGroupConfig } | null>(null);
     const [showApiKey, setShowApiKey] = useState(false);
 
-    // 查询模型组
+    // 查询模型组 (添加缓存避免重复请求)
     const { data: modelGroups = {}, isLoading } = useQuery<Record<string, ModelGroupConfig>>({
         queryKey: ['model-groups'],
         queryFn: configApi.getModelGroups,
-    });
-
-    // 查询模型类型
-    const { data: modelTypes = [] } = useQuery<ModelType[]>({
-        queryKey: ['model-types'],
-        queryFn: configApi.getModelTypes,
+        staleTime: 60000, // 1分钟内不重新请求
     });
 
     // 保存模型组
@@ -76,7 +71,6 @@ export function SettingsPanel({ isDark = false }: SettingsPanelProps) {
                 model: '',
                 base_url: 'https://api.openai.com/v1',
                 api_key: '',
-                model_type: 'chat',
                 enable_vision: true,
                 enable_cot: false,
             },
@@ -199,25 +193,6 @@ export function SettingsPanel({ isDark = false }: SettingsPanelProps) {
                                     )}
                                     placeholder="我的模型"
                                 />
-                            </div>
-
-                            <div>
-                                <label className="block text-xs mb-1 opacity-70">模型类型</label>
-                                <select
-                                    value={editingGroup.config.model_type}
-                                    onChange={(e) => setEditingGroup({
-                                        ...editingGroup,
-                                        config: { ...editingGroup.config, model_type: e.target.value }
-                                    })}
-                                    className={cn(
-                                        'w-full px-3 py-2 rounded-lg border text-sm',
-                                        isDark ? 'bg-zinc-800 border-zinc-700' : 'bg-zinc-50 border-zinc-200'
-                                    )}
-                                >
-                                    {modelTypes.map((t) => (
-                                        <option key={t.value} value={t.value}>{t.label}</option>
-                                    ))}
-                                </select>
                             </div>
 
                             <div>

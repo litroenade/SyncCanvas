@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { configApi, ModelGroupConfig, ModelType } from '../../services/api/config';
+import { configApi, ModelGroupConfig } from '../../services/api/config';
 import {
     X,
     Plus,
@@ -46,19 +46,32 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
     const [editingGroup, setEditingGroup] = useState<{ name: string; config: ModelGroupConfig; isNew?: boolean } | null>(null);
     const [showApiKey, setShowApiKey] = useState(false);
     const [availableModels, setAvailableModels] = useState<string[]>([]);
+    const [fetchingModels, setFetchingModels] = useState(false);
+
+    // 获取可用模型列表
+    const handleFetchModels = async () => {
+        if (!editingGroup?.config.base_url || !editingGroup?.config.api_key) {
+            return;
+        }
+        setFetchingModels(true);
+        try {
+            const response = await fetch(`/api/config/ai/models?base_url=${encodeURIComponent(editingGroup.config.base_url)}&api_key=${encodeURIComponent(editingGroup.config.api_key)}`);
+            if (response.ok) {
+                const data = await response.json();
+                setAvailableModels(data.models?.map((m: { id: string }) => m.id) || []);
+            }
+        } catch (e) {
+            console.error('获取模型列表失败:', e);
+        } finally {
+            setFetchingModels(false);
+        }
+    };
 
 
     // 查询模型组
     const { data: modelGroups = {}, isLoading } = useQuery<Record<string, ModelGroupConfig>>({
         queryKey: ['model-groups'],
         queryFn: configApi.getModelGroups,
-        enabled: open,
-    });
-
-    // 查询模型类型
-    const { data: modelTypes = [] } = useQuery<ModelType[]>({
-        queryKey: ['model-types'],
-        queryFn: configApi.getModelTypes,
         enabled: open,
     });
 
@@ -69,6 +82,10 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['model-groups'] });
             setEditingGroup(null);
+        },
+        onError: (error: Error) => {
+            console.error('保存模型组失败:', error);
+            alert(`保存失败: ${error.message}`);
         },
     });
 
@@ -91,7 +108,6 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
                 model: '',
                 base_url: 'https://api.openai.com/v1',
                 api_key: '',
-                model_type: 'chat',
                 enable_vision: true,
                 enable_cot: false,
             },
@@ -104,8 +120,8 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
     };
 
     const handleCopyGroup = (name: string, config: ModelGroupConfig) => {
-        setEditingGroup({ 
-            name: `${name}_copy`, 
+        setEditingGroup({
+            name: `${name}_copy`,
             config: { ...config },
             isNew: true,
         });
@@ -143,11 +159,11 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
     return (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
             {/* 背景遮罩 */}
-            <div 
+            <div
                 className="absolute inset-0 bg-black/50 backdrop-blur-sm"
                 onClick={() => editingGroup ? setEditingGroup(null) : onClose()}
             />
-            
+
             {/* 主弹窗 */}
             <div className={cn(
                 'relative w-full max-w-2xl max-h-[85vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col',
@@ -184,22 +200,6 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
                                     )}
                                     placeholder="我的模型"
                                 />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm mb-1.5 opacity-70">模型类型</label>
-                                <select
-                                    value={editingGroup.config.model_type || 'chat'}
-                                    onChange={(e) => setEditingGroup({
-                                        ...editingGroup,
-                                        config: { ...editingGroup.config, model_type: e.target.value }
-                                    })}
-                                    className={cn('w-full px-3 py-2.5 rounded-lg border text-sm', inputBg, borderColor)}
-                                >
-                                    {modelTypes.map((t) => (
-                                        <option key={t.value} value={t.value}>{t.label}</option>
-                                    ))}
-                                </select>
                             </div>
 
                             <div>
@@ -258,16 +258,46 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
 
                             <div>
                                 <label className="block text-sm mb-1.5 opacity-70">模型名称</label>
-                                <input
-                                    type="text"
-                                    value={editingGroup.config.model}
-                                    onChange={(e) => setEditingGroup({
-                                        ...editingGroup,
-                                        config: { ...editingGroup.config, model: e.target.value }
-                                    })}
-                                    className={cn('w-full px-3 py-2.5 rounded-lg border text-sm font-mono', inputBg, borderColor)}
-                                    placeholder="gpt-4o"
-                                />
+                                <div className="flex gap-2">
+                                    {availableModels.length > 0 ? (
+                                        <select
+                                            value={editingGroup.config.model}
+                                            onChange={(e) => setEditingGroup({
+                                                ...editingGroup,
+                                                config: { ...editingGroup.config, model: e.target.value }
+                                            })}
+                                            className={cn('flex-1 px-3 py-2.5 rounded-lg border text-sm font-mono', inputBg, borderColor)}
+                                        >
+                                            <option value="">选择模型...</option>
+                                            {availableModels.map((m) => (
+                                                <option key={m} value={m}>{m}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <input
+                                            type="text"
+                                            value={editingGroup.config.model}
+                                            onChange={(e) => setEditingGroup({
+                                                ...editingGroup,
+                                                config: { ...editingGroup.config, model: e.target.value }
+                                            })}
+                                            className={cn('flex-1 px-3 py-2.5 rounded-lg border text-sm font-mono', inputBg, borderColor)}
+                                            placeholder="gpt-4o"
+                                        />
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={handleFetchModels}
+                                        disabled={fetchingModels || !editingGroup.config.base_url || !editingGroup.config.api_key}
+                                        className={cn(
+                                            'px-3 py-2.5 rounded-lg border text-sm whitespace-nowrap',
+                                            borderColor,
+                                            'hover:bg-zinc-500/20 disabled:opacity-50 disabled:cursor-not-allowed'
+                                        )}
+                                    >
+                                        {fetchingModels ? <Loader2 size={16} className="animate-spin" /> : '获取列表'}
+                                    </button>
+                                </div>
                             </div>
 
 
