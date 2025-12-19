@@ -25,11 +25,13 @@ from src.agent.pipeline.transaction import (
     TransactionResult,
     get_transaction,
 )
-from src.agent.llm import LLMClient
+
 from src.logger import get_logger
+
 
 if TYPE_CHECKING:
     from src.agent.base import AgentContext
+    from src.agent.llm import LLMClient
 
 logger = get_logger(__name__)
 
@@ -53,8 +55,6 @@ class PipelineMetrics:
     logical_ops_count: int = 0
     positioned_ops_count: int = 0
     created_elements: int = 0
-
-    @property
     def total_ms(self) -> float:
         if self.end_time > 0:
             return (self.end_time - self.start_time) * 1000
@@ -100,7 +100,7 @@ class PipelineResult:
     logical_ops: List[LogicalOp] = field(default_factory=list)
     positioned_ops: List[PositionedOp] = field(default_factory=list)
     transaction_result: Optional[TransactionResult] = None
-
+    # (修正) 此处误插入的 llm_client 字段已移除
     # 指标
     metrics: PipelineMetrics = field(default_factory=PipelineMetrics)
 
@@ -126,7 +126,7 @@ class AgentPipeline:
 
     def __init__(
         self,
-        llm_client: LLMClient,
+        llm_client: 'LLMClient',
         cognition: Optional[GraphCognition] = None,
         router: Optional[LLMRouter] = None,
         layout: Optional[LayoutEngine] = None,
@@ -418,6 +418,11 @@ class AgentPipeline:
 
         return "\n".join(parts) if parts else "操作完成"
 
-def create_pipeline(llm_client: LLMClient) -> AgentPipeline:
-    """创建 Pipeline 实例"""
+
+def create_pipeline(llm_client: 'LLMClient') -> 'AgentPipeline':
+    """创建 Pipeline 实例
+    llm_client: LLMClient 实例
+    """
+    # 延迟导入，避免循环依赖
+    from src.agent.llm import LLMClient
     return AgentPipeline(llm_client)
