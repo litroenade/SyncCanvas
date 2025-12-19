@@ -1,364 +1,123 @@
-/**
- * 类draw.io点即用线条/箭头工具栏
- * 点击对应线条样式按钮，直接在画布绘制该样式的线条/箭头
- */
 import React from 'react';
 import { motion } from 'framer-motion';
-import { cn } from '../../lib/utils';
-import type { ExcalidrawAPI } from '@excalidraw/excalidraw';
-
-export type LineType = 
-  | 'straight' // 直线
-  | 'dashed' // 虚线
-  | 'arrow' // 单箭头
-  | 'doubleArrow' // 双箭头
-  | 'dotLine' // 点线
-  | 'arrowDashed' // 虚线箭头
-  | 'curved' // 曲线
-  | 'curvedArrow' // 曲线箭头
-  | 'angled' // 折线
-  | 'angledArrow'; // 折线箭头
+import { 
+  Minus, MoreHorizontal, Circle, 
+  ArrowRight, ArrowDownUp, ArrowLeftRight,
+  ChevronRight
+} from 'lucide-react';
 
 interface LinePaletteProps {
-  excalidrawAPI: ExcalidrawAPI | null;
-  isDark?: boolean;
-  isActiveLine?: LineType;
-  onLineSelect?: (line: LineType) => void;
-  lineTypes: LineType[];
-  className?: string;
+  isOpen: boolean;
+  onClose: () => void;
+  onSelectLine: (lineType: string) => void;
+  selectedLine: string | null;
+  isDark: boolean;
 }
 
-// 线条配置映射（定义每种线条的绘制参数）
-const LINE_CONFIGS = {
-  straight: {
-    label: '直线',
-    icon: (isActive: boolean, isDark: boolean) => (
-      <line x1="4" y1="10" x2="24" y2="10" 
-        stroke={isActive ? (isDark ? "#3b82f6" : "#2563eb") : (isDark ? "#94a3b8" : "#64748b")} 
-        strokeWidth={isActive ? 2 : 1.5}
-        strokeLinecap="round"
-      />
-    ),
-    toolProps: {
-      type: 'arrow',
-      strokeDasharray: null,
-      startArrowhead: null,
-      endArrowhead: null,
-      strokeWidth: 2,
-    },
-  },
-  dashed: {
-    label: '虚线',
-    icon: (isActive: boolean, isDark: boolean) => (
-      <line x1="4" y1="10" x2="24" y2="10" 
-        stroke={isActive ? (isDark ? "#3b82f6" : "#2563eb") : (isDark ? "#94a3b8" : "#64748b")} 
-        strokeWidth={isActive ? 2 : 1.5}
-        strokeDasharray="4,2"
-        strokeLinecap="round"
-      />
-    ),
-    toolProps: {
-      type: 'arrow',
-      strokeDasharray: '4,2',
-      startArrowhead: null,
-      endArrowhead: null,
-      strokeWidth: 2,
-    },
-  },
-  arrow: {
-    label: '单箭头',
-    icon: (isActive: boolean, isDark: boolean) => (
-      <g>
-        <line x1="4" y1="10" x2="20" y2="10" 
-          stroke={isActive ? (isDark ? "#3b82f6" : "#2563eb") : (isDark ? "#94a3b8" : "#64748b")} 
-          strokeWidth={isActive ? 2 : 1.5}
-          strokeLinecap="round"
-        />
-        <polygon points="20,10 14,6 14,14" 
-          fill={isActive ? (isDark ? "#3b82f6" : "#2563eb") : (isDark ? "#94a3b8" : "#64748b")} 
-          stroke="none"
-        />
-      </g>
-    ),
-    toolProps: {
-      type: 'arrow',
-      strokeDasharray: null,
-      startArrowhead: null,
-      endArrowhead: 'arrow',
-      strokeWidth: 2,
-    },
-  },
-  doubleArrow: {
-    label: '双箭头',
-    icon: (isActive: boolean, isDark: boolean) => (
-      <g>
-        <line x1="8" y1="10" x2="20" y2="10" 
-          stroke={isActive ? (isDark ? "#3b82f6" : "#2563eb") : (isDark ? "#94a3b8" : "#64748b")} 
-          strokeWidth={isActive ? 2 : 1.5}
-          strokeLinecap="round"
-        />
-        <polygon points="20,10 14,6 14,14" 
-          fill={isActive ? (isDark ? "#3b82f6" : "#2563eb") : (isDark ? "#94a3b8" : "#64748b")} 
-          stroke="none"
-        />
-        <polygon points="8,10 14,6 14,14" 
-          fill={isActive ? (isDark ? "#3b82f6" : "#2563eb") : (isDark ? "#94a3b8" : "#64748b")} 
-          stroke="none"
-          transform="rotate(180 11 10)"
-        />
-      </g>
-    ),
-    toolProps: {
-      type: 'arrow',
-      strokeDasharray: null,
-      startArrowhead: 'arrow',
-      endArrowhead: 'arrow',
-      strokeWidth: 2,
-    },
-  },
-  dotLine: {
-    label: '点线',
-    icon: (isActive: boolean, isDark: boolean) => (
-      <line x1="4" y1="10" x2="24" y2="10" 
-        stroke={isActive ? (isDark ? "#3b82f6" : "#2563eb") : (isDark ? "#94a3b8" : "#64748b")} 
-        strokeWidth={isActive ? 2 : 1.5}
-        strokeDasharray="1,3"
-        strokeLinecap="round"
-      />
-    ),
-    toolProps: {
-      type: 'arrow',
-      strokeDasharray: '1,3',
-      startArrowhead: null,
-      endArrowhead: null,
-      strokeWidth: 2,
-    },
-  },
-  arrowDashed: {
-    label: '虚线箭头',
-    icon: (isActive: boolean, isDark: boolean) => (
-      <g>
-        <line x1="4" y1="10" x2="20" y2="10" 
-          stroke={isActive ? (isDark ? "#3b82f6" : "#2563eb") : (isDark ? "#94a3b8" : "#64748b")} 
-          strokeWidth={isActive ? 2 : 1.5}
-          strokeDasharray="4,2"
-          strokeLinecap="round"
-        />
-        <polygon points="20,10 14,6 14,14" 
-          fill={isActive ? (isDark ? "#3b82f6" : "#2563eb") : (isDark ? "#94a3b8" : "#64748b")} 
-          stroke="none"
-        />
-      </g>
-    ),
-    toolProps: {
-      type: 'arrow',
-      strokeDasharray: '4,2',
-      startArrowhead: null,
-      endArrowhead: 'arrow',
-      strokeWidth: 2,
-    },
-  },
-  curved: {
-    label: '曲线',
-    icon: (isActive: boolean, isDark: boolean) => (
-      <path d="M4,10 Q14,2 24,10" 
-        fill="none"
-        stroke={isActive ? (isDark ? "#3b82f6" : "#2563eb") : (isDark ? "#94a3b8" : "#64748b")} 
-        strokeWidth={isActive ? 2 : 1.5}
-        strokeLinecap="round"
-      />
-    ),
-    toolProps: {
-      type: 'arrow',
-      strokeDasharray: null,
-      startArrowhead: null,
-      endArrowhead: null,
-      strokeWidth: 2,
-      isCurved: true,
-    },
-  },
-  curvedArrow: {
-    label: '曲线箭头',
-    icon: (isActive: boolean, isDark: boolean) => (
-      <g>
-        <path d="M4,10 Q14,2 20,10" 
-          fill="none"
-          stroke={isActive ? (isDark ? "#3b82f6" : "#2563eb") : (isDark ? "#94a3b8" : "#64748b")} 
-          strokeWidth={isActive ? 2 : 1.5}
-          strokeLinecap="round"
-        />
-        <polygon points="20,10 14,6 14,14" 
-          fill={isActive ? (isDark ? "#3b82f6" : "#2563eb") : (isDark ? "#94a3b8" : "#64748b")} 
-          stroke="none"
-        />
-      </g>
-    ),
-    toolProps: {
-      type: 'arrow',
-      strokeDasharray: null,
-      startArrowhead: null,
-      endArrowhead: 'arrow',
-      strokeWidth: 2,
-      isCurved: true,
-    },
-  },
-  angled: {
-    label: '折线',
-    icon: (isActive: boolean, isDark: boolean) => (
-      <g>
-        <line x1="4" y1="10" x2="14" y2="10" 
-          stroke={isActive ? (isDark ? "#3b82f6" : "#2563eb") : (isDark ? "#94a3b8" : "#64748b")} 
-          strokeWidth={isActive ? 2 : 1.5}
-          strokeLinecap="round"
-        />
-        <line x1="14" y1="10" x2="14" y2="4" 
-          stroke={isActive ? (isDark ? "#3b82f6" : "#2563eb") : (isDark ? "#94a3b8" : "#64748b")} 
-          strokeWidth={isActive ? 2 : 1.5}
-          strokeLinecap="round"
-        />
-        <line x1="14" y1="4" x2="24" y2="4" 
-          stroke={isActive ? (isDark ? "#3b82f6" : "#2563eb") : (isDark ? "#94a3b8" : "#64748b")} 
-          strokeWidth={isActive ? 2 : 1.5}
-          strokeLinecap="round"
-        />
-      </g>
-    ),
-    toolProps: {
-      type: 'arrow',
-      strokeDasharray: null,
-      startArrowhead: null,
-      endArrowhead: null,
-      strokeWidth: 2,
-      isAngled: true,
-    },
-  },
-  angledArrow: {
-    label: '折线箭头',
-    icon: (isActive: boolean, isDark: boolean) => (
-      <g>
-        <line x1="4" y1="10" x2="14" y2="10" 
-          stroke={isActive ? (isDark ? "#3b82f6" : "#2563eb") : (isDark ? "#94a3b8" : "#64748b")} 
-          strokeWidth={isActive ? 2 : 1.5}
-          strokeLinecap="round"
-        />
-        <line x1="14" y1="10" x2="14" y2="4" 
-          stroke={isActive ? (isDark ? "#3b82f6" : "#2563eb") : (isDark ? "#94a3b8" : "#64748b")} 
-          strokeWidth={isActive ? 2 : 1.5}
-          strokeLinecap="round"
-        />
-        <line x1="14" y1="4" x2="20" y2="4" 
-          stroke={isActive ? (isDark ? "#3b82f6" : "#2563eb") : (isDark ? "#94a3b8" : "#64748b")} 
-          strokeWidth={isActive ? 2 : 1.5}
-          strokeLinecap="round"
-        />
-        <polygon points="20,4 14,0 14,8" 
-          fill={isActive ? (isDark ? "#3b82f6" : "#2563eb") : (isDark ? "#94a3b8" : "#64748b")} 
-          stroke="none"
-        />
-      </g>
-    ),
-    toolProps: {
-      type: 'arrow',
-      strokeDasharray: null,
-      startArrowhead: null,
-      endArrowhead: 'arrow',
-      strokeWidth: 2,
-      isAngled: true,
-    },
-  },
-};
-
-export const LinePalette: React.FC<LinePaletteProps> = ({
-  excalidrawAPI,
-  isDark = false,
-  isActiveLine,
-  onLineSelect,
-  lineTypes,
-  className = "",
+const LinePalette: React.FC<LinePaletteProps> = ({
+  isOpen,
+  onClose,
+  onSelectLine,
+  selectedLine,
+  isDark
 }) => {
-  // 点击线条按钮 - 进入该线条的绘制模式
-  const handleLineClick = (lineType: LineType) => {
-    if (!excalidrawAPI) {
-      console.warn("Excalidraw API 尚未初始化");
-      return;
+  // 线条/箭头分组配置
+  const lineGroups = [
+    {
+      title: "基础线条",
+      lines: [
+        { id: "solid", name: "实线", icon: <Minus size={20} /> },
+        { id: "dashed", name: "虚线", icon: <MoreHorizontal size={20} /> },
+        { id: "dotted", name: "点线", icon: <Circle size={8} className="my-auto" /> },
+        { id: "double", name: "双实线", icon: <div className="flex gap-1"><Minus size={20} /><Minus size={20} /></div> },
+      ]
+    },
+    {
+      title: "箭头样式",
+      lines: [
+        { id: "singleArrow", name: "单箭头", icon: <ArrowRight size={20} /> },
+        { id: "arrowDownUp", name: "双箭头", icon: <ArrowDownUp size={20} /> },
+        { id: "bidirectional", name: "双向箭头", icon: <ArrowLeftRight size={20} /> },
+        { id: "燕尾箭头", name: "燕尾箭头", icon: <div className="relative"><Minus size={20} /><div className="absolute right-0 top-1/2 -translate-y-1/2 -translate-x-1/2 rotate-45 border-t-2 border-r-2 w-3 h-3" /></div> },
+      ]
     }
-
-    const config = LINE_CONFIGS[lineType];
-    if (!config) return;
-
-    try {
-      // 使用 setAppState 来切换到 arrow 工具
-      excalidrawAPI.setAppState({
-        activeTool: { type: 'arrow' },
-        currentItemStrokeWidth: config.toolProps.strokeWidth || 2,
-        currentItemStrokeDasharray: config.toolProps.strokeDasharray,
-        currentItemStartArrowhead: config.toolProps.startArrowhead,
-        currentItemEndArrowhead: config.toolProps.endArrowhead,
-        currentItemIsCurved: config.toolProps.isCurved,
-        currentItemIsAngled: config.toolProps.isAngled,
-      }, false);
-
-      console.log(`[LinePalette] 已切换到${config.label}工具（arrow），请在画布上拖动以绘制`);
-
-      // 通知外部选中状态
-      if (onLineSelect) {
-        onLineSelect(lineType);
-      }
-    } catch (error) {
-      console.error('[LinePalette] 切换工具失败:', error);
-    }
-  };
-
-  // 确定面板标题
-  const panelTitle = lineTypes.some(t => t.includes('arrow')) 
-    ? '箭头工具' 
-    : '线条工具';
+  ];
 
   return (
     <motion.div
       initial={{ opacity: 0, x: 10 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: 0.1 }}
-      className={cn(
-        'fixed z-50 right-0 top-0 h-full w-64 pointer-events-auto border-l shadow-lg overflow-y-auto',
-        isDark ? 'text-slate-200 bg-slate-800/95' : 'text-slate-800 bg-white/95',
-        className
-      )}
+      animate={{ opacity: isOpen ? 1 : 0, x: isOpen ? 0 : 10 }}
+      exit={{ opacity: 0, x: 10 }}
+      transition={{ duration: 0.2 }}
+      className={`
+        fixed right-2 ${isDark ? 'bg-slate-900/95' : 'bg-white/95'} 
+        rounded-lg shadow-lg p-4 overflow-y-auto
+        overscroll-contain border ${isDark ? 'border-slate-700' : 'border-gray-200'}
+      `}
+      style={{
+        top: '60px', // 避开右上角状态/素材库图标
+        bottom: '80px', // 避开右下角bot图标
+        width: '16rem',
+        zIndex: 45, // 层级低于核心交互元素
+        maxHeight: 'calc(100vh - 140px)' // 顶部60px + 底部80px = 垂直留白
+      }}
+      onMouseEnter={(e) => {
+        // 鼠标在面板内时，滚轮仅控制面板滚动（不影响画布）
+        e.currentTarget.addEventListener('wheel', (ev) => {
+          ev.stopPropagation();
+        }, { passive: true });
+      }}
     >
-      <div className="p-4 border-b">
-        <h3 className="font-medium">{panelTitle}</h3>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className={`font-medium text-lg ${isDark ? 'text-white' : 'text-slate-800'}`}>
+          线条工具
+        </h3>
+        <button
+          onClick={onClose}
+          className={`p-1 rounded-full ${isDark ? 'hover:bg-slate-700' : 'hover:bg-gray-100'}`}
+          aria-label="关闭线条面板"
+        >
+          <ChevronRight size={20} className={isDark ? 'text-white' : 'text-slate-800'} />
+        </button>
       </div>
-      
-      <div className="p-4 grid grid-cols-2 gap-3">
-        {lineTypes.map((lineKey) => {
-          // 过滤掉未定义的线条类型
-          if (!LINE_CONFIGS[lineKey as LineType]) return null;
-          
-          const line = LINE_CONFIGS[lineKey as LineType];
-          const isActive = isActiveLine === lineKey;
-          
-          return (
-            <button
-              key={lineKey}
-              onClick={() => handleLineClick(lineKey as LineType)}
-              title={line.label}
-              className={cn(
-                'p-3 rounded-md flex flex-col items-center gap-2',
-                'cursor-pointer transition-all duration-200',
-                'hover:shadow-md active:scale-95',
-                isActive 
-                  ? (isDark ? 'bg-blue-900/50 border-2 border-blue-500' : 'bg-blue-100 border-2 border-blue-400')
-                  : (isDark ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-100 hover:bg-slate-200')
-              )}
-            >
-              <svg width="28" height="20" viewBox="0 0 28 20" className="pointer-events-none">
-                {line.icon(isActive, isDark)}
-              </svg>
-              <span className="text-xs">{line.label}</span>
-            </button>
-          );
-        })}
-      </div>
+
+      {lineGroups.map((group, groupIndex) => (
+        <div key={groupIndex} className="mb-6 last:mb-0">
+          <h4 className={`text-sm font-medium mb-3 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+            {group.title}
+          </h4>
+          <div className="grid grid-cols-2 gap-6">
+            {group.lines.map((line) => (
+              <button
+                key={line.id}
+                onClick={() => onSelectLine(line.id)}
+                className={`
+                  flex flex-col items-center justify-center
+                  p-4 rounded-md transition-colors
+                  ${selectedLine === line.id 
+                    ? isDark 
+                      ? 'bg-blue-900/30 border border-blue-500' 
+                      : 'bg-blue-100 border border-blue-300' 
+                    : isDark 
+                      ? 'hover:bg-slate-800' 
+                      : 'hover:bg-gray-100'
+                  }
+                `}
+                aria-label={`选择${line.name}线条`}
+              >
+                <div className={isDark ? 'text-white' : 'text-slate-800'}>
+                  {line.icon}
+                </div>
+                <span className={`text-xs mt-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                  {line.name}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
     </motion.div>
   );
 };
+
+export default LinePalette;
