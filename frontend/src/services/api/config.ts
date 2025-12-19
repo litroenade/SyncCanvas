@@ -30,8 +30,8 @@ export interface ConfigItem {
     sub_item_name?: string;
 }
 
-/** 模型组配置 */
-export interface ModelGroupConfig {
+/** 单个模型配置 */
+export interface ModelConfig {
     provider: string;
     model: string;
     base_url: string;
@@ -45,6 +45,17 @@ export interface ModelGroupConfig {
     enable_vision?: boolean;
     enable_cot?: boolean;
 }
+
+/** 模型组配置 - 包含对话、视觉、嵌入三种模型 */
+export interface ModelGroup {
+    name: string;
+    chat_model: ModelConfig;
+    vision_model?: ModelConfig | null;
+    embedding_model?: ModelConfig | null;
+}
+
+/** @deprecated Use ModelGroup instead */
+export type ModelGroupConfig = ModelConfig;
 
 /** 模型类型定义 */
 export interface ModelType {
@@ -118,11 +129,11 @@ export const configApi = {
     updateConfigItem,
 
     // 模型组 API
-    getModelGroups: async (): Promise<Record<string, ModelGroupConfig>> => {
-        const response = await apiClient.get<Record<string, ModelGroupConfig>>('/config/models');
+    getModelGroups: async (): Promise<Record<string, ModelGroup>> => {
+        const response = await apiClient.get<Record<string, ModelGroup>>('/config/models');
         return response.data;
     },
-    updateModelGroup: async (name: string, config: ModelGroupConfig): Promise<void> => {
+    updateModelGroup: async (name: string, config: ModelGroup): Promise<void> => {
         await apiClient.post('/config/models', { name, config });
     },
     deleteModelGroup: async (name: string): Promise<void> => {
@@ -131,6 +142,15 @@ export const configApi = {
     getModelTypes: async (): Promise<ModelType[]> => {
         const response = await apiClient.get<ModelType[]>('/config/models/types');
         return response.data;
+    },
+
+    // 当前模型组 API
+    getCurrentModels: async (): Promise<{ current: string }> => {
+        const response = await apiClient.get<{ current: string }>('/config/models/current');
+        return response.data;
+    },
+    switchModelGroup: async (groupName: string): Promise<void> => {
+        await apiClient.post('/config/models/switch', { group_name: groupName });
     },
 };
 

@@ -13,6 +13,7 @@ logger = get_logger(__name__)
 CONFIG_DIR = Path(__file__).resolve().parents[1] / "config"
 CONFIG_FILE = CONFIG_DIR / "config.toml"
 
+
 class ExtraField(BaseModel):
     """配置字段扩展元数据
 
@@ -45,6 +46,7 @@ class ExtraField(BaseModel):
     is_need_restart: bool = False  # 修改后需要重启服务
     sub_item_name: str = ""  # 列表项名称 (用于数组字段)
     enum: Optional[List[str]] = None  # 枚举值列表 (下拉选择)
+
 
 class SecurityConfig(BaseModel):
     """安全配置"""
@@ -107,6 +109,27 @@ class ModelConfig(BaseModel):
     enable_cot: bool = Field(False, title="外置思维链")
 
 
+class ModelGroup(BaseModel):
+    """模型组配置 - 包含对话、视觉、嵌入三种模型"""
+
+    name: str = Field(..., title="组名称")
+
+    # 对话模型 (必填)
+    chat_model: ModelConfig = Field(
+        ..., title="对话模型", description="用于 Agent 推理"
+    )
+
+    # 视觉模型 (可选)
+    vision_model: Optional[ModelConfig] = Field(
+        None, title="视觉模型", description="用于图像识别"
+    )
+
+    # 嵌入模型 (可选)
+    embedding_model: Optional[ModelConfig] = Field(
+        None, title="嵌入模型", description="用于向量化"
+    )
+
+
 class AIProviderConfig(BaseModel):
     """AI 提供商配置"""
 
@@ -149,18 +172,18 @@ class AIProviderConfig(BaseModel):
         json_schema_extra=ExtraField(is_secret=True, placeholder="sk-xxx").model_dump(),
     )
 
-    # 模型组管理
-    model_groups: Dict[str, ModelConfig] = Field(
+    # 模型组管理 - 每个组包含对话/视觉/嵌入三种模型
+    model_groups: Dict[str, ModelGroup] = Field(
         default_factory=dict,
         title="模型组列表",
-        description="自定义模型组配置",
+        description="自定义模型组配置，每个组包含对话、视觉、嵌入三种模型",
     )
 
     # 当前使用的模型组
     current_model_group: str = Field(
         default="",
         title="当前模型组",
-        description="选择要使用的预定义模型组",
+        description="选择要使用的模型组",
         json_schema_extra=ExtraField(ref_model_groups=True).model_dump(),
     )
 
@@ -294,6 +317,19 @@ class ConfigManager:
                 self._save()
                 logger.info("配置已迁移到 v%s", code_version)
             else:
+                # 版本相同，但仍需检查并迁移旧格式的 model_groups
+                raw, was_migrated = self._migrate_model_groups_if_needed(raw)
+
+                # 如果发生了迁移，先保存再验证
+                if was_migrated:
+                    # 先写入文件（如果解析失败，至少文件已更新）
+                    try:
+                        with self._config_file.open("wb") as f:
+                            tomli_w.dump(raw, f)
+                        logger.info("配置文件已更新（模型组格式迁移）")
+                    except Exception as save_err:
+                        logger.error("保存迁移后配置失败: %s", save_err)
+
                 self._config = AppConfig(**raw)
                 # 检查是否有缺失字段被默认值填充，如有则补全保存
                 loaded_dict = self._config.model_dump()
@@ -322,6 +358,48 @@ class ConfigManager:
         except (ValueError, AttributeError):
             return -1
 
+    def _migrate_model_groups_if_needed(self, raw: Dict) -> tuple[Dict, bool]:
+        """迁移旧格式的 model_groups (ModelConfig -> ModelGroup)
+
+        Returns:
+            (raw, migrated): 迁移后的配置字典和是否发生了迁移
+        """
+        if "ai" not in raw or "model_groups" not in raw["ai"]:
+            return raw, False
+
+        migrated = False
+        old_groups = raw["ai"]["model_groups"]
+        new_groups = {}
+
+        for name, group_data in old_groups.items():
+            # 检查是否是旧格式 (直接包含 provider/model 等字段)
+            if (
+                isinstance(group_data, dict)
+                and "provider" in group_data
+                and "chat_model" not in group_data
+            ):
+                # 旧格式: 转换为新的 ModelGroup 格式
+                new_groups[name] = {
+                    "name": name,
+                    "chat_model": group_data,
+                    "vision_model": None,
+                    "embedding_model": None,
+                }
+                migrated = True
+                logger.info("迁移模型组 '%s' 到新格式", name)
+            else:
+                # 已经是新格式，保持不变
+                new_groups[name] = group_data
+
+        if migrated:
+            raw["ai"]["model_groups"] = new_groups
+            # 同时删除废弃字段
+            for deprecated_field in ["current_vision_model", "current_embedding_model"]:
+                if deprecated_field in raw["ai"]:
+                    del raw["ai"][deprecated_field]
+
+        return raw, migrated
+
     def _migrate_config(self, old: Dict, default: AppConfig) -> Dict:
         """迁移旧配置，保留用户数据并添加新字段"""
         default_dict = default.model_dump()
@@ -348,6 +426,34 @@ class ConfigManager:
             del migrated["security"]["admin_key"]
         if "logging" in migrated and "format" in migrated["logging"]:
             del migrated["logging"]["format"]
+
+        # 删除新废弃的字段 (current_vision_model, current_embedding_model)
+        if "ai" in migrated:
+            for deprecated_field in ["current_vision_model", "current_embedding_model"]:
+                if deprecated_field in migrated["ai"]:
+                    del migrated["ai"][deprecated_field]
+
+        if "ai" in migrated and "model_groups" in migrated["ai"]:
+            old_groups = migrated["ai"]["model_groups"]
+            new_groups = {}
+
+            for name, group_data in old_groups.items():
+                if (
+                    isinstance(group_data, dict)
+                    and "provider" in group_data
+                    and "chat_model" not in group_data
+                ):
+                    new_groups[name] = {
+                        "name": name,
+                        "chat_model": group_data,
+                        "vision_model": None,
+                        "embedding_model": None,
+                    }
+                    logger.info("迁移模型组 '%s' 到新格式", name)
+                else:
+                    new_groups[name] = group_data
+
+            migrated["ai"]["model_groups"] = new_groups
 
         return migrated
 

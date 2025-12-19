@@ -2,7 +2,7 @@ from typing import Dict, Any, List, Optional
 import httpx
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
-from src.config import config, ModelConfig
+from src.config import config, ModelConfig, ModelGroup
 from src.deps import get_current_user
 from src.db.user import User
 from src.logger import get_logger
@@ -17,7 +17,7 @@ class UpdateConfigRequest(BaseModel):
 
 class UpdateModelGroupRequest(BaseModel):
     name: str
-    config: ModelConfig
+    config: ModelGroup
 
 
 class AIConfigResponse(BaseModel):
@@ -163,6 +163,40 @@ async def delete_model_group(name: str, current_user: User = Depends(get_current
         return {"status": "success", "message": f"模型组 {name} 已删除"}
     else:
         raise HTTPException(status_code=404, detail=f"模型组 {name} 不存在")
+
+
+class SwitchModelGroupRequest(BaseModel):
+    """切换模型组请求"""
+
+    model_type: str  # chat / vision / embedding
+    group_name: str
+
+
+@router.get("/models/current")
+async def get_current_model_groups(current_user: User = Depends(get_current_user)):
+    """获取当前选中的模型组"""
+    return {
+        "current": config.config.ai.current_model_group,
+    }
+
+
+@router.post("/models/switch")
+async def switch_model_group(
+    req: SwitchModelGroupRequest, current_user: User = Depends(get_current_user)
+):
+    """切换当前使用的模型组"""
+    group_name = req.group_name.strip()
+
+    # 验证模型组存在（空字符串表示使用默认配置）
+    if group_name and group_name not in config.config.ai.model_groups:
+        raise HTTPException(status_code=404, detail=f"模型组 {group_name} 不存在")
+
+    config.config.ai.current_model_group = group_name
+    config._save()
+    return {
+        "status": "success",
+        "message": f"模型组已切换为 {group_name or '默认'}",
+    }
 
 
 @router.get("/models/types")

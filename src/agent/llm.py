@@ -79,12 +79,13 @@ class LLMClient:
         ):
             group_name = config.ai.current_model_group
             group_config = config.config.ai.model_groups[group_name]
+            chat_model = group_config.chat_model
 
             primary = LLMConfig(
-                provider=group_config.provider,
-                model=group_config.model,
-                base_url=group_config.base_url,
-                api_key=group_config.api_key,
+                provider=chat_model.provider,
+                model=chat_model.model,
+                base_url=chat_model.base_url,
+                api_key=chat_model.api_key,
             )
         else:
             primary = LLMConfig(
