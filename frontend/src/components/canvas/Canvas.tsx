@@ -1,7 +1,6 @@
 /**
- * Canvas.tsx
- * 适配 @excalidraw/excalidraw@0.18.x
- * 支持：选中形状 / 线条 → 自动弹出对应 Palette
+ * Canvas.tsx — draw.io 模式
+ * 行为：先选工具 → 出 Palette → 再在画布拖动创建
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -19,21 +18,20 @@ import { yjsManager } from '../../lib/yjs';
 import { useCanvas } from '../../hooks/useCanvas';
 import { useThemeStore } from '../../stores/useThemeStore';
 
-import { ShapePalette } from './ShapePalette';
-import { LinePalette } from './LinePalette';
+import ShapePalette from './ShapePalette';
+import LinePalette from './LinePalette';
+
 import { HistoryPanel } from './HistoryPanel';
 import { ModelSettingsDialog } from '../common/ModelSettingsDialog';
 
-import {
-  Home,
-  History,
-  Settings,
-} from 'lucide-react';
+import { Home, History } from 'lucide-react';
 
 interface CanvasProps {
   roomId?: string;
   roomName?: string;
 }
+
+type ToolPanelMode = 'shape' | 'line' | null;
 
 const HISTORY_SIDEBAR_NAME = 'history-panel';
 
@@ -42,19 +40,19 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
   const { theme } = useThemeStore();
   const isDark = theme === 'dark';
 
-  /** ⚠️ 0.18.x 必须用 any */
+  /** Excalidraw API（0.18.x 用 any） */
   const [excalidrawAPI, setExcalidrawAPI] = useState<any>(null);
 
-  /** ⭐ 当前应显示的面板 */
-  const [selectedPanel, setSelectedPanel] = useState<'shape' | 'line' | null>(null);
+  /** 当前显示的 Palette（draw.io 核心） */
+  const [toolPanelMode, setToolPanelMode] =
+    useState<ToolPanelMode>(null);
+  const lastToolTypeRef = useRef<string | null>(null);
 
   const isRemoteUpdateRef = useRef(false);
 
   const {
     elements,
     files,
-    isConnected,
-    isSynced,
     handleChange,
   } = useCanvas(roomId);
 
@@ -62,10 +60,9 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
     localStorage.getItem('isGuest') === 'true' &&
     !localStorage.getItem('token');
 
-  /** ================== 同步远端元素 ================== */
+  /* ================= 远端同步 ================= */
   useEffect(() => {
     if (!excalidrawAPI) return;
-    if (elements.length === 0) return;
 
     isRemoteUpdateRef.current = true;
     excalidrawAPI.updateScene({ elements });
@@ -79,7 +76,37 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
     }, 100);
   }, [elements, files, excalidrawAPI]);
 
-  /** ================== ⭐ 关键：选中监听 ================== */
+  /* ================= 核心：监听工具切换 ================= */
+  const updateToolPanel = useCallback(
+    (activeTool?: string | null) => {
+      if (activeTool === lastToolTypeRef.current) return;
+
+      lastToolTypeRef.current = activeTool ?? null;
+
+      if (
+        activeTool === 'rectangle' ||
+        activeTool === 'ellipse' ||
+        activeTool === 'diamond' ||
+        activeTool === 'triangle' ||
+        activeTool === 'hexagon' ||
+        activeTool === 'star'
+      ) {
+        setToolPanelMode('shape');
+        return;
+      }
+
+      if (activeTool === 'line' || activeTool === 'arrow') {
+        setToolPanelMode('line');
+        return;
+      }
+
+      if (activeTool === 'selection') {
+        setToolPanelMode(null);
+      }
+    },
+    [],
+  );
+
   const onChangeHandler = useCallback(
     (
       newElements: readonly ExcalidrawElement[],
@@ -90,40 +117,12 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
         handleChange(newElements, appState, newFiles);
       }
 
-      const selectedIds = Object.keys(appState.selectedElementIds || {});
-
-      /** 空白 or 多选 → 隐藏面板 */
-      if (selectedIds.length !== 1) {
-        setSelectedPanel(null);
-        return;
-      }
-
-      const el = newElements.find(e => e.id === selectedIds[0]);
-      if (!el) {
-        setSelectedPanel(null);
-        return;
-      }
-
-      /** 判断类型 */
-      if (
-        el.type === 'rectangle' ||
-        el.type === 'ellipse' ||
-        el.type === 'diamond' ||
-        el.type === 'triangle' ||
-        el.type === 'hexagon' ||
-        el.type === 'star'
-      ) {
-        setSelectedPanel('shape');
-      } else if (el.type === 'line' || el.type === 'arrow') {
-        setSelectedPanel('line');
-      } else {
-        setSelectedPanel(null);
-      }
+      updateToolPanel(appState.activeTool?.type);
     },
-    [handleChange, isGuest],
+    [handleChange, isGuest, updateToolPanel],
   );
 
-  /** ================== UI 操作 ================== */
+  /* ================= UI ================= */
   const handleBackToRooms = useCallback(() => {
     yjsManager.disconnect();
     navigate('/rooms');
@@ -133,7 +132,21 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
     excalidrawAPI?.toggleSidebar({ name: HISTORY_SIDEBAR_NAME });
   }, [excalidrawAPI]);
 
-  /** ================== 渲染 ================== */
+  /**
+   * 有些版本的 Excalidraw 不会在仅切换工具时触发 onChange，
+   * 这里轮询 activeTool，确保点击矩形/线条后立即弹出 Palette。
+   */
+  useEffect(() => {
+    if (!excalidrawAPI) return;
+
+    const intervalId = window.setInterval(() => {
+      const activeTool = excalidrawAPI.getAppState?.()?.activeTool?.type;
+      updateToolPanel(activeTool);
+    }, 150);
+
+    return () => window.clearInterval(intervalId);
+  }, [excalidrawAPI, updateToolPanel]);
+
   return (
     <div className="canvas-container">
       <Excalidraw
@@ -143,9 +156,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
         viewModeEnabled={false}
         zenModeEnabled={false}
         gridModeEnabled={false}
-        UIOptions={{
-          welcomeScreen: false,
-        }}
+        UIOptions={{ welcomeScreen: false }}
       >
         {/* 主菜单 */}
         <MainMenu>
@@ -164,10 +175,6 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
               历史版本
             </MainMenu.Item>
           )}
-
-          <MainMenu.Item icon={<Settings size={16} />}>
-            设置
-          </MainMenu.Item>
         </MainMenu>
 
         {/* 历史侧边栏 */}
@@ -179,23 +186,21 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
                 <span className="font-semibold">历史版本</span>
               </div>
             </ExcalidrawSidebar.Header>
-
-            {/* ⚠️ HistoryPanel 要求 roomId: string */}
             <HistoryPanel roomId={roomId} />
           </ExcalidrawSidebar>
         )}
       </Excalidraw>
 
-      {/* ⭐ Shape 面板 */}
-      {selectedPanel === 'shape' && (
+      {/* ================= draw.io 风格 Palette ================= */}
+
+      {toolPanelMode === 'shape' && (
         <ShapePalette
           excalidrawAPI={excalidrawAPI}
           isDark={isDark}
         />
       )}
 
-      {/* ⭐ Line 面板 */}
-      {selectedPanel === 'line' && (
+      {toolPanelMode === 'line' && (
         <LinePalette
           excalidrawAPI={excalidrawAPI}
           isDark={isDark}
@@ -214,7 +219,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
         />
       )}
 
-      {/* 模型设置弹窗（保持 props 完整，避免 TS 报错） */}
+      {/* 防止 TS 报错 */}
       <ModelSettingsDialog
         open={false}
         onClose={() => {}}
