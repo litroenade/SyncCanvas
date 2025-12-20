@@ -2,18 +2,29 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Square, Diamond, Circle, Triangle,
-  ChevronRight, ArrowRight,
-  GitBranch, Package, Zap
+  ChevronRight,
+  LineChart, Box, PenTool,
 } from 'lucide-react';
+
+interface UmlItem {
+  id: string;
+  label: string;
+  name?: string;
+  elements: any[];
+}
 
 interface ShapePaletteProps {
   excalidrawAPI: any;   // ✅ 新增：直接控制画布
   isDark: boolean;
+  umlLibraryItems?: UmlItem[];
+  onInsertUmlItem?: (item: UmlItem) => void;
 }
 
 const ShapePalette: React.FC<ShapePaletteProps> = ({
   excalidrawAPI,
   isDark,
+  umlLibraryItems = [],
+  onInsertUmlItem,
 }) => {
   const [selectedShape, setSelectedShape] = useState<string | null>(null);
 
@@ -30,6 +41,9 @@ const ShapePalette: React.FC<ShapePaletteProps> = ({
         roundness?: { type: number } | null;
         startArrowhead?: 'arrow' | null;
         endArrowhead?: 'arrow' | null;
+        strokeStyle?: 'solid' | 'dashed' | 'dotted';
+        strokeWidth?: number;
+        backgroundColor?: string | null;
       }
     > = {
       rectangle: { toolType: 'rectangle', roundness: null },
@@ -39,6 +53,28 @@ const ShapePalette: React.FC<ShapePaletteProps> = ({
       triangle: { toolType: 'rectangle', roundness: null },
       process: { toolType: 'rectangle', roundness: { type: 3 } },
       decision: { toolType: 'diamond', roundness: null },
+      startEnd: {
+        toolType: 'rectangle',
+        roundness: { type: 3 },
+        backgroundColor: '#e0f2fe',
+      },
+      terminator: {
+        toolType: 'rectangle',
+        roundness: { type: 2 },
+        strokeWidth: 2,
+        backgroundColor: '#e2e8f0',
+      },
+      predefined: {
+        toolType: 'rectangle',
+        strokeStyle: 'dashed',
+        backgroundColor: '#f8fafc',
+      },
+      note: {
+        toolType: 'rectangle',
+        backgroundColor: '#fef9c3',
+        strokeStyle: 'dashed',
+      },
+      connector: { toolType: 'ellipse', roundness: null },
       arrow: { toolType: 'arrow', roundness: null, endArrowhead: 'arrow' },
       branch: {
         toolType: 'arrow',
@@ -60,12 +96,23 @@ const ShapePalette: React.FC<ShapePaletteProps> = ({
         currentItemRoundness: config.roundness ?? null,
         currentItemStartArrowhead: config.startArrowhead ?? null,
         currentItemEndArrowhead: config.endArrowhead ?? null,
+        currentItemStrokeStyle: config.strokeStyle ?? 'solid',
+        currentItemStrokeWidth: config.strokeWidth ?? 1,
+        currentItemBackgroundColor: config.backgroundColor ?? null,
       },
       false,
     );
   };
 
-  const shapeGroups = [
+  const shapeGroups: Array<{
+    title: string;
+    shapes: Array<{
+      id: string;
+      name: string;
+      icon: React.ReactNode;
+      libraryIndex?: number;
+    }>;
+  }> = [
     {
       title: '基础形状',
       shapes: [
@@ -75,23 +122,26 @@ const ShapePalette: React.FC<ShapePaletteProps> = ({
         { id: 'triangle', name: '三角形', icon: <Triangle size={20} /> },
       ],
     },
-    {
-      title: '流程图形状',
-      shapes: [
-        { id: 'process', name: '流程', icon: <Square size={20} /> },
-        { id: 'decision', name: '判断', icon: <ChevronRight size={20} /> },
-        { id: 'arrow', name: '箭头', icon: <ArrowRight size={20} /> },
-        { id: 'branch', name: '分支', icon: <GitBranch size={20} /> },
-      ],
-    },
-    {
-      title: '特殊形状',
-      shapes: [
-        { id: 'package', name: '包', icon: <Package size={20} /> },
-        { id: 'zap', name: '闪电', icon: <Zap size={20} /> },
-      ],
-    },
   ];
+
+  if (umlLibraryItems.length > 0) {
+    shapeGroups.push({
+      title: 'UML / ER 库',
+      shapes: umlLibraryItems.map((item, idx) => ({
+        id: item.id || `uml-${idx}`,
+        name: item.label || item.name || `库元素 ${idx + 1}`,
+        icon: (() => {
+          const firstType = item.elements?.[0]?.type;
+          if (firstType === 'diamond') return <Diamond size={18} />;
+          if (firstType === 'ellipse') return <Circle size={18} />;
+          if (firstType === 'arrow' || firstType === 'line') return <LineChart size={18} />;
+          if (firstType === 'text') return <PenTool size={18} />;
+          return <Box size={18} />;
+        })(),
+        libraryIndex: idx,
+      })),
+    });
+  }
 
   return (
     <motion.div
@@ -135,7 +185,16 @@ const ShapePalette: React.FC<ShapePaletteProps> = ({
             {group.shapes.map((shape) => (
               <button
                 key={shape.id}
-                onClick={() => selectShape(shape.id)}
+                onClick={() => {
+                  if (shape.libraryIndex !== undefined) {
+                    const item = umlLibraryItems[shape.libraryIndex];
+                    if (item?.elements?.length) {
+                      onInsertUmlItem?.(item);
+                    }
+                    return;
+                  }
+                  selectShape(shape.id);
+                }}
                 className={`
                   flex flex-col items-center justify-center
                   p-4 rounded-md transition-colors
