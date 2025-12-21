@@ -14,6 +14,7 @@ from src.agent.tools.helpers import (
     base_excalidraw_element,
     find_element_by_id,
     element_to_ymap,
+    get_theme_colors,
 )
 from src.logger import get_logger
 
@@ -33,8 +34,8 @@ async def create_flowchart_node(
     y: float = 50,
     width: float = 160,
     height: float = 70,
-    stroke_color: str = "#1e1e1e",
-    bg_color: str = "#ffffff",
+    stroke_color: str = "",
+    bg_color: str = "",
     context: Optional[AgentContext] = None,
 ) -> Dict[str, Any]:
     """创建流程图节点，包含形状和绑定的文本
@@ -46,8 +47,8 @@ async def create_flowchart_node(
         y: Y 坐标
         width: 宽度
         height: 高度
-        stroke_color: 描边颜色
-        bg_color: 背景颜色
+        stroke_color: 描边颜色 (空=使用主题默认)
+        bg_color: 背景颜色 (空=使用主题默认)
         context: Agent 上下文
 
     Returns:
@@ -59,6 +60,11 @@ async def create_flowchart_node(
     doc, elements_array = await context.get_room_and_doc()
     if doc is None or elements_array is None:
         return {"status": "error", "message": "Failed to get room doc"}
+
+    # 获取主题颜色
+    theme_colors = get_theme_colors(context.theme)
+    stroke_color = stroke_color or theme_colors["stroke"]
+    bg_color = bg_color or theme_colors["background"]
 
     # 根据节点类型调整尺寸
     if node_type == "diamond":
@@ -150,7 +156,7 @@ async def connect_nodes(
     from_id: str,
     to_id: str,
     label: Optional[str] = None,
-    stroke_color: str = "#1e1e1e",
+    stroke_color: str = "",
     context: Optional[AgentContext] = None,
 ) -> Dict[str, Any]:
     """用绑定箭头连接两个节点
@@ -159,7 +165,7 @@ async def connect_nodes(
         from_id: 起始节点 ID
         to_id: 目标节点 ID
         label: 连线标签 (可选)
-        stroke_color: 连线颜色
+        stroke_color: 连线颜色 (空=使用主题默认)
         context: Agent 上下文
 
     Returns:
@@ -167,6 +173,10 @@ async def connect_nodes(
     """
     if context is None:
         return {"status": "error", "message": "Context is required"}
+
+    # 获取主题颜色
+    theme_colors = get_theme_colors(context.theme)
+    stroke_color = stroke_color or theme_colors["arrow"]
     room_id = require_room_id(context)
     doc, elements_array = await context.get_room_and_doc()
     if doc is None or elements_array is None:

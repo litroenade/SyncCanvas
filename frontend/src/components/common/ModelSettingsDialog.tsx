@@ -102,6 +102,9 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['current-models'] });
         },
+        onError: (error: Error) => {
+            console.error('切换模型组失败:', error);
+        },
     });
 
     // 保存模型组
@@ -127,8 +130,17 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
     });
 
     const handleNewGroup = () => {
+        // 生成默认名称: 我的模型组, 我的模型组 1, 我的模型组 2...
+        const baseName = '我的模型组';
+        const existingNames = Object.keys(modelGroups);
+        let newName = baseName;
+        let counter = 1;
+        while (existingNames.includes(newName)) {
+            newName = `${baseName} ${counter}`;
+            counter++;
+        }
         setEditingGroup({
-            name: '',
+            name: newName,
             isNew: true,
             chat_model: { ...emptyModelConfig },
             vision_model: null,

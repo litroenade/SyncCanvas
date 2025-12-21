@@ -288,3 +288,40 @@ class BatchCreateElementsArgs(BaseModel):
     edges: List[EdgeSpec] = Field(
         default_factory=list, description="边 (连接线) 规格列表"
     )
+
+
+class AutoLayoutNodeSpec(BaseModel):
+    """自动布局节点规格 (无需坐标)
+
+    Attributes:
+        id: 临时 ID (用于边关联)
+        type: 元素类型
+        label: 标签文字
+    """
+
+    id: str = Field(..., description="临时 ID (用于边关联，如 'n1', 'n2')")
+    type: str = Field(
+        "rectangle",
+        description="元素类型: rectangle, diamond, ellipse",
+    )
+    label: str = Field(..., description="标签文字")
+
+
+class AutoLayoutCreateArgs(BaseModel):
+    """自动布局创建图表的参数 (无需指定坐标)
+
+    Attributes:
+        nodes: 节点列表 (只需 id, type, label)
+        edges: 边列表 (from_id, to_id, label)
+        direction: 布局方向
+    """
+
+    nodes: List[AutoLayoutNodeSpec] = Field(
+        ..., description="节点列表 (只需 id, type, label，坐标自动计算)"
+    )
+    edges: List[EdgeSpec] = Field(
+        default_factory=list, description="边列表 (from_id, to_id, label)"
+    )
+    direction: str = Field(
+        "TB", description="布局方向: TB(上到下), LR(左到右), BT(下到上), RL(右到左)"
+    )

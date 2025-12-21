@@ -168,8 +168,7 @@ async def delete_model_group(name: str, current_user: User = Depends(get_current
 class SwitchModelGroupRequest(BaseModel):
     """切换模型组请求"""
 
-    model_type: str  # chat / vision / embedding
-    group_name: str
+    group_name: str  # 模型组名称，空字符串表示使用默认
 
 
 @router.get("/models/current")

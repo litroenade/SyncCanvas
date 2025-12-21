@@ -818,34 +818,19 @@ class CanvasAgent(BaseAgent):
                 "canvaser.jinja2",
                 tools=[
                     {
-                        "name": "get_canvas_bounds",
-                        "description": "获取画布边界和建议绘图位置",
+                        "name": "auto_layout_create",
+                        "description": "一次性创建图表 (推荐，无需计算坐标)",
                     },
-                    {"name": "create_flowchart_node", "description": "创建流程图节点"},
-                    {"name": "connect_nodes", "description": "用箭头连接两个节点"},
-                    {
-                        "name": "batch_create_elements",
-                        "description": "批量创建元素和连接线",
-                    },
+                    {"name": "create_flowchart_node", "description": "创建单个节点"},
+                    {"name": "connect_nodes", "description": "连接两个节点"},
                     {"name": "list_elements", "description": "查看画布元素"},
                     {"name": "update_element", "description": "更新元素属性"},
                     {"name": "delete_elements", "description": "删除元素"},
                 ],
-                layout={
-                    "node_width": 160,
-                    "node_height": 70,
-                    "decision_size": 120,
-                    "ellipse_width": 120,
-                    "ellipse_height": 50,
-                    "vertical_gap": 80,
-                    "horizontal_gap": 220,
-                    "start_x": 400,
-                    "start_y": 50,
-                },
+                layout={},  # 新 prompt 不需要 layout 参数
                 guidelines=[
-                    "绘图前务必先调用 get_canvas_bounds",
-                    "每次创建节点后记住 element_id",
-                    "使用 batch_create_elements 可一次性创建整个图表",
+                    "创建新图表时优先使用 auto_layout_create",
+                    "颜色会自动适配当前主题，无需指定",
                 ],
                 enable_cot=True,
             )

@@ -17,13 +17,16 @@ from src.agent.tools.schemas import (
     DeleteElementsArgs,
     ClearCanvasArgs,
     BatchCreateElementsArgs,
+    AutoLayoutCreateArgs,
 )
 from src.agent.tools.helpers import (
     require_room_id,
     base_excalidraw_element,
     find_element_by_id,
     element_to_ymap,
+    get_theme_colors,
 )
+from src.agent.canvas.layout import calculate_layout
 from src.logger import get_logger
 
 logger = get_logger(__name__)
@@ -42,8 +45,8 @@ async def create_element(
     width: float = 100,
     height: float = 100,
     text: str = "",
-    stroke_color: str = "#1e1e1e",
-    bg_color: str = "transparent",
+    stroke_color: str = "",
+    bg_color: str = "",
     context: Optional[AgentContext] = None,
 ) -> Dict[str, Any]:
     """创建单个 Excalidraw 元素
@@ -55,8 +58,8 @@ async def create_element(
         width: 宽度
         height: 高度
         text: 文本内容 (仅 text 类型需要)
-        stroke_color: 描边颜色
-        bg_color: 背景颜色
+        stroke_color: 描边颜色 (空=使用主题默认)
+        bg_color: 背景颜色 (空=使用主题默认)
         context: Agent 上下文
 
     Returns:
@@ -68,6 +71,11 @@ async def create_element(
     doc, elements_array = await context.get_room_and_doc()
     if doc is None or elements_array is None:
         return {"status": "error", "message": "Failed to get room doc"}
+
+    # 获取主题颜色
+    theme_colors = get_theme_colors(context.theme)
+    stroke_color = stroke_color or theme_colors["stroke"]
+    bg_color = bg_color or theme_colors["background"]
 
     element = base_excalidraw_element(
         element_type, x, y, width, height, stroke_color, bg_color
@@ -409,6 +417,9 @@ async def batch_create_elements(
 
     edges = edges or []
 
+    # 获取主题颜色
+    theme_colors = get_theme_colors(context.theme)
+
     # 临时 ID 到真实 ID 的映射
     id_mapping: Dict[str, str] = {}
     created_elements = []
@@ -424,8 +435,8 @@ async def batch_create_elements(
             y = spec.get("y", 0)
             width = spec.get("width", 160)
             height = spec.get("height", 70)
-            stroke_color = spec.get("stroke_color", "#1e1e1e")
-            bg_color = spec.get("bg_color", "#ffffff")
+            stroke_color = spec.get("stroke_color") or theme_colors["stroke"]
+            bg_color = spec.get("bg_color") or theme_colors["background"]
 
             # 创建形状元素
             shape = base_excalidraw_element(
@@ -566,3 +577,72 @@ async def batch_create_elements(
         "created_edges": created_edges,
         "id_mapping": id_mapping,
     }
+
+
+@registry.register(
+    "auto_layout_create",
+    "自动布局创建图表 (无需指定坐标，自动计算最佳位置)",
+    AutoLayoutCreateArgs,
+    category=ToolCategory.CANVAS,
+)
+async def auto_layout_create(
+    nodes: list,
+    edges: Optional[list] = None,
+    direction: str = "TB",
+    context: Optional[AgentContext] = None,
+) -> Dict[str, Any]:
+    """自动布局创建图表
+
+    只需提供节点信息 (id, type, label) 和边信息，
+    坐标由布局引擎自动计算。
+
+    Args:
+        nodes: 节点列表，每项包含 {id, type, label}
+        edges: 边列表，每项包含 {from_id, to_id, label}
+        direction: 布局方向 (TB/LR/BT/RL)
+        context: Agent 上下文
+
+    Returns:
+        dict: 包含创建结果
+    """
+    if context is None:
+        return {"status": "error", "message": "Context is required"}
+
+    edges = edges or []
+
+    structure = {
+        "nodes": [{"id": n.get("id"), "type": n.get("type", "rectangle"),
+                   "label": n.get("label", "")} for n in nodes],
+        "edges": [{"from_id": e.get("from_id"), "to_id": e.get("to_id"),
+                   "label": e.get("label", "")} for e in edges],
+        "direction": direction,
+    }
+
+    layout_result = calculate_layout(structure, theme=context.theme)
+
+    positioned_elements = [
+        {
+            "id": n["id"],
+            "type": n["type"],
+            "label": n["label"],
+            "x": n["x"],
+            "y": n["y"],
+            "width": n["width"],
+            "height": n["height"],
+            "stroke_color": n.get("stroke_color"),
+            "bg_color": n.get("bg_color"),
+        }
+        for n in layout_result.nodes
+    ]
+
+    positioned_edges = [
+        {"from_id": e["from_id"], "to_id": e["to_id"], "label": e.get("label", "")}
+        for e in layout_result.edges
+    ]
+
+    return await batch_create_elements(
+        elements=positioned_elements,
+        edges=positioned_edges,
+        context=context,
+    )
+
