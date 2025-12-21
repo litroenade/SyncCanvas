@@ -7,8 +7,8 @@ from typing import Optional, List, Dict, Any
 
 from pycrdt import Map
 
-from src.agent.base import AgentContext
-from src.agent.registry import registry, ToolCategory
+from src.agent.core import AgentContext
+from src.agent.core import registry, ToolCategory
 from src.agent.tools.schemas import (
     CreateExcalidrawElementArgs,
     ListElementsArgs,

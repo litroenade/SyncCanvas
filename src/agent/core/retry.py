@@ -8,7 +8,6 @@ import asyncio
 import random
 from dataclasses import dataclass
 from typing import Callable, Optional, TypeVar
-
 from src.logger import get_logger
 
 logger = get_logger(__name__)

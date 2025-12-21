@@ -34,6 +34,8 @@ interface AIAssistantProps {
     isDark: boolean;
     isOpen: boolean;
     onClose: () => void;
+    /** AI 创建元素后的回调 */
+    onElementsCreated?: (elementIds: string[]) => void;
 }
 
 interface Message {
@@ -75,6 +77,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
     isDark,
     isOpen,
     onClose,
+    onElementsCreated,
 }) => {
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState<Message[]>([]);
@@ -90,6 +93,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
         error,
         sendRequest,
         reset,
+        elementsCreated,
     } = useAIStream({ roomId, autoConnect: isOpen });
 
     // 将 AI 步骤转换为 ToolProgress 格式
@@ -182,6 +186,13 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
         }
     }, [error]);
 
+    // 当 AI 创建元素后通知父组件
+    useEffect(() => {
+        if (elementsCreated?.length > 0 && onElementsCreated) {
+            onElementsCreated(elementsCreated);
+        }
+    }, [elementsCreated, onElementsCreated]);
+
     // 发送消息
     const handleSend = useCallback(async (prompt?: string) => {
         const text = prompt || input.trim();
@@ -206,9 +217,9 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
         setInput('');
         reset();
 
-        // 使用 WebSocket 发送请求
-        await sendRequest(text);
-    }, [input, isLoading, sendRequest, reset]);
+        // 使用 WebSocket 发送请求，传递主题
+        await sendRequest(text, { theme: isDark ? 'dark' : 'light' });
+    }, [input, isLoading, sendRequest, reset, isDark]);
 
     // 处理按键
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {

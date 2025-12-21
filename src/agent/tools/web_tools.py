@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 import httpx
 from pydantic import BaseModel, Field
 
-from src.agent.registry import registry, ToolCategory
+from src.agent.core import registry, ToolCategory
 from src.logger import get_logger
 
 logger = get_logger(__name__)

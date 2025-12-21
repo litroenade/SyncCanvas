@@ -5,10 +5,8 @@
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
-
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessageParam
-
 from src.config import config
 from src.logger import get_logger
 

@@ -8,7 +8,7 @@ from typing import Dict, Any, Tuple, Optional
 
 from pycrdt import Array, Map
 
-from src.agent.base import AgentContext
+from src.agent.core import AgentContext
 from src.logger import get_logger
 
 logger = get_logger(__name__)
@@ -45,14 +45,44 @@ def generate_element_id(prefix: str = "el") -> str:
     return f"{prefix}_{uuid.uuid4().hex[:8]}"
 
 
+# 主题颜色预设
+THEME_COLORS = {
+    "light": {
+        "stroke": "#1e1e1e",
+        "background": "#a5d8ff",
+        "text": "#1e1e1e",
+        "arrow": "#1e1e1e",
+    },
+    "dark": {
+        "stroke": "#e2e8f0",
+        "background": "#3b82f6",
+        "text": "#f8fafc",
+        "arrow": "#e2e8f0",
+    },
+}
+
+
+def get_theme_colors(theme: str = "light") -> Dict[str, str]:
+    """获取主题颜色
+
+    Args:
+        theme: 主题名称 ("light" | "dark")
+
+    Returns:
+        Dict: 颜色配置
+    """
+    return THEME_COLORS.get(theme, THEME_COLORS["light"])
+
+
 def base_excalidraw_element(
     element_type: str,
     x: float,
     y: float,
     width: float,
     height: float,
-    stroke_color: str = "#1e1e1e",
-    bg_color: str = "transparent",
+    stroke_color: Optional[str] = None,
+    bg_color: Optional[str] = None,
+    theme: str = "light",
 ) -> Dict[str, Any]:
     """生成 Excalidraw 元素基础结构
 
@@ -62,12 +92,19 @@ def base_excalidraw_element(
         y: Y 坐标
         width: 宽度
         height: 高度
-        stroke_color: 描边颜色
-        bg_color: 背景颜色
+        stroke_color: 描边颜色 (可选，默认使用主题色)
+        bg_color: 背景颜色 (可选，默认使用主题色)
+        theme: 颜色主题 ("light" | "dark")
 
     Returns:
         dict: Excalidraw 元素字典
     """
+    colors = get_theme_colors(theme)
+    
+    # 使用传入颜色或主题默认色
+    final_stroke = stroke_color if stroke_color else colors["stroke"]
+    final_bg = bg_color if bg_color else colors["background"]
+    
     return {
         "id": generate_element_id(element_type),
         "type": element_type,
@@ -75,8 +112,8 @@ def base_excalidraw_element(
         "y": y,
         "width": width,
         "height": height,
-        "strokeColor": stroke_color,
-        "backgroundColor": bg_color,
+        "strokeColor": final_stroke,
+        "backgroundColor": final_bg,
         "fillStyle": "solid",
         "strokeWidth": 2,
         "strokeStyle": "solid",

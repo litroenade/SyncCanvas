@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 from sqlmodel import Session
-from src.agent.base import RoomLockManager, ReActStep
-from src.agent.registry import registry
+from src.agent.core import RoomLockManager, ReActStep
+from src.agent.core import registry
 from src.agent.prompts import prompt_manager
 from src.db.database import get_session
 from src.logger import get_logger
@@ -18,12 +18,14 @@ class GenerateRequest(BaseModel):
     Attributes:
         prompt: 用户输入的提示词
         room_id: 目标房间 ID
+        theme: 画布主题 (light/dark)
     """
 
     prompt: str = Field(
         ..., description="用户输入的提示词", min_length=1, max_length=2000
     )
     room_id: str = Field(..., description="目标房间 ID")
+    theme: str = Field("light", description="画布主题 (light/dark)")
 
 
 class GenerateResponse(BaseModel):
@@ -85,7 +87,10 @@ async def generate_shapes(
 
     try:
         result = await ai_service.process_request(
-            user_input=request.prompt, session_id=request.room_id, db=session
+            user_input=request.prompt,
+            session_id=request.room_id,
+            db=session,
+            theme=request.theme,
         )
 
         return GenerateResponse(
@@ -438,6 +443,9 @@ async def ai_stream_websocket(
                 }
             )
 
+            # 获取主题
+            theme = data.get("theme", "light")
+
             # 处理请求
             try:
                 result = await ai_service.process_request_with_stream(
@@ -446,6 +454,7 @@ async def ai_stream_websocket(
                     step_callback=lambda step: _broadcast_step(
                         websocket, room_id, step
                     ),
+                    theme=theme,
                 )
 
                 # 发送完成消息

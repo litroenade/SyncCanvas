@@ -271,7 +271,7 @@ export class AIStreamClient {
     /**
      * 发送请求
      */
-    sendRequest(prompt: string): void {
+    sendRequest(prompt: string, options?: { theme?: string }): void {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
             console.error('[AI Stream] WebSocket 未连接');
             return;
@@ -280,6 +280,7 @@ export class AIStreamClient {
         this.ws.send(JSON.stringify({
             type: 'request',
             prompt,
+            theme: options?.theme ?? 'light',
         }));
     }
 

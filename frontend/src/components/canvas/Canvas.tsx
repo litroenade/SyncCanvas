@@ -39,6 +39,35 @@ interface CanvasProps {
     roomName?: string;
 }
 
+/**
+ * 滚动到新创建的元素
+ */
+const scrollToNewElements = (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    excalidrawAPI: any,
+    elementIds: string[],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    allElements: readonly any[]
+) => {
+    if (!excalidrawAPI || !elementIds?.length || !allElements?.length) return;
+
+    // 找到新创建的元素
+    const newElements = allElements.filter(el => elementIds.includes(el.id));
+    if (newElements.length === 0) return;
+
+    // 滚动到这些元素
+    try {
+        excalidrawAPI.scrollToContent(newElements, {
+            fitToViewport: true,
+            animate: true,
+            duration: 300,
+        });
+        console.log('[Canvas] 已滚动到 AI 创建的元素:', elementIds.length);
+    } catch (error) {
+        console.warn('[Canvas] scrollToContent 失败:', error);
+    }
+};
+
 const HISTORY_SIDEBAR_NAME = 'history-panel';
 
 /**
@@ -315,6 +344,12 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
                     isDark={isDark}
                     isOpen={showAIAssistant}
                     onClose={() => setShowAIAssistant(false)}
+                    onElementsCreated={(elementIds) => {
+                        // 延迟一下让 Yjs 有时间同步
+                        setTimeout(() => {
+                            scrollToNewElements(excalidrawAPI, elementIds, elements);
+                        }, 500);
+                    }}
                 />
             )}
 

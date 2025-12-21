@@ -3,10 +3,10 @@ from dataclasses import dataclass, field
 import asyncio
 import time
 from sqlmodel import Session
-from src.agent.canvas_agent import CanvasAgent
-from src.agent.base import AgentContext, RoomLockManager
-from src.agent.llm import LLMClient
-from src.agent.registry import registry
+from src.agent.core import CanvasAgent
+from src.agent.core import AgentContext, RoomLockManager
+from src.agent.core import LLMClient
+from src.agent.core import registry
 from src.services.agent_runs import AgentRunService
 from src.logger import get_logger
 from src.db.database import get_sync_session
@@ -94,6 +94,7 @@ class AIService:
         session_id: str,
         db: Session,
         user_id: Optional[str] = None,
+        theme: str = "light",
     ) -> Dict[str, Any]:
         """处理用户 AI 请求
 
@@ -104,6 +105,7 @@ class AIService:
             session_id: 会话/房间 ID
             db: 数据库会话
             user_id: 用户 ID (可选)
+            theme: 画布主题 ("light" | "dark")
 
         Returns:
             dict: 包含 response, run_id, status, metrics 的结果
@@ -122,7 +124,9 @@ class AIService:
         assert run.id is not None, "Run ID should be set after creation"
 
         # 初始化上下文
-        context = AgentContext(run_id=run.id, session_id=session_id, user_id=user_id)
+        context = AgentContext(
+            run_id=run.id, session_id=session_id, user_id=user_id, theme=theme
+        )
 
         # 追踪活跃上下文
         self._active_contexts[run.id] = context
@@ -227,6 +231,7 @@ class AIService:
         session_id: str,
         step_callback: Optional[Callable] = None,
         user_id: Optional[str] = None,
+        theme: str = "light",
     ) -> Dict[str, Any]:
         """处理用户 AI 请求 (支持流式步骤回调)
 
@@ -237,6 +242,7 @@ class AIService:
             session_id: 会话/房间 ID
             step_callback: 步骤回调函数，接收 ReActStep 参数
             user_id: 用户 ID (可选)
+            theme: 画布主题 ("light" | "dark")
 
         Returns:
             dict: 包含 response, run_id, status, metrics 的结果
@@ -257,7 +263,9 @@ class AIService:
         assert run_id is not None, "Run ID should be set after creation"
 
         # 初始化上下文
-        context = AgentContext(run_id=run_id, session_id=session_id, user_id=user_id)
+        context = AgentContext(
+            run_id=run_id, session_id=session_id, user_id=user_id, theme=theme
+        )
 
         self._active_contexts[run_id] = context
 

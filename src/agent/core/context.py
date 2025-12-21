@@ -7,7 +7,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
-
 from src.agent.canvas.backend import get_canvas_backend
 from src.logger import get_logger
 
@@ -73,6 +72,7 @@ class AgentContext:
     run_id: int
     session_id: str
     user_id: Optional[str] = None
+    theme: str = "light"  # 画布主题 ("light" | "dark")
     shared_state: Dict[str, Any] = field(default_factory=dict)
     tool_results: List[Dict[str, Any]] = field(default_factory=list)
     created_element_ids: List[str] = field(default_factory=list)

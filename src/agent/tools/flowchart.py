@@ -5,8 +5,8 @@
 import random
 from typing import Optional, Dict, Any
 
-from src.agent.base import AgentContext
-from src.agent.registry import registry, ToolCategory
+from src.agent.core import AgentContext
+from src.agent.core import registry, ToolCategory
 from src.agent.tools.schemas import CreateFlowchartNodeArgs, ConnectNodesArgs
 from src.agent.tools.helpers import (
     require_room_id,

@@ -39,7 +39,7 @@ export interface UseAIStreamReturn extends AIStreamState {
     /** 断开连接 */
     disconnect: () => void;
     /** 发送请求 */
-    sendRequest: (prompt: string) => Promise<void>;
+    sendRequest: (prompt: string, options?: { theme?: string }) => Promise<void>;
     /** 重置状态 */
     reset: () => void;
 }
@@ -142,7 +142,7 @@ export function useAIStream({ roomId, autoConnect = false }: UseAIStreamOptions)
     }, []);
 
     // 发送请求
-    const sendRequest = useCallback(async (prompt: string) => {
+    const sendRequest = useCallback(async (prompt: string, options?: { theme?: string }) => {
         // 如果未连接，先连接
         if (!clientRef.current?.isConnected) {
             await connect();
@@ -154,7 +154,7 @@ export function useAIStream({ roomId, autoConnect = false }: UseAIStreamOptions)
         }
 
         // 发送请求
-        clientRef.current.sendRequest(prompt);
+        clientRef.current.sendRequest(prompt, options);
     }, [connect]);
 
     // 重置状态
