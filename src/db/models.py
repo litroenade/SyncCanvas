@@ -108,3 +108,57 @@ class AgentAction(SQLModel, table=True):
     created_at: int = Field(
         default_factory=lambda: int(datetime.utcnow().timestamp() * 1000)
     )
+
+
+class Library(SQLModel, table=True):
+    """素材库模型
+
+    存储导入的 Excalidraw 素材库元信息。
+
+    Attributes:
+        id: 素材库唯一标识
+        name: 素材库名称
+        description: 素材库描述
+        source: 来源 (local/remote URL)
+        version: 版本号
+        created_at: 导入时间戳
+    """
+
+    id: str = Field(primary_key=True, max_length=36)
+    name: str = Field(max_length=100)
+    description: str = Field(default="", max_length=500)
+    source: str = Field(default="local", max_length=255)
+    version: int = Field(default=1)
+    created_at: int = Field(
+        default_factory=lambda: int(datetime.utcnow().timestamp() * 1000)
+    )
+
+
+class LibraryItem(SQLModel, table=True):
+    """素材库项模型
+
+    存储素材库中的单个素材项及其向量表示。
+
+    Attributes:
+        id: 素材项唯一标识
+        library_id: 所属素材库 ID
+        name: 素材项名称
+        description: 素材描述 (用于搜索)
+        tags: 标签 JSON 数组
+        elements: Excalidraw 元素 JSON 数组
+        embedding: 向量表示 (序列化的 numpy 数组)
+        created_at: 创建时间戳
+    """
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    library_id: str = Field(foreign_key="library.id", index=True, max_length=36)
+    item_id: str = Field(max_length=64, index=True)  # 原始素材项 ID
+    name: str = Field(max_length=100)
+    description: str = Field(default="", max_length=1000)
+    tags: list = Field(default_factory=list, sa_column=Column(JSON))
+    elements: list = Field(default_factory=list, sa_column=Column(JSON))
+    embedding: Optional[bytes] = Field(default=None)  # numpy array 序列化
+    created_at: int = Field(
+        default_factory=lambda: int(datetime.utcnow().timestamp() * 1000)
+    )
+

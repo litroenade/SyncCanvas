@@ -42,8 +42,13 @@ class WebSocketCanvasBackend:
         self._server = server
 
     async def get_room_doc(self, room_id: str) -> Tuple[Doc, Array]:
-        """获取房间文档和元素数组"""
-        room = await self._server.get_room(room_id)
+        """获取房间文档和元素数组
+        
+        注意: WebSocket 房间的 key 格式是 /ws/{room_id}，不是纯 room_id
+        """
+        # 构建 WebSocket 房间路径
+        ws_room_name = f"/ws/{room_id}"
+        room = await self._server.get_room(ws_room_name)
         doc = room.ydoc
         elements = doc.get("elements", type=Array)
         return doc, elements
@@ -69,3 +74,4 @@ def get_canvas_backend() -> CanvasBackend:
             "Canvas backend not initialized. Call init_canvas_backend first."
         )
     return _backend
+

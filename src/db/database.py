@@ -9,6 +9,8 @@ from src.db.models import (  # noqa: F401  # pylint: disable=unused-import
     Commit,
     AgentRun,
     AgentAction,
+    Library,
+    LibraryItem,
 )
 from src.config import config
 

@@ -109,18 +109,49 @@ class ExcalidrawYjsManager {
     }
 
     /**
+     * 将 Y.Map 或嵌套结构转换为普通 JS 对象
+     */
+    private _yMapToObject(item: unknown): unknown {
+        // Y.Map 有 toJSON 方法，使用它来递归转换
+        if (item && typeof item === 'object' && 'toJSON' in item && typeof (item as { toJSON: () => unknown }).toJSON === 'function') {
+            return (item as { toJSON: () => unknown }).toJSON();
+        }
+        // Y.Array
+        if (item && typeof item === 'object' && 'toArray' in item && typeof (item as { toArray: () => unknown[] }).toArray === 'function') {
+            return (item as { toArray: () => unknown[] }).toArray().map(v => this._yMapToObject(v));
+        }
+        // 普通数组
+        if (Array.isArray(item)) {
+            return item.map(v => this._yMapToObject(v));
+        }
+        // 普通对象递归处理
+        if (item && typeof item === 'object' && !Array.isArray(item)) {
+            const result: Record<string, unknown> = {};
+            for (const [k, v] of Object.entries(item)) {
+                result[k] = this._yMapToObject(v);
+            }
+            return result;
+        }
+        return item;
+    }
+
+    /**
      * 从 Y.Array 获取所有元素
+     * 兼容 Y.Map 和普通对象两种格式
      */
     getElements(): ExcalidrawElement[] {
         if (!this._elementsArray) return [];
 
-        return this._elementsArray.toArray().map(yMap => {
-            const obj: Record<string, unknown> = {};
-            yMap.forEach((value, key) => {
-                obj[key] = value;
-            });
-            return obj as unknown as ExcalidrawElement;
-        });
+        return this._elementsArray.toArray().map(item => {
+            try {
+                // 使用 toJSON 进行深度转换
+                const converted = this._yMapToObject(item);
+                return converted as ExcalidrawElement;
+            } catch (e) {
+                console.warn('[YjsManager] 元素转换失败:', e, item);
+                return null as unknown as ExcalidrawElement;
+            }
+        }).filter(Boolean);
     }
 
     /**

@@ -13,7 +13,7 @@ from src.agent.tools.helpers import (
     generate_element_id,
     base_excalidraw_element,
     find_element_by_id,
-    element_to_ymap,
+    append_element_as_ymap,
     get_theme_colors,
 )
 from src.logger import get_logger
@@ -127,8 +127,8 @@ async def create_flowchart_node(
     shape["boundElements"] = [{"id": text_id, "type": "text"}]
 
     with doc.transaction(origin="ai-engine/create_flowchart_node"):
-        elements_array.append(element_to_ymap(shape))
-        elements_array.append(element_to_ymap(text_element))
+        append_element_as_ymap(elements_array, shape)
+        append_element_as_ymap(elements_array, text_element)
 
     logger.info(
         "创建流程图节点: %s",
@@ -308,7 +308,7 @@ async def connect_nodes(
 
     with doc.transaction(origin="ai-engine/connect_nodes"):
         for el in created_elements:
-            elements_array.append(element_to_ymap(el))
+            append_element_as_ymap(elements_array, el)
 
     logger.info(
         "创建连接: %s",

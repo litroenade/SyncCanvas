@@ -105,29 +105,53 @@ def base_excalidraw_element(
     final_stroke = stroke_color if stroke_color else colors["stroke"]
     final_bg = bg_color if bg_color else colors["background"]
     
+    # ========== 数值安全处理: 确保坐标和尺寸是有效数字 ==========
+    def safe_float(val: Any, default: float = 0.0) -> float:
+        """确保值是有效的浮点数"""
+        if val is None:
+            return default
+        try:
+            result = float(val)
+            # 检查 NaN 和无穷大
+            if result != result or result == float('inf') or result == float('-inf'):
+                logger.warning("[safe_float] 无效数值 %s，使用默认值 %s", val, default)
+                return default
+            return result
+        except (TypeError, ValueError):
+            logger.warning("[safe_float] 无法转换 %s，使用默认值 %s", val, default)
+            return default
+    
+    safe_x = safe_float(x, 100.0)
+    safe_y = safe_float(y, 100.0)
+    safe_width = safe_float(width, 100.0)
+    safe_height = safe_float(height, 100.0)
+    # ========== 数值安全处理结束 ==========
+    
     return {
         "id": generate_element_id(element_type),
         "type": element_type,
-        "x": x,
-        "y": y,
-        "width": width,
-        "height": height,
+        "x": safe_x,
+        "y": safe_y,
+        "width": safe_width,
+        "height": safe_height,
+        "angle": 0,  # Excalidraw 必需字段
         "strokeColor": final_stroke,
         "backgroundColor": final_bg,
         "fillStyle": "solid",
         "strokeWidth": 2,
         "strokeStyle": "solid",
-        "roughness": 0,
+        "roughness": 1,  # Excalidraw 默认值
         "opacity": 100,
         "groupIds": [],
         "seed": random.randint(1, 100000),
         "version": 1,
         "versionNonce": random.randint(1, 1000000000),
         "isDeleted": False,
-        "boundElements": [],
+        "boundElements": None,  # Excalidraw 官方格式使用 null
         "updated": 1,
         "link": None,
         "locked": False,
+        "roundness": {"type": 3, "value": 32},  # Excalidraw 官方格式
     }
 
 
@@ -163,16 +187,50 @@ def find_element_by_id(elements_array: Array, element_id: str) -> Tuple[int, Any
     return -1, None
 
 
-def element_to_ymap(element: Dict[str, Any]) -> Dict[str, Any]:
-    """将元素字典转换为可 append 的格式
+def append_element_as_ymap(elements_array: Array, element: Dict[str, Any]) -> None:
+    """将元素作为 Y.Map 追加到 Y.Array
 
-    注意: pycrdt Array 可以直接 append dict，会自动转换为 Y.Map。
-    不需要手动创建 Map() 对象。
+    重要：pycrdt.Map 必须先关联到文档才能设置属性。
+    正确模式：1) 创建空 Map, 2) append 到 Array, 3) 设置属性
+
+    Args:
+        elements_array: 已关联文档的 Y.Array
+        element: 要追加的元素字典
+    """
+    el_id = element.get("id", "unknown")
+    el_type = element.get("type", "unknown")
+    logger.debug(
+        "[append_element_as_ymap] 开始添加元素: id=%s, type=%s, keys=%s",
+        el_id, el_type, list(element.keys())
+    )
+    
+    ymap = Map()
+    logger.debug("[append_element_as_ymap] 创建空 Map, 准备 append 到 Array (len=%d)", len(elements_array))
+    
+    elements_array.append(ymap)
+    logger.debug("[append_element_as_ymap] Map 已 append, 开始设置属性...")
+    
+    for key, value in element.items():
+        ymap[key] = value
+    
+    logger.info(
+        "[append_element_as_ymap] 元素已添加: id=%s, type=%s, array_len=%d",
+        el_id, el_type, len(elements_array)
+    )
+
+
+def element_to_ymap(element: Dict[str, Any]) -> Dict[str, Any]:
+    """兼容旧代码的包装函数
+
+    注意: 此函数仅返回 dict，实际创建 Y.Map 请使用 append_element_as_ymap
 
     Args:
         element: 元素字典
 
     Returns:
-        Dict: 元素字典（直接返回）
+        Dict: 原样返回
     """
     return element
+
+
+

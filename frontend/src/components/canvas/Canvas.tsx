@@ -10,6 +10,7 @@ import {
     Excalidraw,
     MainMenu,
     Sidebar as ExcalidrawSidebar,
+    CaptureUpdateAction,
 } from '@excalidraw/excalidraw';
 import '@excalidraw/excalidraw/index.css';
 import { useCanvas } from '../../hooks/useCanvas';
@@ -119,6 +120,8 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
     const { isMobile, isTouchDevice } = useDeviceType();
     const [showAIAssistant, setShowAIAssistant] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
+    // 调试: 鼠标画布坐标
+    const [debugCoords, setDebugCoords] = useState<{ x: number; y: number } | null>(null);
 
     const {
         elements,
@@ -137,25 +140,79 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
 
     // 同步远程元素更新
     useEffect(() => {
+        console.log('[Canvas] useEffect 触发: excalidrawAPI=', !!excalidrawAPI, 'elements.length=', elements.length);
+        
         if (excalidrawAPI && elements.length > 0) {
+            // ========== 调试: updateScene 前的场景状态 ==========
+            const beforeElements = excalidrawAPI.getSceneElements();
+            console.log('[Canvas] updateScene 前场景元素数量:', beforeElements.length);
+            
+            console.log('[Canvas] 调用 updateScene, 传入元素数量:', elements.length);
+            // 打印第一个元素的完整数据用于格式验证
+            if (elements.length > 0) {
+                console.log('[Canvas] 第一个元素完整数据:', JSON.stringify(elements[0], null, 2));
+            }
+            
             isRemoteUpdateRef.current = true;
-            excalidrawAPI.updateScene({ elements });
+            
+            // 使用 CaptureUpdateAction.NEVER 因为这是远程同步，不需要记录到 undo 历史
+            excalidrawAPI.updateScene({
+                elements,
+                captureUpdate: CaptureUpdateAction.NEVER,
+            });
+            
+            // ========== 调试: 立即检查 updateScene 结果 ==========
+            const afterImmediate = excalidrawAPI.getSceneElements();
+            console.log('[Canvas] updateScene 后立即检查:', afterImmediate.length, '个元素');
+            
+            if (afterImmediate.length === 0 && elements.length > 0) {
+                console.error('[Canvas] ❌ updateScene 未能添加元素! 可能是元素格式问题');
+                console.error('[Canvas] 传入的元素类型:', elements.map(e => e.type));
+            }
+            
+            // 50ms 后再次检查，确认是否被 onChange 覆盖
+            setTimeout(() => {
+                const afterDelayed = excalidrawAPI.getSceneElements();
+                console.log('[Canvas] 50ms 后检查:', afterDelayed.length, '个元素');
+                
+                if (afterDelayed.length === 0 && afterImmediate.length > 0) {
+                    console.error('[Canvas] ❌ 元素被清除了！可能被 onChange 覆盖');
+                } else if (afterDelayed.length > 0) {
+                    console.log('[Canvas] ✅ 场景元素确认存在');
+                    // 自动滚动到内容
+                    excalidrawAPI.scrollToContent(afterDelayed, {
+                        fitToViewport: true,
+                        animate: true,
+                        duration: 300,
+                    });
+                }
+            }, 50);
+            
             if (files && Object.keys(files).length > 0) {
                 excalidrawAPI.addFiles(Object.values(files));
             }
-            setTimeout(() => { isRemoteUpdateRef.current = false; }, 100);
+            
+            // 延长保护时间，防止 onChange 覆盖
+            setTimeout(() => { isRemoteUpdateRef.current = false; }, 500);
         }
     }, [elements, excalidrawAPI, files]);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const onChangeHandler = useCallback((newElements: readonly ExcalidrawElement[], appState: any, newFiles: any) => {
-        if (isRemoteUpdateRef.current) return;
+        console.log('[Canvas] onChange 触发, isRemoteUpdate:', isRemoteUpdateRef.current, 'newElements:', newElements.length);
+        
+        if (isRemoteUpdateRef.current) {
+            console.log('[Canvas] 跳过本地变更 (远程更新保护中)');
+            return;
+        }
         if (isGuest) return;
         handleChange(newElements, appState, newFiles);
     }, [handleChange, isGuest]);
 
     const onPointerUpdate = useCallback((payload: { pointer: { x: number; y: number }; button: 'up' | 'down' }) => {
         updatePointer(payload.pointer);
+        // 调试: 更新画布坐标显示
+        setDebugCoords(payload.pointer);
     }, [updatePointer]);
 
     const handleBackToRooms = useCallback(() => {
@@ -309,6 +366,26 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
                 >
                     <Sparkles size={12} className={isDark ? 'text-violet-400' : 'text-violet-500'} />
                     <span className="truncate max-w-[150px]">{roomName || `房间 ${roomId?.slice(0, 8)}`}</span>
+                </div>
+            )}
+
+            {/* ==================== 调试: 鼠标画布坐标（左下角） ==================== */}
+            {debugCoords && (
+                <div
+                    className={cn(
+                        'fixed z-[40] pointer-events-none',
+                        'flex items-center gap-2 px-3 py-1.5 rounded-full',
+                        'glass-pill',
+                        'text-xs font-mono',
+                        'transition-all duration-100',
+                        isDark ? 'text-green-400' : 'text-green-600'
+                    )}
+                    style={{
+                        left: 'max(12px, env(safe-area-inset-left, 12px))',
+                        bottom: 'max(100px, env(safe-area-inset-bottom, 12px))',
+                    }}
+                >
+                    📍 X: {Math.round(debugCoords.x)}, Y: {Math.round(debugCoords.y)}
                 </div>
             )}
 

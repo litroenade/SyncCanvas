@@ -325,3 +325,28 @@ class AutoLayoutCreateArgs(BaseModel):
     direction: str = Field(
         "TB", description="布局方向: TB(上到下), LR(左到右), BT(下到上), RL(右到左)"
     )
+
+
+class GroupElementsArgs(BaseModel):
+    """组合多个元素的参数
+
+    Attributes:
+        element_ids: 要组合的元素 ID 列表
+    """
+
+    element_ids: List[str] = Field(
+        ..., description="要组合的元素 ID 列表 (至少 2 个)"
+    )
+
+
+class UngroupElementsArgs(BaseModel):
+    """解除组合的参数
+
+    Attributes:
+        element_ids: 要解除组合的元素 ID 列表
+    """
+
+    element_ids: List[str] = Field(
+        ..., description="要解除组合的元素 ID 列表"
+    )
+

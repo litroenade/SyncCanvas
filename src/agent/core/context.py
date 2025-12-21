@@ -107,9 +107,20 @@ class AgentContext:
         """获取房间文档和元素数组 (统一入口)"""
         try:
             backend = get_canvas_backend()
-            return await backend.get_room_doc(self.session_id)
+            logger.debug(
+                "[AgentContext] get_room_and_doc 调用: session_id=%s, backend=%s",
+                self.session_id, type(backend).__name__
+            )
+            doc, elements_array = await backend.get_room_doc(self.session_id)
+            logger.debug(
+                "[AgentContext] get_room_and_doc 成功: doc=%s, array_type=%s, array_len=%s",
+                type(doc).__name__ if doc else None,
+                type(elements_array).__name__ if elements_array else None,
+                len(elements_array) if elements_array else None
+            )
+            return doc, elements_array
         except Exception as e:  # pylint: disable=broad-except
-            logger.warning("[AgentContext] 获取 room doc 失败: %s", e)
+            logger.error("[AgentContext] 获取 room doc 失败: %s", e)
             return None, None
 
     async def get_canvas_elements(self) -> List[Dict[str, Any]]:

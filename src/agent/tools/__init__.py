@@ -6,6 +6,7 @@
 from src.agent.tools import flowchart  # noqa: F401
 from src.agent.tools import elements  # noqa: F401
 from src.agent.tools import canvas  # noqa: F401
+from src.agent.tools import library  # noqa: F401
 
 # 通用工具
 from src.agent.tools import general_tools  # noqa: F401

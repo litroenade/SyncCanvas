@@ -18,13 +18,16 @@ from src.agent.tools.schemas import (
     ClearCanvasArgs,
     BatchCreateElementsArgs,
     AutoLayoutCreateArgs,
+    GroupElementsArgs,
+    UngroupElementsArgs,
 )
 from src.agent.tools.helpers import (
     require_room_id,
     base_excalidraw_element,
     find_element_by_id,
-    element_to_ymap,
+    append_element_as_ymap,
     get_theme_colors,
+    generate_element_id,
 )
 from src.agent.canvas.layout import calculate_layout
 from src.logger import get_logger
@@ -68,9 +71,15 @@ async def create_element(
     if context is None:
         return {"status": "error", "message": "Context is required"}
     room_id = require_room_id(context)
+    
+    logger.debug("[create_element] 获取房间文档: room_id=%s", room_id)
     doc, elements_array = await context.get_room_and_doc()
+    
     if doc is None or elements_array is None:
+        logger.error("[create_element] 获取房间文档失败: doc=%s, array=%s", doc, elements_array)
         return {"status": "error", "message": "Failed to get room doc"}
+    
+    logger.debug("[create_element] 文档已获取: array_len=%d", len(elements_array))
 
     # 获取主题颜色
     theme_colors = get_theme_colors(context.theme)
@@ -94,7 +103,24 @@ async def create_element(
         )
 
     with doc.transaction(origin="ai-engine/create_element"):
-        elements_array.append(element_to_ymap(element))
+        append_element_as_ymap(elements_array, element)
+
+    # ========== 诊断日志: 验证元素已添加 ==========
+    logger.info(
+        "[create_element] ✅ 事务完成, array_len=%d, element_id=%s",
+        len(elements_array), element["id"]
+    )
+    # 验证元素是否真的在数组中
+    found = False
+    for i, el in enumerate(elements_array):
+        el_id = el.get("id") if hasattr(el, "get") else None
+        if el_id == element["id"]:
+            logger.info("[create_element] ✅ 元素确认存在于 Y.Array[%d]", i)
+            found = True
+            break
+    if not found:
+        logger.error("[create_element] ❌ 元素未找到! 可能写入失败")
+    # ========== 诊断日志结束 ==========
 
     logger.info(
         "创建元素: %s", element["id"], extra={"room": room_id, "type": element_type}
@@ -411,9 +437,17 @@ async def batch_create_elements(
     if context is None:
         return {"status": "error", "message": "Context is required"}
     room_id = require_room_id(context)
+    
+    logger.debug("[batch_create] 获取房间文档: room_id=%s", room_id)
     doc, elements_array = await context.get_room_and_doc()
     if doc is None or elements_array is None:
+        logger.error("[batch_create] 获取房间文档失败: doc=%s, array=%s", doc, elements_array)
         return {"status": "error", "message": "Failed to get room doc"}
+
+    logger.info(
+        "[batch_create] 开始批量创建: elements=%d, edges=%d, array_len=%d",
+        len(elements), len(edges) if edges else 0, len(elements_array)
+    )
 
     edges = edges or []
 
@@ -426,6 +460,7 @@ async def batch_create_elements(
     created_edges = []
 
     with doc.transaction(origin="ai-engine/batch_create_elements"):
+        logger.debug("[batch_create] 事务已开启")
         # 1. 创建所有元素
         for spec in elements:
             temp_id = spec.get("id", "")
@@ -451,13 +486,20 @@ async def batch_create_elements(
 
             # 创建绑定的文本元素
             text_id = f"text_{shape_id}"
+            # 使用安全的数值计算，避免 NaN
+            safe_x = float(x) if x is not None else 0.0
+            safe_y = float(y) if y is not None else 0.0
+            safe_width = float(width) if width is not None else 160.0
+            safe_height = float(height) if height is not None else 70.0
+            
             text_element = {
                 "id": text_id,
                 "type": "text",
-                "x": x + width / 2,
-                "y": y + height / 2,
-                "width": width - 20,
+                "x": safe_x + safe_width / 2,
+                "y": safe_y + safe_height / 2,
+                "width": max(safe_width - 20, 20),  # 确保最小宽度
                 "height": 20,
+                "angle": 0,  # Excalidraw 必需字段
                 "strokeColor": stroke_color,
                 "backgroundColor": "transparent",
                 "fillStyle": "solid",
@@ -474,21 +516,21 @@ async def batch_create_elements(
                 "updated": 1,
                 "link": None,
                 "locked": False,
-                "text": label,
+                "text": label or "",
                 "fontSize": 18,
                 "fontFamily": 1,
                 "textAlign": "center",
                 "verticalAlign": "middle",
                 "containerId": shape_id,
-                "originalText": label,
+                "originalText": label or "",
                 "autoResize": True,
             }
 
             # 更新形状的 boundElements
             shape["boundElements"] = [{"id": text_id, "type": "text"}]
 
-            elements_array.append(element_to_ymap(shape))
-            elements_array.append(element_to_ymap(text_element))
+            append_element_as_ymap(elements_array, shape)
+            append_element_as_ymap(elements_array, text_element)
 
             created_elements.append(
                 {
@@ -552,7 +594,7 @@ async def batch_create_elements(
                 }
             )
 
-            elements_array.append(element_to_ymap(arrow))
+            append_element_as_ymap(elements_array, arrow)
 
             created_edges.append(
                 {
@@ -562,6 +604,23 @@ async def batch_create_elements(
                     "label": edge_label,
                 }
             )
+
+    # ========== 诊断日志: 验证批量创建 ==========
+    logger.info(
+        "[batch_create] ✅ 事务完成, array_len=%d, created=%d elements + %d edges",
+        len(elements_array), len(created_elements), len(created_edges)
+    )
+    # 验证所有创建的元素
+    for ce in created_elements[:3]:  # 只检查前3个避免日志过多
+        el_id = ce.get("element_id")
+        found = False
+        for el in elements_array:
+            if hasattr(el, "get") and el.get("id") == el_id:
+                found = True
+                break
+        status = "✅" if found else "❌"
+        logger.info("[batch_create] %s 元素 %s 验证", status, el_id)
+    # ========== 诊断日志结束 ==========
 
     logger.info(
         "批量创建: %d 元素, %d 连接",
@@ -646,3 +705,125 @@ async def auto_layout_create(
         context=context,
     )
 
+
+@registry.register(
+    "group_elements",
+    "将多个元素组合成一个组 (选中后一起移动)",
+    GroupElementsArgs,
+    category=ToolCategory.CANVAS,
+)
+async def group_elements(
+    element_ids: List[str],
+    context: Optional[AgentContext] = None,
+) -> Dict[str, Any]:
+    """将多个元素组合成一个组
+
+    组合后的元素在前端选中时会一起被选中、移动、缩放。
+
+    Args:
+        element_ids: 要组合的元素 ID 列表
+        context: Agent 上下文
+
+    Returns:
+        Dict: 包含 group_id 和操作结果
+    """
+    if context is None:
+        return {"status": "error", "message": "Context is required"}
+
+    if len(element_ids) < 2:
+        return {"status": "error", "message": "至少需要 2 个元素才能组合"}
+
+    room_id: str = require_room_id(context)
+    doc, elements_array = await context.get_room_and_doc()
+
+    if doc is None or elements_array is None:
+        return {"status": "error", "message": "Failed to get room doc"}
+
+    # 生成新的组 ID
+    group_id: str = generate_element_id("group")
+    updated_count: int = 0
+
+    with doc.transaction(origin="ai-engine/group_elements"):
+        for i, el in enumerate(elements_array):
+            if isinstance(el, Map):
+                el_id = el.get("id")
+                if el_id in element_ids:
+                    # 获取现有的 groupIds 并添加新组 ID
+                    current_groups = list(el.get("groupIds", []))
+                    current_groups.append(group_id)
+                    el["groupIds"] = current_groups
+                    updated_count += 1
+
+    if updated_count == 0:
+        return {"status": "error", "message": "未找到指定的元素"}
+
+    logger.info(
+        "组合元素: group_id=%s, count=%d",
+        group_id,
+        updated_count,
+        extra={"room": room_id},
+    )
+
+    return {
+        "status": "success",
+        "message": f"已将 {updated_count} 个元素组合",
+        "group_id": group_id,
+        "element_ids": element_ids,
+    }
+
+
+@registry.register(
+    "ungroup_elements",
+    "解除元素的组合 (取消组合后可以单独移动)",
+    UngroupElementsArgs,
+    category=ToolCategory.CANVAS,
+)
+async def ungroup_elements(
+    element_ids: List[str],
+    context: Optional[AgentContext] = None,
+) -> Dict[str, Any]:
+    """解除元素的组合
+
+    清空指定元素的 groupIds，使其不再属于任何组。
+
+    Args:
+        element_ids: 要解除组合的元素 ID 列表
+        context: Agent 上下文
+
+    Returns:
+        Dict: 操作结果
+    """
+    if context is None:
+        return {"status": "error", "message": "Context is required"}
+
+    room_id: str = require_room_id(context)
+    doc, elements_array = await context.get_room_and_doc()
+
+    if doc is None or elements_array is None:
+        return {"status": "error", "message": "Failed to get room doc"}
+
+    updated_count: int = 0
+
+    with doc.transaction(origin="ai-engine/ungroup_elements"):
+        for i, el in enumerate(elements_array):
+            if isinstance(el, Map):
+                el_id = el.get("id")
+                if el_id in element_ids:
+                    # 清空 groupIds
+                    el["groupIds"] = []
+                    updated_count += 1
+
+    if updated_count == 0:
+        return {"status": "error", "message": "未找到指定的元素"}
+
+    logger.info(
+        "解除组合: count=%d",
+        updated_count,
+        extra={"room": room_id},
+    )
+
+    return {
+        "status": "success",
+        "message": f"已解除 {updated_count} 个元素的组合",
+        "element_ids": element_ids,
+    }
