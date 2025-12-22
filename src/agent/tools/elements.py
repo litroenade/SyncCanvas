@@ -71,14 +71,16 @@ async def create_element(
     if context is None:
         return {"status": "error", "message": "Context is required"}
     room_id = require_room_id(context)
-    
+
     logger.debug("[create_element] 获取房间文档: room_id=%s", room_id)
     doc, elements_array = await context.get_room_and_doc()
-    
+
     if doc is None or elements_array is None:
-        logger.error("[create_element] 获取房间文档失败: doc=%s, array=%s", doc, elements_array)
+        logger.error(
+            "[create_element] 获取房间文档失败: doc=%s, array=%s", doc, elements_array
+        )
         return {"status": "error", "message": "Failed to get room doc"}
-    
+
     logger.debug("[create_element] 文档已获取: array_len=%d", len(elements_array))
 
     # 获取主题颜色
@@ -108,7 +110,8 @@ async def create_element(
     # ========== 诊断日志: 验证元素已添加 ==========
     logger.info(
         "[create_element] ✅ 事务完成, array_len=%d, element_id=%s",
-        len(elements_array), element["id"]
+        len(elements_array),
+        element["id"],
     )
     # 验证元素是否真的在数组中
     found = False
@@ -437,16 +440,20 @@ async def batch_create_elements(
     if context is None:
         return {"status": "error", "message": "Context is required"}
     room_id = require_room_id(context)
-    
+
     logger.debug("[batch_create] 获取房间文档: room_id=%s", room_id)
     doc, elements_array = await context.get_room_and_doc()
     if doc is None or elements_array is None:
-        logger.error("[batch_create] 获取房间文档失败: doc=%s, array=%s", doc, elements_array)
+        logger.error(
+            "[batch_create] 获取房间文档失败: doc=%s, array=%s", doc, elements_array
+        )
         return {"status": "error", "message": "Failed to get room doc"}
 
     logger.info(
         "[batch_create] 开始批量创建: elements=%d, edges=%d, array_len=%d",
-        len(elements), len(edges) if edges else 0, len(elements_array)
+        len(elements),
+        len(edges) if edges else 0,
+        len(elements_array),
     )
 
     edges = edges or []
@@ -491,7 +498,7 @@ async def batch_create_elements(
             safe_y = float(y) if y is not None else 0.0
             safe_width = float(width) if width is not None else 160.0
             safe_height = float(height) if height is not None else 70.0
-            
+
             text_element = {
                 "id": text_id,
                 "type": "text",
@@ -499,6 +506,7 @@ async def batch_create_elements(
                 "y": safe_y + safe_height / 2,
                 "width": max(safe_width - 20, 20),  # 确保最小宽度
                 "height": 20,
+                "frameId": None,  # Required for Excalidraw
                 "angle": 0,  # Excalidraw 必需字段
                 "strokeColor": stroke_color,
                 "backgroundColor": "transparent",
@@ -608,7 +616,9 @@ async def batch_create_elements(
     # ========== 诊断日志: 验证批量创建 ==========
     logger.info(
         "[batch_create] ✅ 事务完成, array_len=%d, created=%d elements + %d edges",
-        len(elements_array), len(created_elements), len(created_edges)
+        len(elements_array),
+        len(created_elements),
+        len(created_edges),
     )
     # 验证所有创建的元素
     for ce in created_elements[:3]:  # 只检查前3个避免日志过多
@@ -670,10 +680,22 @@ async def auto_layout_create(
     edges = edges or []
 
     structure = {
-        "nodes": [{"id": n.get("id"), "type": n.get("type", "rectangle"),
-                   "label": n.get("label", "")} for n in nodes],
-        "edges": [{"from_id": e.get("from_id"), "to_id": e.get("to_id"),
-                   "label": e.get("label", "")} for e in edges],
+        "nodes": [
+            {
+                "id": n.get("id"),
+                "type": n.get("type", "rectangle"),
+                "label": n.get("label", ""),
+            }
+            for n in nodes
+        ],
+        "edges": [
+            {
+                "from_id": e.get("from_id"),
+                "to_id": e.get("to_id"),
+                "label": e.get("label", ""),
+            }
+            for e in edges
+        ],
         "direction": direction,
     }
 

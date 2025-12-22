@@ -97,6 +97,8 @@ async def create_flowchart_node(
         "y": text_y,
         "width": width - 20,
         "height": 20,
+        "frameId": None,  # Required for Excalidraw
+        "angle": 0,  # Excalidraw 必需字段
         "strokeColor": stroke_color,
         "backgroundColor": "transparent",
         "fillStyle": "solid",
@@ -281,6 +283,8 @@ async def connect_nodes(
             "y": mid_y - 10,
             "width": 30,
             "height": 20,
+            "frameId": None,  # Required for Excalidraw
+            "angle": 0,  # Excalidraw 必需字段
             "strokeColor": stroke_color,
             "backgroundColor": "#ffffff",
             "fillStyle": "solid",

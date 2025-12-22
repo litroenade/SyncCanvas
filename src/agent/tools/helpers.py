@@ -100,11 +100,11 @@ def base_excalidraw_element(
         dict: Excalidraw 元素字典
     """
     colors = get_theme_colors(theme)
-    
+
     # 使用传入颜色或主题默认色
     final_stroke = stroke_color if stroke_color else colors["stroke"]
     final_bg = bg_color if bg_color else colors["background"]
-    
+
     # ========== 数值安全处理: 确保坐标和尺寸是有效数字 ==========
     def safe_float(val: Any, default: float = 0.0) -> float:
         """确保值是有效的浮点数"""
@@ -113,20 +113,20 @@ def base_excalidraw_element(
         try:
             result = float(val)
             # 检查 NaN 和无穷大
-            if result != result or result == float('inf') or result == float('-inf'):
+            if result != result or result == float("inf") or result == float("-inf"):
                 logger.warning("[safe_float] 无效数值 %s，使用默认值 %s", val, default)
                 return default
             return result
         except (TypeError, ValueError):
             logger.warning("[safe_float] 无法转换 %s，使用默认值 %s", val, default)
             return default
-    
+
     safe_x = safe_float(x, 100.0)
     safe_y = safe_float(y, 100.0)
     safe_width = safe_float(width, 100.0)
     safe_height = safe_float(height, 100.0)
     # ========== 数值安全处理结束 ==========
-    
+
     return {
         "id": generate_element_id(element_type),
         "type": element_type,
@@ -134,6 +134,7 @@ def base_excalidraw_element(
         "y": safe_y,
         "width": safe_width,
         "height": safe_height,
+        "frameId": None,  # Required for Excalidraw (null for non-frame elements)
         "angle": 0,  # Excalidraw 必需字段
         "strokeColor": final_stroke,
         "backgroundColor": final_bg,
@@ -201,21 +202,28 @@ def append_element_as_ymap(elements_array: Array, element: Dict[str, Any]) -> No
     el_type = element.get("type", "unknown")
     logger.debug(
         "[append_element_as_ymap] 开始添加元素: id=%s, type=%s, keys=%s",
-        el_id, el_type, list(element.keys())
+        el_id,
+        el_type,
+        list(element.keys()),
     )
-    
+
     ymap = Map()
-    logger.debug("[append_element_as_ymap] 创建空 Map, 准备 append 到 Array (len=%d)", len(elements_array))
-    
+    logger.debug(
+        "[append_element_as_ymap] 创建空 Map, 准备 append 到 Array (len=%d)",
+        len(elements_array),
+    )
+
     elements_array.append(ymap)
     logger.debug("[append_element_as_ymap] Map 已 append, 开始设置属性...")
-    
+
     for key, value in element.items():
         ymap[key] = value
-    
+
     logger.info(
         "[append_element_as_ymap] 元素已添加: id=%s, type=%s, array_len=%d",
-        el_id, el_type, len(elements_array)
+        el_id,
+        el_type,
+        len(elements_array),
     )
 
 
@@ -231,6 +239,3 @@ def element_to_ymap(element: Dict[str, Any]) -> Dict[str, Any]:
         Dict: 原样返回
     """
     return element
-
-
-
