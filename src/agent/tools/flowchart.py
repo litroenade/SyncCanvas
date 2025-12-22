@@ -123,6 +123,7 @@ async def create_flowchart_node(
         "containerId": shape_id,
         "originalText": label,
         "autoResize": True,
+        "lineHeight": 1.25,
     }
 
     # 更新形状的 boundElements
@@ -307,6 +308,7 @@ async def connect_nodes(
             "textAlign": "center",
             "verticalAlign": "middle",
             "originalText": label,
+            "lineHeight": 1.25,  # Required for text rendering
         }
         created_elements.append(label_element)
 

@@ -532,6 +532,7 @@ async def batch_create_elements(
                 "containerId": shape_id,
                 "originalText": label or "",
                 "autoResize": True,
+                "lineHeight": 1.25,
             }
 
             # 更新形状的 boundElements

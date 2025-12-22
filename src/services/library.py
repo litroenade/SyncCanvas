@@ -43,8 +43,10 @@ def _get_faiss():
     global _faiss_module
     if _faiss_module is None:
         import faiss
+
         _faiss_module = faiss
     return _faiss_module
+
 
 class LibraryService:
     """素材库统一服务
@@ -166,9 +168,7 @@ class LibraryService:
             if embeddings_list:
                 embeddings_matrix = np.vstack(embeddings_list)
                 self._index.add(embeddings_matrix)  # type: ignore[arg-type]
-                logger.info(
-                    "FAISS 索引已加载: %d 个向量", len(embeddings_list)
-                )
+                logger.info("FAISS 索引已加载: %d 个向量", len(embeddings_list))
 
     async def fetch_remote_index(self) -> List[Dict[str, Any]]:
         """从远程获取 Excalidraw 公共素材库索引
@@ -263,7 +263,6 @@ class LibraryService:
             Library: 创建的素材库 ORM 对象
         """
         with Session(engine) as session:
-
             library = Library(
                 id=library_id,
                 name=name,
@@ -347,9 +346,7 @@ class LibraryService:
                 ).all()
             )
 
-    def get_item_by_name(
-        self, library_id: str, name: str
-    ) -> Optional[LibraryItem]:
+    def get_item_by_name(self, library_id: str, name: str) -> Optional[LibraryItem]:
         """根据名称获取素材项
 
         Args:
@@ -471,12 +468,24 @@ class LibraryService:
         offset_x: float = x - min_x if min_x != float("inf") else x
         offset_y: float = y - min_y if min_y != float("inf") else y
 
-        # 3. 应用偏移 (深拷贝避免修改原数据)
+        # 3. 应用偏移并规范化字段 (深拷贝避免修改原数据)
         result: List[Dict[str, Any]] = []
         for element in item.elements:
             new_element: Dict[str, Any] = dict(element)
             new_element["x"] = element.get("x", 0) + offset_x
             new_element["y"] = element.get("y", 0) + offset_y
+
+            # 确保必需字段存在 (Excalidraw 兼容性)
+            if "frameId" not in new_element:
+                new_element["frameId"] = None
+            if "angle" not in new_element:
+                new_element["angle"] = 0
+
+            # 文本元素需要 lineHeight
+            if new_element.get("type") == "text":
+                if "lineHeight" not in new_element:
+                    new_element["lineHeight"] = 1.25
+
             result.append(new_element)
 
         return result
@@ -498,6 +507,7 @@ class LibraryService:
             bool: 是否可以执行向量搜索
         """
         return self._init_embedding_client()
+
 
 library_service: LibraryService = LibraryService.get_instance()
 """全局素材库服务实例"""
