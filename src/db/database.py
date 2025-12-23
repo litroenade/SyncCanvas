@@ -9,8 +9,7 @@ from src.db.models import (  # noqa: F401  # pylint: disable=unused-import
     Commit,
     AgentRun,
     AgentAction,
-    Library,
-    LibraryItem,
+    AgentMessage,
 )
 from src.config import config
 
@@ -25,6 +24,9 @@ engine = create_engine(
     connect_args={"check_same_thread": False} if _db_url.startswith("sqlite") else {},
     echo=config.db_echo,
 )
+
+# Library 模型需要在 engine 之后导入避免循环依赖
+from src.agent.lib.library.models import Library, LibraryItem  # noqa: F401, E402
 
 
 def init_db():

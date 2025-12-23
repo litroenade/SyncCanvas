@@ -6,10 +6,10 @@ from typing import Dict, Any, Optional
 
 from pycrdt import Map
 
-from src.agent.core import AgentContext
-from src.agent.core import registry, ToolCategory
-from src.agent.tools.schemas import GetCanvasBoundsArgs
-from src.agent.tools.helpers import require_room_id
+from src.agent.core.context import AgentContext
+from src.agent.core.registry import registry, ToolCategory
+from src.agent.lib.canvas.schemas import GetCanvasBoundsArgs
+from src.agent.lib.canvas.helpers import require_room_id
 from src.logger import get_logger
 
 logger = get_logger(__name__)

@@ -15,14 +15,14 @@ from fastapi.responses import FileResponse
 from src.db.database import init_db
 from src.ws.sync import websocket_server, asgi_server
 from src.ws.message_router import message_router
-from src.utils.async_task import async_task_manager
+from src.agent.lib.utils import async_task_manager
 from src.config import config
 from src.logger import get_logger, setup_logging
 from src.auth.router import router as auth_router
 from src.routers.ai import router as ai_router
 from src.routers.upload import router as upload_router
 from src.routers.rooms import router as rooms_router
-from src.routers.version_control import version_control_router
+from src.routers.version_control import router as version_control_router
 from src.routers.config import router as config_router
 
 setup_logging()

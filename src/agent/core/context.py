@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
-from src.agent.canvas.backend import get_canvas_backend
+from src.agent.core.backend import get_canvas_backend
 from src.logger import get_logger
 
 logger = get_logger(__name__)
@@ -78,6 +78,9 @@ class AgentContext:
     created_element_ids: List[str] = field(default_factory=list)
     _cancelled: bool = field(default=False, repr=False)
     _ydoc: Any = field(default=None, repr=False)
+    # 记忆相关
+    _memory_history: List[Dict[str, Any]] = field(default_factory=list, repr=False)
+    _canvas_context: str = field(default="", repr=False)
 
     def cancel(self) -> None:
         """标记任务为已取消"""
@@ -109,14 +112,15 @@ class AgentContext:
             backend = get_canvas_backend()
             logger.debug(
                 "[AgentContext] get_room_and_doc 调用: session_id=%s, backend=%s",
-                self.session_id, type(backend).__name__
+                self.session_id,
+                type(backend).__name__,
             )
             doc, elements_array = await backend.get_room_doc(self.session_id)
             logger.debug(
                 "[AgentContext] get_room_and_doc 成功: doc=%s, array_type=%s, array_len=%s",
                 type(doc).__name__ if doc else None,
                 type(elements_array).__name__ if elements_array else None,
-                len(elements_array) if elements_array else None
+                len(elements_array) if elements_array else None,
             )
             return doc, elements_array
         except Exception as e:  # pylint: disable=broad-except
@@ -131,7 +135,9 @@ class AgentContext:
             return []
 
         try:
-            elements_array = ydoc.get("elements", type="Array")
+            from pycrdt import Array
+
+            elements_array = ydoc.get("elements", type=Array)
             return list(elements_array)
         except Exception as e:  # pylint: disable=broad-except
             logger.error("[AgentContext] 获取画布元素失败: %s", e)
@@ -143,8 +149,13 @@ class AgentContext:
 
         if not elements:
             return {
-                "minX": 0, "minY": 0, "maxX": 0, "maxY": 0,
-                "suggested_x": 100, "suggested_y": 100, "elements_count": 0,
+                "minX": 0,
+                "minY": 0,
+                "maxX": 0,
+                "maxY": 0,
+                "suggested_x": 100,
+                "suggested_y": 100,
+                "elements_count": 0,
             }
 
         min_x = min_y = float("inf")
@@ -170,11 +181,66 @@ class AgentContext:
             "elements_count": len(elements),
         }
 
+    async def load_memory(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """加载房间对话历史
+
+        Args:
+            limit: 最大消息数量
+
+        Returns:
+            对话历史列表 [{"role": "user", "content": "..."}, ...]
+        """
+        if self._memory_history:
+            return self._memory_history
+
+        try:
+            from src.agent.memory import memory_service
+
+            self._memory_history = await memory_service.get_history(
+                self.session_id, limit=limit
+            )
+            logger.debug(
+                "[AgentContext] 加载记忆: room=%s, count=%d",
+                self.session_id,
+                len(self._memory_history),
+            )
+            return self._memory_history
+        except Exception as e:  # pylint: disable=broad-except
+            logger.warning("[AgentContext] 加载记忆失败: %s", e)
+            return []
+
+    async def build_canvas_context(self) -> str:
+        """构建画布上下文 Prompt
+
+        包含元素摘要和版本信息，用于注入到 Agent Prompt。
+
+        Returns:
+            画布状态描述文本
+        """
+        if self._canvas_context:
+            return self._canvas_context
+
+        try:
+            from src.agent.memory import canvas_state_provider
+
+            elements = await self.get_canvas_elements()
+            self._canvas_context = canvas_state_provider.build_context_prompt(
+                elements, self.session_id
+            )
+            return self._canvas_context
+        except Exception as e:  # pylint: disable=broad-except
+            logger.warning("[AgentContext] 构建画布上下文失败: %s", e)
+            return ""
+
     def record_tool_result(self, tool_name: str, args: Dict, result: Any) -> None:
         """记录工具执行结果"""
-        self.tool_results.append({
-            "tool": tool_name, "arguments": args, "result": result,
-        })
+        self.tool_results.append(
+            {
+                "tool": tool_name,
+                "arguments": args,
+                "result": result,
+            }
+        )
 
     def get_shared(self, key: str, default: Any = None) -> Any:
         """获取共享状态值"""

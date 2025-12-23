@@ -1,6 +1,7 @@
 ﻿"""模块名称: general_tools
 主要功能: 通用 AI 工具
 """
+
 import ast
 import math
 import operator
@@ -10,19 +11,23 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from src.agent.core import registry, ToolCategory
+from src.agent.core.registry import registry, ToolCategory
 from src.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 class GetCurrentTimeArgs(BaseModel):
     """获取当前时间的参数"""
+
     format: str = Field("%Y-%m-%d %H:%M:%S", description="时间格式")
 
 
 class CalculateArgs(BaseModel):
     """计算的参数"""
+
     expression: str = Field(..., description="数学表达式，如 '2+3*4', 'sqrt(16)'")
+
 
 @registry.register(
     "get_current_time",
@@ -49,11 +54,7 @@ async def get_current_time(
     }
 
 
-@registry.register(
-    "calculate",
-    "执行安全的数学计算",
-    CalculateArgs
-)
+@registry.register("calculate", "执行安全的数学计算", CalculateArgs)
 async def calculate(
     expression: str,
 ) -> Dict[str, Any]:
@@ -80,9 +81,18 @@ async def calculate(
     }
 
     functions = {
-        "abs": abs, "round": round, "min": min, "max": max, "pow": pow,
-        "sqrt": math.sqrt, "sin": math.sin, "cos": math.cos, "tan": math.tan,
-        "log": math.log, "log10": math.log10, "exp": math.exp,
+        "abs": abs,
+        "round": round,
+        "min": min,
+        "max": max,
+        "pow": pow,
+        "sqrt": math.sqrt,
+        "sin": math.sin,
+        "cos": math.cos,
+        "tan": math.tan,
+        "log": math.log,
+        "log10": math.log10,
+        "exp": math.exp,
     }
 
     constants = {"pi": math.pi, "e": math.e}
@@ -91,8 +101,6 @@ async def calculate(
         """递归安全求值"""
         if isinstance(node, ast.Constant):
             return node.value
-        if isinstance(node, ast.Num):  # Python 3.7 兼容
-            return node.n
         if isinstance(node, ast.Name):
             if node.id in constants:
                 return constants[node.id]
@@ -117,7 +125,7 @@ async def calculate(
         raise ValueError(f"不支持的表达式类型: {type(node).__name__}")
 
     try:
-        tree = ast.parse(expr, mode='eval')
+        tree = ast.parse(expr, mode="eval")
         result = safe_eval(tree.body)
         logger.info("计算: %s = %s", expr, result)
         return {"status": "success", "expression": expr, "result": result}

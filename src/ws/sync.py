@@ -11,7 +11,7 @@ from src.db.ystore import SQLModelYStore
 from src.db.database import engine
 from src.db.models import Commit, Update, Room
 from src.logger import get_logger
-from src.agent.canvas.backend import init_canvas_backend
+from src.agent.core.backend import init_canvas_backend
 
 logger = get_logger(__name__)
 

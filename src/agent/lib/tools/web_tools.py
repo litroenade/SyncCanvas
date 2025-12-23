@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 import httpx
 from pydantic import BaseModel, Field
 
-from src.agent.core import registry, ToolCategory
+from src.agent.core.registry import registry, ToolCategory
 from src.logger import get_logger
 
 logger = get_logger(__name__)
@@ -17,8 +17,7 @@ logger = get_logger(__name__)
 # HTTP 客户端配置
 DEFAULT_TIMEOUT = 15.0
 DEFAULT_HEADERS = {
-    "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
@@ -27,6 +26,7 @@ DEFAULT_HEADERS = {
 
 class FetchWebPageArgs(BaseModel):
     """获取网页内容的参数"""
+
     url: str = Field(..., description="要获取的网页 URL")
     extract_text: bool = Field(True, description="是否提取纯文本内容")
     max_length: int = Field(5000, description="返回内容的最大字符数")
@@ -86,7 +86,10 @@ async def fetch_webpage(
 
             content_type = response.headers.get("content-type", "")
             if "text/html" not in content_type and "text/plain" not in content_type:
-                return {"status": "error", "message": f"不支持的内容类型: {content_type}"}
+                return {
+                    "status": "error",
+                    "message": f"不支持的内容类型: {content_type}",
+                }
 
             html = response.text
             title = _extract_title(html)

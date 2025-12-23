@@ -6,7 +6,29 @@ from typing import Optional, List, Literal, Dict, Any
 
 from pydantic import BaseModel, Field
 
-ExcalidrawShapeType = Literal["rectangle", "diamond", "ellipse", "text"]
+# Excalidraw 官方支持的所有元素类型
+# 参考: https://github.com/excalidraw/excalidraw/blob/main/packages/element/src/types.ts
+ExcalidrawElementType = Literal[
+    "rectangle",    # 矩形
+    "diamond",      # 菱形
+    "ellipse",      # 椭圆
+    "text",         # 文本
+    "arrow",        # 箭头 (含 elbow 折线箭头)
+    "line",         # 直线/折线
+    "freedraw",     # 自由绘制
+    "image",        # 图片
+    "frame",        # 框架容器
+    "magicframe",   # AI 魔法框架
+    "iframe",       # 嵌入网页
+    "embeddable",   # 可嵌入元素
+]
+
+# 流程图节点类型 (形状元素子集)
+ExcalidrawShapeType = Literal["rectangle", "diamond", "ellipse"]
+
+# 线性元素类型
+ExcalidrawLinearType = Literal["arrow", "line"]
+
 ComponentType = Literal["service", "database", "module", "client"]
 
 class CreateFlowchartNodeArgs(BaseModel):
@@ -70,7 +92,9 @@ class CreateExcalidrawElementArgs(BaseModel):
     """
 
     element_type: str = Field(
-        ..., description="元素类型: rectangle, diamond, ellipse, arrow, line, text"
+        ...,
+        description="元素类型: rectangle(矩形), diamond(菱形), ellipse(椭圆), "
+        "text(文本), arrow(箭头), line(直线), freedraw(自由绘制), image(图片)",
     )
     x: float = Field(..., description="X 坐标")
     y: float = Field(..., description="Y 坐标")

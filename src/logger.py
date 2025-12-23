@@ -29,13 +29,13 @@ FRONTEND_MODULES = frozenset(
 AGENT_MODULES = frozenset(
     {
         "src.agent",
-        "src.agent.base",
-        "src.agent.llm",
-        "src.agent.pipeline",
-        "src.agent.canvas",
-        "src.agent.tools",
+        "src.agent.core",
+        "src.agent.lib",
+        "src.agent.lib.canvas",
+        "src.agent.lib.tools",
     }
 )
+
 
 class FrontendFilter(logging.Filter):
     """过滤前端相关日志
@@ -71,6 +71,7 @@ class ModuleLevelFilter(logging.Filter):
                 return record.levelno >= level
         return True
 
+
 CUSTOM_THEME = Theme(
     {
         "logging.level.debug": "dim cyan",
@@ -85,6 +86,7 @@ CUSTOM_THEME = Theme(
         "backend": "bold cyan",
     }
 )
+
 
 class SimpleColorFormatter(logging.Formatter):
     """简单的颜色格式化器 (不使用 rich 时的备选)"""
@@ -138,6 +140,7 @@ class SimpleColorFormatter(logging.Formatter):
         time_str = self.formatTime(record, "%H:%M:%S")
 
         return f"{time_str} {level_str} {name_str} {record.getMessage()}"
+
 
 class _LoggerState:
     """日志配置状态"""
@@ -297,6 +300,7 @@ def get_console() -> Optional[Console]:
     if not _state.configured:
         setup_logging()
     return _state.console
+
 
 def log_agent_thinking(logger: logging.Logger, thought: str, step: int = 0) -> None:
     """记录 Agent 思考过程

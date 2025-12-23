@@ -6,14 +6,14 @@ from typing import Optional, Dict, Any, List
 
 from pydantic import BaseModel, Field
 
-from src.agent.core import AgentContext
-from src.agent.core import registry, ToolCategory
-from src.agent.tools.helpers import (
+from src.agent.core.context import AgentContext
+from src.agent.core.registry import registry, ToolCategory
+from src.agent.lib.canvas.helpers import (
     require_room_id,
     append_element_as_ymap,
     generate_element_id,
 )
-from src.services.library import library_service
+from src.agent.lib.library import library_service
 from src.logger import get_logger
 
 logger = get_logger(__name__)
@@ -71,12 +71,14 @@ async def list_libraries(
             if keyword:
                 if keyword.lower() not in lib.name.lower():
                     continue
-            local_result.append({
-                "id": lib.id,
-                "name": lib.name,
-                "description": lib.description,
-                "source": "local",
-            })
+            local_result.append(
+                {
+                    "id": lib.id,
+                    "name": lib.name,
+                    "description": lib.description,
+                    "source": "local",
+                }
+            )
 
         # 远程素材库
         remote_index = await library_service.fetch_remote_index()
@@ -90,13 +92,15 @@ async def list_libraries(
             if keyword:
                 if keyword.lower() not in lib_info.get("name", "").lower():
                     continue
-            remote_result.append({
-                "id": lib_id,
-                "name": lib_info.get("name", ""),
-                "description": lib_info.get("description", ""),
-                "source": lib_info.get("source", ""),
-                "is_remote": True,
-            })
+            remote_result.append(
+                {
+                    "id": lib_id,
+                    "name": lib_info.get("name", ""),
+                    "description": lib_info.get("description", ""),
+                    "source": lib_info.get("source", ""),
+                    "is_remote": True,
+                }
+            )
             if len(remote_result) >= limit:
                 break
 
@@ -129,12 +133,14 @@ async def search_library_items(
 
         result_list: List[Dict[str, Any]] = []
         for item, score in results:
-            result_list.append({
-                "library_id": item.library_id,
-                "item_id": item.item_id,
-                "name": item.name,
-                "score": score,
-            })
+            result_list.append(
+                {
+                    "library_id": item.library_id,
+                    "item_id": item.item_id,
+                    "name": item.name,
+                    "score": score,
+                }
+            )
 
         logger.info("搜索素材项 '%s': %d 结果", query, len(result_list))
         return {

@@ -1,9 +1,15 @@
-"""包名称: canvas
-功能说明: 画布后端和布局引擎
+"""
+画布模块 (兼容层)
+
+所有功能已迁移到 agent.core 和 agent.lib.canvas
 """
 
-from src.agent.canvas.backend import get_canvas_backend, CanvasBackend
-from src.agent.canvas.layout import (
+from src.agent.core.backend import (
+    get_canvas_backend,
+    CanvasBackend,
+    init_canvas_backend,
+)
+from src.agent.lib.canvas.layout import (
     LayoutConfig,
     LayoutDirection,
     LayoutResult,
@@ -15,6 +21,7 @@ from src.agent.canvas.layout import (
 __all__ = [
     "get_canvas_backend",
     "CanvasBackend",
+    "init_canvas_backend",
     "LayoutConfig",
     "LayoutDirection",
     "LayoutResult",

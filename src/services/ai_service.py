@@ -7,7 +7,7 @@ from src.agent.core import CanvasAgent
 from src.agent.core import AgentContext, RoomLockManager
 from src.agent.core import LLMClient
 from src.agent.core import registry
-from src.services.agent_runs import AgentRunService
+from src.agent.core.runs import AgentRunService
 from src.logger import get_logger
 from src.db.database import get_sync_session
 from src.db.database import engine
@@ -87,6 +87,33 @@ class AIService:
     def stats(self) -> ServiceStats:
         """获取服务统计"""
         return self._stats
+
+    async def _save_memory_safe(
+        self,
+        room_id: str,
+        role: str,
+        content: str,
+    ) -> None:
+        """安全保存消息到房间记忆
+
+        带错误处理，失败不影响主流程。
+
+        Args:
+            room_id: 房间 ID
+            role: 消息角色 (user | assistant)
+            content: 消息内容
+        """
+        if not content or not content.strip():
+            return  # 空内容不保存
+
+        try:
+            from src.agent.memory import memory_service
+
+            # 截断过长内容
+            safe_content = content[:4000] if len(content) > 4000 else content
+            await memory_service.save_message(room_id, role, safe_content)
+        except Exception as e:  # pylint: disable=broad-except
+            logger.warning("保存记忆失败 (room=%s, role=%s): %s", room_id, role, e)
 
     async def process_request(
         self,
@@ -292,8 +319,12 @@ class AIService:
             agent.set_step_callback(async_callback)  # type: ignore[arg-type]
 
         try:
+            await self._save_memory_safe(session_id, "user", user_input)
+
             response = await agent.run(context, user_input)
             duration_ms = (time.time() - start_time) * 1000
+
+            await self._save_memory_safe(session_id, "assistant", response)
 
             # 更新运行状态
             with get_sync_session() as db:

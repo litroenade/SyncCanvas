@@ -5,13 +5,13 @@ from pycrdt import Doc
 from src.db.models import Update, Commit
 from src.db import crud
 from src.logger import get_logger
-from src.routers.version_control.models import (
+from src.agent.lib.version_control.models import (
     CommitInfo,
     HistoryResponse,
     CommitDetailResponse,
     CommitDiffResponse,
 )
-from src.routers.version_control.utils import (
+from src.agent.lib.version_control.utils import (
     generate_commit_hash,
     parse_yjs_elements,
     compute_elements_diff,

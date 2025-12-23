@@ -5,10 +5,10 @@
 import random
 from typing import Optional, Dict, Any
 
-from src.agent.core import AgentContext
-from src.agent.core import registry, ToolCategory
-from src.agent.tools.schemas import CreateFlowchartNodeArgs, ConnectNodesArgs
-from src.agent.tools.helpers import (
+from src.agent.core.context import AgentContext
+from src.agent.core.registry import registry, ToolCategory
+from src.agent.lib.canvas.schemas import CreateFlowchartNodeArgs, ConnectNodesArgs
+from src.agent.lib.canvas.helpers import (
     require_room_id,
     generate_element_id,
     base_excalidraw_element,
@@ -115,15 +115,16 @@ async def create_flowchart_node(
         "updated": 1,
         "link": None,
         "locked": False,
+        "roundness": None,  # 文本不需要圆角
         "text": label,
         "fontSize": 18,
         "fontFamily": 1,
         "textAlign": "center",
         "verticalAlign": "middle",
-        "containerId": shape_id,
+        "containerId": shape_id,  # 绑定到形状容器
         "originalText": label,
-        "autoResize": True,
-        "lineHeight": 1.25,
+        "autoResize": True,  # Excalidraw 必需
+        "lineHeight": 1.25,  # Excalidraw 必需
     }
 
     # 更新形状的 boundElements
@@ -260,11 +261,23 @@ async def connect_nodes(
                 [0, 0],
                 [arrow_end_x - arrow_start_x, arrow_end_y - arrow_start_y],
             ],
-            "startBinding": {"elementId": from_id, "focus": 0, "gap": 4},
-            "endBinding": {"elementId": to_id, "focus": 0, "gap": 4},
+            "startBinding": {
+                "elementId": from_id,
+                "focus": 0,
+                "gap": 4,
+                "fixedPoint": None,
+            },
+            "endBinding": {
+                "elementId": to_id,
+                "focus": 0,
+                "gap": 4,
+                "fixedPoint": None,
+            },
             "startArrowhead": None,
             "endArrowhead": "arrow",
             "strokeWidth": 2,
+            "elbowed": False,  # Excalidraw 箭头必需: 是否为折线箭头
+            "roundness": {"type": 2},  # 线性元素使用 ADAPTIVE_RADIUS
         }
     )
 
@@ -287,7 +300,7 @@ async def connect_nodes(
             "frameId": None,  # Required for Excalidraw
             "angle": 0,  # Excalidraw 必需字段
             "strokeColor": stroke_color,
-            "backgroundColor": "#ffffff",
+            "backgroundColor": "transparent",
             "fillStyle": "solid",
             "strokeWidth": 1,
             "strokeStyle": "solid",
@@ -302,13 +315,16 @@ async def connect_nodes(
             "updated": 1,
             "link": None,
             "locked": False,
+            "roundness": None,  # 文本不需要圆角
             "text": label,
             "fontSize": 14,
             "fontFamily": 1,
             "textAlign": "center",
             "verticalAlign": "middle",
             "originalText": label,
-            "lineHeight": 1.25,  # Required for text rendering
+            "autoResize": True,  # Excalidraw 必需
+            "lineHeight": 1.25,  # Excalidraw 必需
+            "containerId": None,  # 独立文本，不绑定容器
         }
         created_elements.append(label_element)
 

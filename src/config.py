@@ -575,19 +575,6 @@ class ConfigManager:
     def llm_max_tool_calls(self) -> int:
         return self.config.ai.max_tool_calls
 
-    # 兼容旧属性名
-    @property
-    def openai_api_key(self) -> str:
-        return self.config.ai.fallback_api_key
-
-    @property
-    def openai_base_url(self) -> str:
-        return self.config.ai.fallback_base_url
-
-    @property
-    def openai_model(self) -> str:
-        return self.config.ai.fallback_model
-
 
 # 全局配置实例
 config = ConfigManager()

@@ -20,7 +20,7 @@ from src.agent.core.retry import RetryPolicy, ErrorRecoveryManager
 from src.agent.core.context import AgentContext, AgentMetrics, AgentStatus
 
 if TYPE_CHECKING:
-    from src.services.agent_runs import AgentRunService
+    from src.agent.core.runs import AgentRunService
 
 logger = get_logger(__name__)
 
@@ -174,8 +174,6 @@ class BaseAgent(ABC):
         system_prompt: str,
         config: Optional[AgentConfig] = None,
         run_service: Optional["AgentRunService"] = None,
-        # 兼容旧参数
-        max_iterations: Optional[int] = None,
     ):
         self.name = name
         self.role = role
@@ -185,11 +183,6 @@ class BaseAgent(ABC):
 
         # 配置
         self.config = config or AgentConfig()
-        if max_iterations is not None:
-            self.config.max_iterations = max_iterations
-
-        # 兼容旧属性
-        self.max_iterations = self.config.max_iterations
 
         # 运行时状态
         self.tools: Dict[str, ToolDefinition] = {}
@@ -252,6 +245,18 @@ class BaseAgent(ABC):
     def set_step_callback(self, callback: Callable[[ReActStep], None]) -> None:
         """设置步骤回调"""
         self._on_step_callback = callback
+
+    async def _load_context(self, context: AgentContext) -> None:
+        """加载记忆和画布上下文到 AgentContext
+
+        Args:
+            context: Agent 上下文
+        """
+        try:
+            await context.load_memory(limit=10)
+            await context.build_canvas_context()
+        except Exception as e:  # pylint: disable=broad-except
+            logger.warning("加载上下文失败: %s", e)
 
     async def _log_action(
         self, context: AgentContext, tool_name: str, args: Dict[str, Any], result: Any
@@ -492,11 +497,31 @@ class BaseAgent(ABC):
 
         使用总超时控制整个执行过程。
         """
+        # 加载记忆和画布上下文
+        await self._load_context(context)
+
+        # 构建系统提示 (包含画布状态)
+        system_content = self._build_system_prompt()
+        if context._canvas_context:
+            system_content = f"{system_content}\n\n{context._canvas_context}"
+
         # 初始化消息历史
         messages: List[ChatCompletionMessageParam] = [
-            {"role": "system", "content": self._build_system_prompt()},
-            {"role": "user", "content": user_input},
+            {"role": "system", "content": system_content},
         ]
+
+        # 注入历史对话 (如果有)
+        if context._memory_history:
+            for msg in context._memory_history:
+                messages.append(
+                    {
+                        "role": msg["role"],
+                        "content": msg["content"],
+                    }
+                )
+
+        # 当前用户输入
+        messages.append({"role": "user", "content": user_input})
 
         tool_definitions = self.get_tool_definitions() if self.tools else None
         final_response = ""
@@ -739,12 +764,8 @@ class PlanningAgent(BaseAgent):
         config: Optional[AgentConfig] = None,
         run_service: Optional["AgentRunService"] = None,
         enable_planning: bool = True,
-        # 兼容旧参数
-        max_iterations: Optional[int] = None,
     ):
-        super().__init__(
-            name, role, llm_client, system_prompt, config, run_service, max_iterations
-        )
+        super().__init__(name, role, llm_client, system_prompt, config, run_service)
         self.enable_planning = enable_planning
 
     def _build_system_prompt(self) -> str:
@@ -793,7 +814,8 @@ class CanvasAgent(BaseAgent):
         # 延迟导入避免循环依赖
         from src.agent.prompts import prompt_manager
         from src.agent.core.registry import registry
-        import src.agent.tools  # noqa: F401  # 确保工具被注册
+        import src.agent.lib.canvas  # noqa: F401,W0611  # 确保画布工具被注册
+        import src.agent.lib.tools  # noqa: F401,W0611  # 确保通用工具被注册
 
         self._prompt_manager = prompt_manager
         self._registry = registry

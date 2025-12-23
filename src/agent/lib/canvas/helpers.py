@@ -2,19 +2,19 @@
 主要功能: Excalidraw 工具辅助函数
 """
 
+from __future__ import annotations
+
 import uuid
 import random
 from typing import Dict, Any, Tuple, Optional
-
 from pycrdt import Array, Map
-
-from src.agent.core import AgentContext
 from src.logger import get_logger
+from src.agent.core.context import AgentContext
 
 logger = get_logger(__name__)
 
 
-def require_room_id(context: Optional[AgentContext]) -> str:
+def require_room_id(context: Optional["AgentContext"]) -> str:
     """从 AgentContext 获取房间 ID
 
     Args:
@@ -127,7 +127,7 @@ def base_excalidraw_element(
     safe_height = safe_float(height, 100.0)
     # ========== 数值安全处理结束 ==========
 
-    return {
+    base = {
         "id": generate_element_id(element_type),
         "type": element_type,
         "x": safe_x,
@@ -152,8 +152,47 @@ def base_excalidraw_element(
         "updated": 1,
         "link": None,
         "locked": False,
-        "roundness": {"type": 3, "value": 32},  # Excalidraw 官方格式
     }
+
+    # 根据元素类型添加特定属性
+    if element_type in ("rectangle", "diamond", "ellipse"):
+        # 形状元素支持圆角
+        base["roundness"] = {"type": 3}  # 3 = PROPORTIONAL_RADIUS
+    elif element_type in ("arrow", "line"):
+        # 线性元素需要 points 数组和绑定信息
+        base["points"] = [[0, 0], [safe_width, safe_height]]
+        base["startBinding"] = None
+        base["endBinding"] = None
+        base["startArrowhead"] = None
+        base["endArrowhead"] = "arrow" if element_type == "arrow" else None
+        base["roundness"] = {"type": 2}  # 2 = ADAPTIVE_RADIUS for lines
+        base["backgroundColor"] = "transparent"
+        # 线性元素不需要 width/height，由 points 决定
+        # 但保留用于边界计算
+    elif element_type == "freedraw":
+        # 自由绘制元素
+        base["points"] = []
+        base["pressures"] = []
+        base["simulatePressure"] = True
+        base["roundness"] = None
+    elif element_type == "text":
+        # 文本元素不需要圆角
+        base["roundness"] = None
+    elif element_type == "image":
+        # 图片元素
+        base["fileId"] = None
+        base["status"] = "pending"
+        base["scale"] = [1, 1]
+        base["roundness"] = None
+    elif element_type in ("frame", "magicframe"):
+        # 框架元素
+        base["name"] = None
+        base["roundness"] = None
+    else:
+        # 其他元素默认圆角
+        base["roundness"] = {"type": 3}
+
+    return base
 
 
 def get_elements_array(doc) -> Array:
@@ -225,17 +264,3 @@ def append_element_as_ymap(elements_array: Array, element: Dict[str, Any]) -> No
         el_type,
         len(elements_array),
     )
-
-
-def element_to_ymap(element: Dict[str, Any]) -> Dict[str, Any]:
-    """兼容旧代码的包装函数
-
-    注意: 此函数仅返回 dict，实际创建 Y.Map 请使用 append_element_as_ymap
-
-    Args:
-        element: 元素字典
-
-    Returns:
-        Dict: 原样返回
-    """
-    return element

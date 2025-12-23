@@ -7,9 +7,9 @@ from typing import Optional, List, Dict, Any
 
 from pycrdt import Map
 
-from src.agent.core import AgentContext
-from src.agent.core import registry, ToolCategory
-from src.agent.tools.schemas import (
+from src.agent.core.context import AgentContext
+from src.agent.core.registry import registry, ToolCategory
+from src.agent.lib.canvas.schemas import (
     CreateExcalidrawElementArgs,
     ListElementsArgs,
     GetElementByIdArgs,
@@ -21,7 +21,7 @@ from src.agent.tools.schemas import (
     GroupElementsArgs,
     UngroupElementsArgs,
 )
-from src.agent.tools.helpers import (
+from src.agent.lib.canvas.helpers import (
     require_room_id,
     base_excalidraw_element,
     find_element_by_id,
@@ -29,7 +29,7 @@ from src.agent.tools.helpers import (
     get_theme_colors,
     generate_element_id,
 )
-from src.agent.canvas.layout import calculate_layout
+from src.agent.lib.canvas.layout import calculate_layout
 from src.logger import get_logger
 
 logger = get_logger(__name__)
@@ -97,12 +97,18 @@ async def create_element(
             {
                 "text": text or "文本",
                 "fontSize": 20,
-                "fontFamily": 1,
+                "fontFamily": 1,  # 1=Virgil(手写), 2=Helvetica, 3=Cascadia
                 "textAlign": "left",
                 "verticalAlign": "top",
                 "originalText": text or "文本",
+                "autoResize": True,  # Excalidraw 必需: 自动调整宽度
+                "lineHeight": 1.25,  # Excalidraw 必需: 行高 (unitless)
+                "containerId": None,  # 如果绑定到容器则设置容器 ID
             }
         )
+        # 文本元素不需要背景色和圆角
+        element["backgroundColor"] = "transparent"
+        element["roundness"] = None
 
     with doc.transaction(origin="ai-engine/create_element"):
         append_element_as_ymap(elements_array, element)
@@ -589,7 +595,7 @@ async def batch_create_elements(
                 start_y,
                 abs(end_x - start_x),
                 abs(end_y - start_y),
-                "#1e1e1e",
+                theme_colors["arrow"],
                 "transparent",
             )
             arrow.update(

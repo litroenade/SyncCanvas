@@ -1,24 +1,31 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from pydantic import BaseModel, Field
 from sqlmodel import Session
 from src.db.models import Commit
 from src.db.database import get_session
 from src.auth.utils import get_current_user_optional
 from src.db.user import User
 from src.logger import get_logger
-from src.services.version_control import IGitService
-from src.ws.sync import websocket_server
-
-from .models import (
+from src.agent.lib.version_control import (
+    IGitService,
     HistoryResponse,
-    CreateCommitRequest,
     CommitDetailResponse,
     CommitDiffResponse,
 )
+from src.ws.sync import websocket_server
 
 
-router = APIRouter(tags=["iGit"])
+class CreateCommitRequest(BaseModel):
+    """创建提交请求"""
+
+    message: str = Field(default="手动保存", max_length=500)
+    author_name: Optional[str] = Field(default=None, max_length=100)
+
+
+router = APIRouter(tags=["version_control"])
 logger = get_logger(__name__)
+
 
 @router.get("/{room_id}/history", response_model=HistoryResponse)
 async def get_room_history(
@@ -51,9 +58,8 @@ async def create_commit(
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """创建新提交
-
-    类似 Git commit，将当前状态保存为一个新提交。
-
+    类似 Git commit
+    
     Args:
         room_id: 房间 ID
         request: 提交请求
@@ -198,6 +204,7 @@ async def get_commits(
         HistoryResponse: 历史信息
     """
     return await get_room_history(room_id, limit, session)
+
 
 @router.get("/{room_id}/commits/{commit_id}", response_model=CommitDetailResponse)
 async def get_commit_detail(
