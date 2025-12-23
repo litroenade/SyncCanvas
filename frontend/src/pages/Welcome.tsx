@@ -162,144 +162,165 @@ export const Welcome: React.FC = () => {
                 </motion.button>
             </motion.header>
 
-            {/* 主内容 */}
-            <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 pb-20">
-                <motion.div
-                    className="max-w-2xl w-full text-center"
-                    variants={staggerContainer}
-                    initial="initial"
-                    animate="animate"
-                >
-                    {/* 徽章 */}
+            {/* 主内容区域 */}
+            <main className="relative z-10 flex-1 flex items-center px-6 pt-20 pb-12">
+
+                <div className="w-full max-w-screen-2xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+                    
+                    {/* ==================== 左侧 ==================== */}
                     <motion.div
-                        variants={fadeInUp}
-                        className="mb-6"
+                        variants={staggerContainer}
+                        initial="initial"
+                        animate="animate"
+                        className="lg:col-span-7 text-left space-y-8 -mt-12 lg:-mt-32" 
                     >
-                        <span className={cn(
-                            'inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium',
-                            isDark
-                                ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                                : 'bg-blue-50 text-blue-600 border border-blue-100'
-                        )}>
-                            <Sparkles size={14} />
-                            AI 驱动的协作白板
-                        </span>
-                    </motion.div>
-
-                    {/* 标题 */}
-                    <motion.h1
-                        variants={fadeInUp}
-                        className={cn(
-                            'text-4xl sm:text-5xl md:text-6xl font-extrabold mb-6 leading-tight',
-                            isDark ? 'text-white' : 'text-slate-900'
-                        )}
-                    >
-                        <span className="bg-gradient-to-r from-blue-500 via-violet-500 to-purple-500 bg-clip-text text-transparent">
-                            创意协作
-                        </span>
-                        <br />
-                        从这里开始
-                    </motion.h1>
-
-                    {/* 描述 */}
-                    <motion.p
-                        variants={fadeInUp}
-                        className={cn(
-                            'text-lg md:text-xl mb-10 max-w-lg mx-auto leading-relaxed',
-                            isDark ? 'text-slate-400' : 'text-slate-600'
-                        )}
-                    >
-                        基于 Excalidraw，支持多人实时编辑、
-                        <span className={cn(
-                            'font-medium',
-                            isDark ? 'text-violet-400' : 'text-violet-600'
-                        )}>AI 智能绘图</span>
-                        、Git 风格版本控制
-                    </motion.p>
-
-                    {/* 按钮组 */}
-                    <motion.div
-                        variants={fadeInUp}
-                        className="flex flex-col sm:flex-row gap-4 justify-center mb-16"
-                    >
-                        <motion.button
-                            whileHover={{ scale: 1.02, boxShadow: "0 20px 40px -15px rgba(59, 130, 246, 0.5)" }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={handleGetStarted}
-                            className={cn(
-                                'flex items-center justify-center gap-2 px-8 py-4 rounded-2xl',
-                                'bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600',
-                                'text-white font-semibold text-lg',
-                                'shadow-xl shadow-blue-500/25',
-                                'transition-all duration-300'
-                            )}
-                        >
-                            开始使用
-                            <ArrowRight size={20} />
-                        </motion.button>
-
-                        <motion.button
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={handleQuickStart}
-                            className={cn(
-                                'flex items-center justify-center gap-2 px-8 py-4 rounded-2xl',
-                                'font-semibold text-lg transition-all duration-300 border-2',
+                        <motion.div variants={fadeInUp}>
+                            <span className={cn(
+                                'inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium border',
                                 isDark
-                                    ? 'border-slate-700 text-slate-300 hover:bg-slate-800/50 hover:border-slate-600'
-                                    : 'border-slate-200 text-slate-700 hover:bg-white hover:border-slate-300 hover:shadow-lg'
+                                    ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                                    : 'bg-blue-50 text-blue-600 border-blue-100'
+                            )}>
+                                <Sparkles size={14} />
+                                AI 驱动的协作白板
+                            </span>
+                        </motion.div>
+
+                        <motion.h1
+                            variants={fadeInUp}
+                            className={cn(
+                                'text-7xl sm:text-8xl md:text-9xl font-extrabold leading-tight tracking-tight',
+                                isDark ? 'text-white' : 'text-slate-900'
                             )}
                         >
-                            <Zap size={20} className="text-yellow-500" />
-                            游客体验
-                        </motion.button>
+                            <span className="bg-gradient-to-r from-blue-500 via-violet-500 to-purple-500 bg-clip-text text-transparent block mb-2">
+                                创意协作
+                            </span>
+                            从这里开始
+                        </motion.h1>
+
+                        <motion.p
+                            variants={fadeInUp}
+                            className={cn(
+                                'text-lg md:text-xl max-w-lg leading-relaxed',
+                                isDark ? 'text-slate-400' : 'text-slate-600'
+                            )}
+                        >
+                            SyncCanvas 是你的无限创意空间。
+                            基于 Excalidraw 核心，支持多人实时编辑、
+                            <span className={cn(
+                                'font-medium',
+                                isDark ? 'text-violet-400' : 'text-violet-600'
+                            )}>AI 智能绘图</span>
+                            与 Git 风格版本控制。
+                        </motion.p>
                     </motion.div>
 
-                    {/* 特性卡片 */}
+
+                    {/* ==================== 右侧 ==================== */}
                     <motion.div
-                        variants={fadeInUp}
-                        className="grid grid-cols-1 sm:grid-cols-3 gap-4"
+                        variants={staggerContainer}
+                        initial="initial"
+                        animate="animate"
+                        className={cn(
+                            "lg:col-span-5 flex flex-col items-center lg:items-start justify-center",
+                            "lg:-ml-12",
+                            "gap-16",
+                            "mt-12 lg:mt-32"
+                        )}
                     >
-                        {features.map((feature, index) => (
-                            <motion.div
-                                key={index}
-                                variants={floatAnimation}
-                                animate="animate"
-                                style={{ animationDelay: `${index * 0.5}s` }}
-                                whileHover={{ scale: 1.05, y: -5 }}
+                        {/* 1. 按钮组 */}
+                        <motion.div
+                            variants={fadeInUp}
+                            className="flex flex-col gap-4 w-80 mx-auto" 
+                        >
+                            <motion.button
+                                transition={{ duration: 0.2, ease: "easeOut" }}
+                                whileHover={{ scale: 1.05, translateY: -2 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={handleGetStarted}
                                 className={cn(
-                                    'p-6 rounded-2xl backdrop-blur-sm transition-all duration-300',
-                                    isDark
-                                        ? 'bg-slate-800/30 border border-slate-700/50 hover:border-slate-600'
-                                        : 'bg-white/60 border border-slate-200/50 hover:border-slate-300 hover:shadow-xl'
+                                    'flex items-center justify-center gap-3 px-8 py-5 rounded-2xl',
+                                    'bg-gradient-to-r from-blue-600 to-indigo-600',
+                                    'text-white font-bold text-lg',
+                                    'shadow-xl shadow-blue-600/20 hover:shadow-blue-600/40',
+                                    'transition-shadow duration-200'
                                 )}
                             >
-                                <div className={cn(
-                                    'w-12 h-12 rounded-xl flex items-center justify-center mb-4 mx-auto',
-                                    `bg-gradient-to-br ${feature.gradient}`,
-                                    'text-white shadow-lg'
-                                )}>
-                                    <feature.icon size={24} />
-                                </div>
-                                <h3 className={cn(
-                                    'font-bold text-lg mb-2',
-                                    isDark ? 'text-white' : 'text-slate-900'
-                                )}>
-                                    {feature.title}
-                                </h3>
-                                <p className={cn(
-                                    'text-sm',
-                                    isDark ? 'text-slate-400' : 'text-slate-500'
-                                )}>
-                                    {feature.desc}
-                                </p>
-                            </motion.div>
-                        ))}
+                                开始使用
+                                <ArrowRight size={20} />
+                            </motion.button>
+
+                            <motion.button
+                                transition={{ duration: 0.2, ease: "easeOut" }}
+                                whileHover={{ scale: 1.05, translateY: -2 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={handleQuickStart}
+                                className={cn(
+                                    'flex items-center justify-center gap-3 px-8 py-5 rounded-2xl',
+                                    'font-bold text-lg border-2',
+                                    'transition-colors duration-200',
+                                    isDark
+                                        ? 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                                        : 'border-slate-200 text-slate-700 hover:bg-white hover:shadow-lg'
+                                )}
+                            >
+                                <Zap size={20} className="text-yellow-500" />
+                                游客体验
+                            </motion.button>
+                        </motion.div>
+
+                        {/* 2. 特性卡片组 */}
+                        <motion.div
+                            variants={fadeInUp}
+                            className="grid grid-cols-3 gap-4 w-full"
+                        >
+                            {features.map((feature, index) => (
+                                <motion.div
+                                    key={index}
+                                    variants={floatAnimation}
+                                    style={{ animationDelay: `${index * 0.5}s` }}
+                                    transition={{ duration: 0.2, ease: "easeOut" }}
+                                    whileHover={{ scale: 1.05, y: -5 }} 
+                                    className={cn(
+                                        'aspect-square p-4 rounded-2xl backdrop-blur-sm flex flex-col items-center justify-center text-center gap-3 cursor-default',
+                                        'transition-colors duration-300',
+                                        isDark
+                                            ? 'bg-slate-800/40 border border-slate-700/50 hover:bg-slate-800/60'
+                                            : 'bg-white/60 border border-slate-200/50 hover:bg-white/90 hover:shadow-xl'
+                                    )}
+                                >
+                                    <div className={cn(
+                                        'w-12 h-12 rounded-xl flex items-center justify-center shrink-0',
+                                        `bg-gradient-to-br ${feature.gradient}`,
+                                        'text-white shadow-md'
+                                    )}>
+                                        <feature.icon size={22} />
+                                    </div>
+                                    
+                                    <div className="flex flex-col gap-1 w-full overflow-hidden">
+                                        <h3 className={cn(
+                                            'font-bold text-sm truncate',
+                                            isDark ? 'text-white' : 'text-slate-900'
+                                        )}>
+                                            {feature.title}
+                                        </h3>
+                                        <p className={cn(
+                                            'text-[10px] leading-tight opacity-80',
+                                            isDark ? 'text-slate-400' : 'text-slate-500'
+                                        )}>
+                                            {feature.desc}
+                                        </p>
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </motion.div>
                     </motion.div>
-                </motion.div>
+
+                </div>
             </main>
 
-            {/* 底部 */}
+            {/* 底部：爱心跳动 */}
             <motion.footer
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -311,7 +332,17 @@ export const Welcome: React.FC = () => {
             >
                 <span className="inline-flex items-center gap-2">
                     基于 Excalidraw + Yjs 构建
-                    <span className="text-red-400">♥</span>
+                    <motion.span
+                        className="text-red-400 inline-block cursor-default" // inline-block 才能进行 transform 变换
+                        animate={{ scale: [1, 1.2, 1] }} // 关键帧：原始大小 -> 放大1.2倍 -> 回到原始大小
+                        transition={{
+                            duration: 2.5, // 2.5秒完成一次循环
+                            repeat: Infinity, // 无限循环
+                            ease: "easeInOut" // 缓入缓出
+                        }}
+                    >
+                        ♥
+                    </motion.span>
                 </span>
             </motion.footer>
         </div>
