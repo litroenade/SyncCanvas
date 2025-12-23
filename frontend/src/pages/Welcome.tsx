@@ -306,7 +306,7 @@ export const Welcome: React.FC = () => {
                                             {feature.title}
                                         </h3>
                                         <p className={cn(
-                                            'text-[10px] leading-tight opacity-80',
+                                            'text-[12px] leading-tight opacity-80',
                                             isDark ? 'text-slate-400' : 'text-slate-500'
                                         )}>
                                             {feature.desc}
