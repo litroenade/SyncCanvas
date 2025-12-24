@@ -259,6 +259,7 @@ class AIService:
         step_callback: Optional[Callable] = None,
         user_id: Optional[str] = None,
         theme: str = "light",
+        virtual_mode: bool = False,
     ) -> Dict[str, Any]:
         """处理用户 AI 请求 (支持流式步骤回调)
 
@@ -270,9 +271,11 @@ class AIService:
             step_callback: 步骤回调函数，接收 ReActStep 参数
             user_id: 用户 ID (可选)
             theme: 画布主题 ("light" | "dark")
+            virtual_mode: 虚拟模式 - 工具调用不写入 Yjs，而是返回元素数据
 
         Returns:
             dict: 包含 response, run_id, status, metrics 的结果
+                  虚拟模式下额外包含 virtual_elements
         """
 
         start_time = time.time()
@@ -289,9 +292,13 @@ class AIService:
             run_id = run.id
         assert run_id is not None, "Run ID should be set after creation"
 
-        # 初始化上下文
+        # 初始化上下文 - 支持虚拟模式
         context = AgentContext(
-            run_id=run_id, session_id=session_id, user_id=user_id, theme=theme
+            run_id=run_id,
+            session_id=session_id,
+            user_id=user_id,
+            theme=theme,
+            virtual_mode=virtual_mode,
         )
 
         self._active_contexts[run_id] = context
@@ -349,7 +356,7 @@ class AIService:
                 },
             )
 
-            return {
+            result = {
                 "status": "success",
                 "response": response,
                 "run_id": run_id,
@@ -361,6 +368,10 @@ class AIService:
                     **agent.metrics.to_dict(),
                 },
             }
+            # 虚拟模式：返回元素数据
+            if virtual_mode:
+                result["virtual_elements"] = context.virtual_elements
+            return result
 
         except Exception as e:  # pylint: disable=broad-except
             error_msg = str(e)

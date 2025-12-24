@@ -73,9 +73,15 @@ class AgentContext:
     session_id: str
     user_id: Optional[str] = None
     theme: str = "light"  # 画布主题 ("light" | "dark")
+    virtual_mode: bool = (
+        False  # 虚拟模式：工具调用不写入 Yjs，而是存储到 virtual_elements
+    )
     shared_state: Dict[str, Any] = field(default_factory=dict)
     tool_results: List[Dict[str, Any]] = field(default_factory=list)
     created_element_ids: List[str] = field(default_factory=list)
+    virtual_elements: List[Dict[str, Any]] = field(
+        default_factory=list
+    )  # 虚拟模式下的元素
     _cancelled: bool = field(default=False, repr=False)
     _ydoc: Any = field(default=None, repr=False)
     # 记忆相关

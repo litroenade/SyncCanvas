@@ -4,10 +4,10 @@
  * 提供 AI WebSocket 流式交互功能，支持实时步骤反馈
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { 
-    AIStreamClient, 
-    AIStreamStep, 
-    AIStreamComplete, 
+import {
+    AIStreamClient,
+    AIStreamStep,
+    AIStreamComplete,
     AIStreamError,
     AIStreamStarted,
 } from '../services/api/ai';
@@ -31,6 +31,8 @@ export interface AIStreamState {
     error: string | null;
     /** 创建的元素 ID 列表 */
     elementsCreated: string[];
+    /** 虚拟模式下返回的元素数据 */
+    virtualElements: Record<string, unknown>[];
 }
 
 export interface UseAIStreamReturn extends AIStreamState {
@@ -39,7 +41,11 @@ export interface UseAIStreamReturn extends AIStreamState {
     /** 断开连接 */
     disconnect: () => void;
     /** 发送请求 */
-    sendRequest: (prompt: string, options?: { theme?: string }) => Promise<void>;
+    sendRequest: (prompt: string, options?: {
+        theme?: string;
+        virtual_mode?: boolean;
+        mode?: 'agent' | 'planning' | 'mermaid';
+    }) => Promise<void>;
     /** 重置状态 */
     reset: () => void;
 }
@@ -49,7 +55,7 @@ export interface UseAIStreamReturn extends AIStreamState {
  */
 export function useAIStream({ roomId, autoConnect = false }: UseAIStreamOptions): UseAIStreamReturn {
     const clientRef = useRef<AIStreamClient | null>(null);
-    
+
     const [state, setState] = useState<AIStreamState>({
         isConnected: false,
         isLoading: false,
@@ -57,6 +63,7 @@ export function useAIStream({ roomId, autoConnect = false }: UseAIStreamOptions)
         response: null,
         error: null,
         elementsCreated: [],
+        virtualElements: [],
     });
 
     // 处理步骤消息
@@ -74,6 +81,7 @@ export function useAIStream({ roomId, autoConnect = false }: UseAIStreamOptions)
             isLoading: false,
             response: result.response,
             elementsCreated: result.elements_created,
+            virtualElements: result.virtual_elements || [],
         }));
     }, []);
 
@@ -126,8 +134,8 @@ export function useAIStream({ roomId, autoConnect = false }: UseAIStreamOptions)
             setState(prev => ({ ...prev, isConnected: true }));
         } catch (error) {
             console.error('[useAIStream] 连接失败:', error);
-            setState(prev => ({ 
-                ...prev, 
+            setState(prev => ({
+                ...prev,
                 error: '连接失败，请重试',
                 isConnected: false,
             }));
@@ -142,7 +150,11 @@ export function useAIStream({ roomId, autoConnect = false }: UseAIStreamOptions)
     }, []);
 
     // 发送请求
-    const sendRequest = useCallback(async (prompt: string, options?: { theme?: string }) => {
+    const sendRequest = useCallback(async (prompt: string, options?: {
+        theme?: string;
+        virtual_mode?: boolean;
+        mode?: 'agent' | 'planning' | 'mermaid';
+    }) => {
         // 如果未连接，先连接
         if (!clientRef.current?.isConnected) {
             await connect();
@@ -153,8 +165,29 @@ export function useAIStream({ roomId, autoConnect = false }: UseAIStreamOptions)
             return;
         }
 
+        // 根据模式调整选项
+        const mode = options?.mode || 'agent';
+        const adjustedOptions: { theme?: string; virtual_mode?: boolean; mode?: string } = {
+            ...options,
+            mode,
+        };
+
+        // Planning 模式自动启用虚拟模式
+        if (mode === 'planning') {
+            adjustedOptions.virtual_mode = true;
+        }
+
+        // Mermaid 模式可以在 prompt 中增加提示
+        let finalPrompt = prompt;
+        if (mode === 'mermaid') {
+            // 如果用户没有明确提到 mermaid，添加提示
+            if (!prompt.toLowerCase().includes('mermaid')) {
+                finalPrompt = `请使用 Mermaid 语法来实现以下需求: ${prompt}`;
+            }
+        }
+
         // 发送请求
-        clientRef.current.sendRequest(prompt, options);
+        clientRef.current.sendRequest(finalPrompt, adjustedOptions);
     }, [connect]);
 
     // 重置状态
@@ -166,6 +199,7 @@ export function useAIStream({ roomId, autoConnect = false }: UseAIStreamOptions)
             response: null,
             error: null,
             elementsCreated: [],
+            virtualElements: [],
         });
     }, []);
 

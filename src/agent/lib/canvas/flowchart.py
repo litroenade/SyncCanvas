@@ -77,7 +77,7 @@ async def create_flowchart_node(
     # 创建形状元素
     shape_id = generate_element_id(node_type)
     shape = base_excalidraw_element(
-        node_type, x, y, width, height, stroke_color, bg_color
+        node_type, x, y, width, height, stroke_color, bg_color, theme=context.theme
     )
     shape["id"] = shape_id
 
@@ -99,7 +99,7 @@ async def create_flowchart_node(
         "height": 20,
         "frameId": None,  # Required for Excalidraw
         "angle": 0,  # Excalidraw 必需字段
-        "strokeColor": stroke_color,
+        "strokeColor": theme_colors["text"],  # 使用主题文本颜色
         "backgroundColor": "transparent",
         "fillStyle": "solid",
         "strokeWidth": 1,
@@ -129,6 +129,25 @@ async def create_flowchart_node(
 
     # 更新形状的 boundElements
     shape["boundElements"] = [{"id": text_id, "type": "text"}]
+
+    if context.virtual_mode:
+        context.virtual_elements.append(shape)
+        context.virtual_elements.append(text_element)
+        context.created_element_ids.append(shape_id)
+        logger.info(
+            "[create_flowchart_node] 虚拟模式: 已添加 shape=%s, text=%s",
+            shape_id,
+            text_id,
+        )
+        return {
+            "status": "success",
+            "message": f"已创建 {node_type} 节点: {label} (虚拟模式)",
+            "element_id": shape_id,
+            "text_id": text_id,
+            "position": {"x": x, "y": y},
+            "size": {"width": width, "height": height},
+            "elements": [shape, text_element],  # 虚拟模式返回完整元素
+        }
 
     with doc.transaction(origin="ai-engine/create_flowchart_node"):
         append_element_as_ymap(elements_array, shape)
@@ -253,6 +272,7 @@ async def connect_nodes(
         abs(arrow_end_y - arrow_start_y),
         stroke_color,
         "transparent",
+        theme=context.theme,
     )
     arrow.update(
         {
@@ -264,20 +284,20 @@ async def connect_nodes(
             "startBinding": {
                 "elementId": from_id,
                 "focus": 0,
-                "gap": 4,
+                "gap": 8,  # 增加间距避免遮挡
                 "fixedPoint": None,
             },
             "endBinding": {
                 "elementId": to_id,
                 "focus": 0,
-                "gap": 4,
+                "gap": 8,  # 增加间距避免遮挡
                 "fixedPoint": None,
             },
             "startArrowhead": None,
             "endArrowhead": "arrow",
             "strokeWidth": 2,
-            "elbowed": False,  # Excalidraw 箭头必需: 是否为折线箭头
-            "roundness": {"type": 2},  # 线性元素使用 ADAPTIVE_RADIUS
+            "elbowed": False,  # 使用曲线箭头，不是折线
+            "roundness": {"type": 2},  # 线性元素使用 ADAPTIVE_RADIUS 实现曲线
         }
     )
 

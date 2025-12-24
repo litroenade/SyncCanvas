@@ -20,7 +20,7 @@ import type { ExcalidrawElement } from '../../lib/yjs';
 import { useNavigate } from 'react-router-dom';
 import { HistoryPanel } from './HistoryPanel';
 import { MobileFAB } from './MobileFAB';
-import { AIAssistant } from './AIAssistant';
+import { AISidebar } from '../ai/AISidebar';
 import { ModelSettingsDialog } from '../common/ModelSettingsDialog';
 import { cn } from '../../lib/utils';
 import {
@@ -31,7 +31,6 @@ import {
     WifiOff,
     Loader2,
     Sparkles,
-    Bot,
     Settings,
 } from 'lucide-react';
 
@@ -40,23 +39,17 @@ interface CanvasProps {
     roomName?: string;
 }
 
-/**
- * 滚动到新创建的元素
- */
+// scrollToNewElements 保留用于将来在浮动模式中使用
+// 如果恢复 AIAssistant 请取消注释
+/*
 const scrollToNewElements = (
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     excalidrawAPI: any,
     elementIds: string[],
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     allElements: readonly any[]
 ) => {
     if (!excalidrawAPI || !elementIds?.length || !allElements?.length) return;
-
-    // 找到新创建的元素
     const newElements = allElements.filter(el => elementIds.includes(el.id));
     if (newElements.length === 0) return;
-
-    // 滚动到这些元素
     try {
         excalidrawAPI.scrollToContent(newElements, {
             fitToViewport: true,
@@ -68,6 +61,7 @@ const scrollToNewElements = (
         console.warn('[Canvas] scrollToContent 失败:', error);
     }
 };
+*/
 
 const HISTORY_SIDEBAR_NAME = 'history-panel';
 
@@ -118,7 +112,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
     const [excalidrawAPI, setExcalidrawAPI] = useState<any>(null);
     const isRemoteUpdateRef = useRef(false);
     const { isMobile, isTouchDevice } = useDeviceType();
-    const [showAIAssistant, setShowAIAssistant] = useState(false);
+    const [showAISidebar, setShowAISidebar] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     // 调试: 鼠标画布坐标
     const [debugCoords, setDebugCoords] = useState<{ x: number; y: number } | null>(null);
@@ -141,44 +135,44 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
     // 同步远程元素更新
     useEffect(() => {
         console.log('[Canvas] useEffect 触发: excalidrawAPI=', !!excalidrawAPI, 'elements.length=', elements.length);
-        
+
         if (excalidrawAPI && elements.length > 0) {
             // ========== 调试: updateScene 前的场景状态 ==========
             const beforeElements = excalidrawAPI.getSceneElements();
             console.log('[Canvas] updateScene 前场景元素数量:', beforeElements.length);
-            
+
             console.log('[Canvas] 调用 updateScene, 传入元素数量:', elements.length);
             // 打印第一个元素的完整数据用于格式验证
             if (elements.length > 0) {
                 console.log('[Canvas] 第一个元素完整数据:', JSON.stringify(elements[0], null, 2));
             }
-            
+
             isRemoteUpdateRef.current = true;
-            
+
             // 使用 CaptureUpdateAction.NEVER 因为这是远程同步，不需要记录到 undo 历史
             excalidrawAPI.updateScene({
                 elements,
                 captureUpdate: CaptureUpdateAction.NEVER,
             });
-            
+
             // ========== 调试: 立即检查 updateScene 结果 ==========
             const afterImmediate = excalidrawAPI.getSceneElements();
             console.log('[Canvas] updateScene 后立即检查:', afterImmediate.length, '个元素');
-            
+
             if (afterImmediate.length === 0 && elements.length > 0) {
-                console.error('[Canvas] ❌ updateScene 未能添加元素! 可能是元素格式问题');
+                console.error('[Canvas]   updateScene 未能添加元素! 可能是元素格式问题');
                 console.error('[Canvas] 传入的元素类型:', elements.map(e => e.type));
             }
-            
+
             // 50ms 后再次检查，确认是否被 onChange 覆盖
             setTimeout(() => {
                 const afterDelayed = excalidrawAPI.getSceneElements();
                 console.log('[Canvas] 50ms 后检查:', afterDelayed.length, '个元素');
-                
+
                 if (afterDelayed.length === 0 && afterImmediate.length > 0) {
-                    console.error('[Canvas] ❌ 元素被清除了！可能被 onChange 覆盖');
+                    console.error('[Canvas]   元素被清除了！可能被 onChange 覆盖');
                 } else if (afterDelayed.length > 0) {
-                    console.log('[Canvas] ✅ 场景元素确认存在');
+                    console.log('[Canvas]   场景元素确认存在');
                     // 自动滚动到内容
                     excalidrawAPI.scrollToContent(afterDelayed, {
                         fitToViewport: true,
@@ -187,11 +181,11 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
                     });
                 }
             }, 50);
-            
+
             if (files && Object.keys(files).length > 0) {
                 excalidrawAPI.addFiles(Object.values(files));
             }
-            
+
             // 延长保护时间，防止 onChange 覆盖
             setTimeout(() => { isRemoteUpdateRef.current = false; }, 500);
         }
@@ -200,7 +194,7 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const onChangeHandler = useCallback((newElements: readonly ExcalidrawElement[], appState: any, newFiles: any) => {
         console.log('[Canvas] onChange 触发, isRemoteUpdate:', isRemoteUpdateRef.current, 'newElements:', newElements.length);
-        
+
         if (isRemoteUpdateRef.current) {
             console.log('[Canvas] 跳过本地变更 (远程更新保护中)');
             return;
@@ -389,44 +383,15 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
                 </div>
             )}
 
-            {/* ==================== AI 助手按钮（右下角） ==================== */}
+            {/* ==================== AI 侧边栏 ==================== */}
+            {/* 侧边栏自带边缘标签用于展开 */}
             {!isGuest && roomId && !isMobile && (
-                <button
-                    onClick={() => setShowAIAssistant(!showAIAssistant)}
-                    className={cn(
-                        'fixed z-[45] p-3 rounded-2xl',
-                        'transition-all duration-300',
-                        'shadow-lg hover:shadow-xl',
-                        'active:scale-95',
-                        showAIAssistant
-                            ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white'
-                            : isDark
-                                ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
-                                : 'bg-white hover:bg-zinc-50 text-zinc-700 border border-zinc-200'
-                    )}
-                    style={{
-                        right: 'max(16px, env(safe-area-inset-right, 16px))',
-                        bottom: 'max(16px, env(safe-area-inset-bottom, 16px))',
-                    }}
-                    title="AI 助手"
-                >
-                    <Bot size={22} />
-                </button>
-            )}
-
-            {/* ==================== AI 助手面板 ==================== */}
-            {!isGuest && roomId && (
-                <AIAssistant
+                <AISidebar
                     roomId={roomId}
                     isDark={isDark}
-                    isOpen={showAIAssistant}
-                    onClose={() => setShowAIAssistant(false)}
-                    onElementsCreated={(elementIds) => {
-                        // 延迟一下让 Yjs 有时间同步
-                        setTimeout(() => {
-                            scrollToNewElements(excalidrawAPI, elementIds, elements);
-                        }, 500);
-                    }}
+                    isOpen={showAISidebar}
+                    onToggle={() => setShowAISidebar(!showAISidebar)}
+                    excalidrawAPI={excalidrawAPI}
                 />
             )}
 

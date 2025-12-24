@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { configApi, ModelGroupConfig } from '../../services/api/config';
+import { configApi, ModelGroup, ModelGroupConfig } from '../../services/api/config';
 import {
     Cpu,
     Plus,
@@ -35,11 +35,11 @@ const PROVIDERS = [
 export function SettingsPanel({ isDark = false }: SettingsPanelProps) {
     const queryClient = useQueryClient();
     const [expandedSection, setExpandedSection] = useState<string | null>('models');
-    const [editingGroup, setEditingGroup] = useState<{ name: string; config: ModelGroupConfig } | null>(null);
+    const [editingGroup, setEditingGroup] = useState<{ name: string; config: ModelGroupConfig; isNew?: boolean } | null>(null);
     const [showApiKey, setShowApiKey] = useState(false);
 
     // 查询模型组 (添加缓存避免重复请求)
-    const { data: modelGroups = {}, isLoading } = useQuery<Record<string, ModelGroupConfig>>({
+    const { data: modelGroups = {}, isLoading } = useQuery<Record<string, ModelGroup>>({
         queryKey: ['model-groups'],
         queryFn: configApi.getModelGroups,
         staleTime: 60000, // 1分钟内不重新请求
@@ -47,8 +47,14 @@ export function SettingsPanel({ isDark = false }: SettingsPanelProps) {
 
     // 保存模型组
     const saveMutation = useMutation({
-        mutationFn: ({ name, config }: { name: string; config: ModelGroupConfig }) =>
-            configApi.updateModelGroup(name, config),
+        mutationFn: ({ name, config }: { name: string; config: ModelGroupConfig }) => {
+            // 将 ModelGroupConfig 转换为 ModelGroup
+            const modelGroup: ModelGroup = {
+                name,
+                chat_model: config,
+            };
+            return configApi.updateModelGroup(name, modelGroup);
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['model-groups'] });
             setEditingGroup(null);
@@ -116,7 +122,7 @@ export function SettingsPanel({ isDark = false }: SettingsPanelProps) {
                         ) : (
                             <>
                                 {/* 模型组列表 */}
-                                {Object.entries(modelGroups).map(([name, config]) => (
+                                {Object.entries(modelGroups).map(([name, group]) => (
                                     <div
                                         key={name}
                                         className={cn(
@@ -127,11 +133,11 @@ export function SettingsPanel({ isDark = false }: SettingsPanelProps) {
                                         <div className="flex items-center justify-between">
                                             <div>
                                                 <div className="font-medium">{name}</div>
-                                                <div className="text-xs opacity-60">{config.model}</div>
+                                                <div className="text-xs opacity-60">{group.chat_model?.model}</div>
                                             </div>
                                             <div className="flex gap-1">
                                                 <button
-                                                    onClick={() => setEditingGroup({ name, config })}
+                                                    onClick={() => setEditingGroup({ name, config: group.chat_model })}
                                                     className="p-1 hover:bg-zinc-600/30 rounded"
                                                 >
                                                     <Edit2 size={14} />

@@ -58,6 +58,49 @@ class RunHistoryRequest(BaseModel):
     limit: int = Field(20, description="返回数量限制", ge=1, le=100)
 
 
+class MermaidRequest(BaseModel):
+    """Mermaid 生成请求模型
+
+    Attributes:
+        prompt: 用户描述的流程图内容
+    """
+
+    prompt: str = Field(..., description="流程图描述", min_length=1, max_length=2000)
+
+
+class MermaidResponse(BaseModel):
+    """Mermaid 生成响应模型
+
+    Attributes:
+        code: 生成的 Mermaid 代码
+        status: 状态
+    """
+
+    code: str
+    status: str = "success"
+
+
+@router.post("/mermaid", response_model=MermaidResponse)
+async def generate_mermaid(request: MermaidRequest):
+    """使用 AI 生成 Mermaid 流程图代码
+
+    根据用户的自然语言描述，生成对应的 Mermaid 流程图语法代码。
+    生成的代码可以在前端使用 @excalidraw/mermaid-to-excalidraw 转换为图形。
+
+    Args:
+        request: Mermaid 生成请求
+
+    Returns:
+        MermaidResponse: 包含生成的 Mermaid 代码
+    """
+    from src.agent.lib.tools.mermaid import generate_mermaid_code
+
+    logger.info("收到 Mermaid 生成请求", extra={"prompt_length": len(request.prompt)})
+
+    result = await generate_mermaid_code(request.prompt)
+    return MermaidResponse(code=result["code"], status=result["status"])
+
+
 @router.post("/generate", response_model=GenerateResponse)
 async def generate_shapes(
     request: GenerateRequest, session: Session = Depends(get_session)
@@ -443,8 +486,9 @@ async def ai_stream_websocket(
                 }
             )
 
-            # 获取主题
+            # 获取主题和虚拟模式
             theme = data.get("theme", "light")
+            virtual_mode = data.get("virtual_mode", False)
 
             # 处理请求
             try:
@@ -455,20 +499,25 @@ async def ai_stream_websocket(
                         websocket, room_id, step
                     ),
                     theme=theme,
+                    virtual_mode=virtual_mode,
                 )
 
                 # 发送完成消息
-                await websocket.send_json(
-                    {
-                        "type": "complete",
-                        "status": result.get("status", "success"),
-                        "response": result.get("response", ""),
-                        "run_id": result.get("run_id", 0),
-                        "elements_created": result.get("elements_created", []),
-                        "tools_used": result.get("tools_used", []),
-                        "metrics": result.get("metrics", {}),
-                    }
-                )
+                complete_msg = {
+                    "type": "complete",
+                    "status": result.get("status", "success"),
+                    "response": result.get("response", ""),
+                    "run_id": result.get("run_id", 0),
+                    "elements_created": result.get("elements_created", []),
+                    "tools_used": result.get("tools_used", []),
+                    "metrics": result.get("metrics", {}),
+                }
+                # 虚拟模式：返回元素数据
+                if virtual_mode:
+                    complete_msg["virtual_elements"] = result.get(
+                        "virtual_elements", []
+                    )
+                await websocket.send_json(complete_msg)
 
             except Exception as e:  # pylint: disable=broad-except
                 logger.error("AI WebSocket 处理错误: %s", e)

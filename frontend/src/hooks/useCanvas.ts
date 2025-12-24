@@ -118,24 +118,24 @@ export const useCanvas = (roomId?: string) => {
             const origin = event.transaction?.origin;
             const addedCount = event.changes?.added?.size || 0;
             const deletedCount = event.changes?.deleted?.size || 0;
-            
+
             // ========== 诊断日志 ==========
             console.log('[useCanvas] ========== Y.Array observe 触发 ==========');
             console.log('[useCanvas] origin:', origin, '| type:', typeof origin);
             console.log('[useCanvas] changes: added=' + addedCount + ', deleted=' + deletedCount);
             // ========== 诊断日志结束 ==========
-            
+
             // 如果是本地发出的变更，忽略，避免触发 React 更新和 excalidraw updateScene
             // 注意: 只过滤明确的本地 origin
             const LOCAL_ORIGINS = ['excalidraw-sync', 'excalidraw-add', 'excalidraw-update', 'excalidraw-delete', 'excalidraw-clear', 'excalidraw-files-sync'];
             if (typeof origin === 'string' && LOCAL_ORIGINS.includes(origin)) {
                 console.log('[useCanvas] 跳过本地变更:', origin);
                 return;
-            } 
+            }
 
             const newElements = yjsManager.getElements();
             const newElementsStr = JSON.stringify(newElements);
-            
+
             console.log('[useCanvas] 获取元素数量:', newElements.length);
             // 打印前 2 个元素的 id 和 type
             if (newElements.length > 0) {
@@ -146,7 +146,7 @@ export const useCanvas = (roomId?: string) => {
             if (newElementsStr !== lastSyncedElementsRef.current) {
                 lastSyncedElementsRef.current = newElementsStr;
                 setElements(newElements);
-                console.log('[useCanvas] ✅ 已更新 React state, 元素数量:', newElements.length);
+                console.log('[useCanvas]   已更新 React state, 元素数量:', newElements.length);
             } else {
                 console.log('[useCanvas] 元素无变化，跳过更新');
             }

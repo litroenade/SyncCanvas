@@ -109,13 +109,25 @@ async def create_element(
         # 文本元素不需要背景色和圆角
         element["backgroundColor"] = "transparent"
         element["roundness"] = None
+    if context.virtual_mode:
+        context.virtual_elements.append(element)
+        context.created_element_ids.append(element["id"])
+        logger.info(
+            "[create_element] 虚拟模式: 元素已添加到 virtual_elements, count=%d",
+            len(context.virtual_elements),
+        )
+        return {
+            "status": "success",
+            "message": f"已创建 {element_type} (虚拟模式)",
+            "element_id": element["id"],
+            "element": element,  # 虚拟模式返回完整元素数据
+        }
 
     with doc.transaction(origin="ai-engine/create_element"):
         append_element_as_ymap(elements_array, element)
 
-    # ========== 诊断日志: 验证元素已添加 ==========
     logger.info(
-        "[create_element] ✅ 事务完成, array_len=%d, element_id=%s",
+        "[create_element]   事务完成, array_len=%d, element_id=%s",
         len(elements_array),
         element["id"],
     )
@@ -124,13 +136,14 @@ async def create_element(
     for i, el in enumerate(elements_array):
         el_id = el.get("id") if hasattr(el, "get") else None
         if el_id == element["id"]:
-            logger.info("[create_element] ✅ 元素确认存在于 Y.Array[%d]", i)
+            logger.info("[create_element]   元素确认存在于 Y.Array[%d]", i)
             found = True
             break
     if not found:
-        logger.error("[create_element] ❌ 元素未找到! 可能写入失败")
+        logger.error("[create_element]   元素未找到! 可能写入失败")
     # ========== 诊断日志结束 ==========
 
+    context.created_element_ids.append(element["id"])
     logger.info(
         "创建元素: %s", element["id"], extra={"room": room_id, "type": element_type}
     )
@@ -471,6 +484,155 @@ async def batch_create_elements(
     id_mapping: Dict[str, str] = {}
     created_elements = []
     created_edges = []
+    virtual_elements_list: List[Dict[str, Any]] = []  # 虚拟模式下收集的元素
+
+    # ========== Virtual Mode: 不使用事务，直接收集元素 ==========
+    if context.virtual_mode:
+        # 1. 创建所有元素
+        for spec in elements:
+            temp_id = spec.get("id", "")
+            elem_type = spec.get("type", "rectangle")
+            label = spec.get("label", "")
+            x = spec.get("x", 0)
+            y = spec.get("y", 0)
+            width = spec.get("width", 160)
+            height = spec.get("height", 70)
+            stroke_color = spec.get("stroke_color") or theme_colors["stroke"]
+            bg_color = spec.get("bg_color") or theme_colors["background"]
+
+            shape = base_excalidraw_element(
+                elem_type, x, y, width, height, stroke_color, bg_color
+            )
+            shape_id = shape["id"]
+            id_mapping[temp_id] = shape_id
+
+            if elem_type == "rectangle":
+                shape["roundness"] = {"type": 3}
+
+            # 创建绑定的文本元素
+            text_id = f"text_{shape_id}"
+            safe_x = float(x) if x is not None else 0.0
+            safe_y = float(y) if y is not None else 0.0
+            safe_width = float(width) if width is not None else 160.0
+            safe_height = float(height) if height is not None else 70.0
+
+            text_element = {
+                "id": text_id,
+                "type": "text",
+                "x": safe_x + safe_width / 2,
+                "y": safe_y + safe_height / 2,
+                "width": max(safe_width - 20, 20),
+                "height": 20,
+                "frameId": None,
+                "angle": 0,
+                "strokeColor": stroke_color,
+                "backgroundColor": "transparent",
+                "fillStyle": "solid",
+                "strokeWidth": 1,
+                "strokeStyle": "solid",
+                "roughness": 0,
+                "opacity": 100,
+                "groupIds": [],
+                "seed": random.randint(1, 100000),
+                "version": 1,
+                "versionNonce": random.randint(1, 1000000000),
+                "isDeleted": False,
+                "boundElements": None,
+                "updated": 1,
+                "link": None,
+                "locked": False,
+                "text": label or "",
+                "fontSize": 18,
+                "fontFamily": 1,
+                "textAlign": "center",
+                "verticalAlign": "middle",
+                "containerId": shape_id,
+                "originalText": label or "",
+                "autoResize": True,
+                "lineHeight": 1.25,
+            }
+
+            shape["boundElements"] = [{"id": text_id, "type": "text"}]
+
+            virtual_elements_list.append(shape)
+            virtual_elements_list.append(text_element)
+            created_elements.append({
+                "temp_id": temp_id,
+                "element_id": shape_id,
+                "text_id": text_id,
+                "label": label,
+            })
+            context.created_element_ids.append(shape_id)
+
+        # 2. 创建所有连接线 (虚拟模式)
+        for edge in edges:
+            from_temp_id = edge.get("from_id", "")
+            to_temp_id = edge.get("to_id", "")
+            edge_label = edge.get("label")
+
+            from_id = id_mapping.get(from_temp_id)
+            to_id = id_mapping.get(to_temp_id)
+
+            if not from_id or not to_id:
+                continue
+
+            # 查找节点位置 (从虚拟元素列表中)
+            from_node = None
+            to_node = None
+            for el in virtual_elements_list:
+                if el.get("id") == from_id:
+                    from_node = el
+                if el.get("id") == to_id:
+                    to_node = el
+
+            if not from_node or not to_node:
+                continue
+
+            start_x = from_node.get("x", 0) + from_node.get("width", 100) / 2
+            start_y = from_node.get("y", 0) + from_node.get("height", 100)
+            end_x = to_node.get("x", 0) + to_node.get("width", 100) / 2
+            end_y = to_node.get("y", 0)
+
+            arrow = base_excalidraw_element(
+                "arrow",
+                start_x,
+                start_y,
+                abs(end_x - start_x),
+                abs(end_y - start_y),
+                theme_colors["arrow"],
+                "transparent",
+            )
+            arrow.update({
+                "points": [[0, 0], [end_x - start_x, end_y - start_y]],
+                "startBinding": {"elementId": from_id, "focus": 0, "gap": 4},
+                "endBinding": {"elementId": to_id, "focus": 0, "gap": 4},
+                "startArrowhead": None,
+                "endArrowhead": "arrow",
+                "strokeWidth": 2,
+            })
+
+            virtual_elements_list.append(arrow)
+            created_edges.append({
+                "arrow_id": arrow["id"],
+                "from_id": from_id,
+                "to_id": to_id,
+                "label": edge_label,
+            })
+
+        # 将元素添加到 context
+        context.virtual_elements.extend(virtual_elements_list)
+        logger.info(
+            "[batch_create] 虚拟模式: 已添加 %d 个元素到 virtual_elements",
+            len(virtual_elements_list),
+        )
+        return {
+            "status": "success",
+            "message": f"已创建 {len(created_elements)} 个元素和 {len(created_edges)} 条连接 (虚拟模式)",
+            "created_elements": created_elements,
+            "created_edges": created_edges,
+            "elements": virtual_elements_list,  # 虚拟模式返回完整元素数据
+        }
+    # ========== Virtual Mode 结束 ==========
 
     with doc.transaction(origin="ai-engine/batch_create_elements"):
         logger.debug("[batch_create] 事务已开启")
@@ -622,7 +784,7 @@ async def batch_create_elements(
 
     # ========== 诊断日志: 验证批量创建 ==========
     logger.info(
-        "[batch_create] ✅ 事务完成, array_len=%d, created=%d elements + %d edges",
+        "[batch_create]   事务完成, array_len=%d, created=%d elements + %d edges",
         len(elements_array),
         len(created_elements),
         len(created_edges),
@@ -635,7 +797,7 @@ async def batch_create_elements(
             if hasattr(el, "get") and el.get("id") == el_id:
                 found = True
                 break
-        status = "✅" if found else "❌"
+        status = " " if found else " "
         logger.info("[batch_create] %s 元素 %s 验证", status, el_id)
     # ========== 诊断日志结束 ==========
 

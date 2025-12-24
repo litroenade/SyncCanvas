@@ -149,6 +149,8 @@ export interface AIStreamComplete {
     run_id: number;
     elements_created: string[];
     tools_used: string[];
+    /** 虚拟模式下返回的元素数据 */
+    virtual_elements?: Record<string, unknown>[];
     metrics?: {
         duration_ms?: number;
         iterations?: number;
@@ -271,7 +273,7 @@ export class AIStreamClient {
     /**
      * 发送请求
      */
-    sendRequest(prompt: string, options?: { theme?: string }): void {
+    sendRequest(prompt: string, options?: { theme?: string; virtual_mode?: boolean }): void {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
             console.error('[AI Stream] WebSocket 未连接');
             return;
@@ -281,6 +283,7 @@ export class AIStreamClient {
             type: 'request',
             prompt,
             theme: options?.theme ?? 'light',
+            virtual_mode: options?.virtual_mode ?? false,
         }));
     }
 
