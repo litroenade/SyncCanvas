@@ -180,6 +180,44 @@
   overflow: hidden !important;
 }
 
+/* ==================== TTD 对话框修复 (Mermaid/AI 转图功能) ==================== */
+/* 修复 Mermaid-to-Excalidraw 对话框被截断在底部的问题 */
+/* 确保 Modal 不被父元素的 overflow:hidden 截断 */
+.excalidraw .Modal {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  z-index: 9999 !important;
+  pointer-events: auto !important;
+}
+
+/* Modal 内容区域 - 确保可见和可交互 */
+.excalidraw .Modal__content {
+  pointer-events: auto !important;
+  position: relative !important;
+  z-index: 10000 !important;
+}
+
+/* TTD 对话框按钮 - 确保可点击 */
+.excalidraw .ttd-dialog-panel-button,
+.excalidraw .Modal button,
+.excalidraw .Modal .excalidraw-button {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  position: relative !important;
+  z-index: 10001 !important;
+}
+
+/* Modal 背景遮罩 */
+.excalidraw .Modal__background {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9998 !important;
+  pointer-events: auto !important;
+}
+
 .excalidraw-editor-container,
 .excalidraw,
 .excalidraw .excalidraw-container {
