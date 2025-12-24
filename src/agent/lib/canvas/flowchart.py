@@ -15,6 +15,7 @@ from src.agent.lib.canvas.helpers import (
     find_element_by_id,
     append_element_as_ymap,
     get_theme_colors,
+    update_element_in_array,
 )
 from src.logger import get_logger
 
@@ -349,8 +350,28 @@ async def connect_nodes(
         created_elements.append(label_element)
 
     with doc.transaction(origin="ai-engine/connect_nodes"):
+        # 添加箭头和标签元素
         for el in created_elements:
             append_element_as_ymap(elements_array, el)
+
+        # 更新起始节点的 boundElements（双向绑定）
+        start_bound = start_node.get("boundElements") or []
+        if not isinstance(start_bound, list):
+            start_bound = []
+        # 避免重复添加
+        if not any(b.get("id") == arrow_id for b in start_bound if isinstance(b, dict)):
+            start_bound.append({"id": arrow_id, "type": "arrow"})
+            update_element_in_array(
+                elements_array, from_id, {"boundElements": start_bound}
+            )
+
+        # 更新结束节点的 boundElements
+        end_bound = end_node.get("boundElements") or []
+        if not isinstance(end_bound, list):
+            end_bound = []
+        if not any(b.get("id") == arrow_id for b in end_bound if isinstance(b, dict)):
+            end_bound.append({"id": arrow_id, "type": "arrow"})
+            update_element_in_array(elements_array, to_id, {"boundElements": end_bound})
 
     logger.info(
         "创建连接: %s",

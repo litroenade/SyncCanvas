@@ -84,9 +84,6 @@ class MermaidResponse(BaseModel):
 async def generate_mermaid(request: MermaidRequest):
     """使用 AI 生成 Mermaid 流程图代码
 
-    根据用户的自然语言描述，生成对应的 Mermaid 流程图语法代码。
-    生成的代码可以在前端使用 @excalidraw/mermaid-to-excalidraw 转换为图形。
-
     Args:
         request: Mermaid 生成请求
 
@@ -106,12 +103,6 @@ async def generate_shapes(
     request: GenerateRequest, session: Session = Depends(get_session)
 ):
     """使用 AI Agent 根据用户描述在白板上绘制图形
-
-    支持:
-    - 流程图绘制
-    - 数据流图绘制
-    - 架构图绘制
-    - 一般的图形创建
 
     Args:
         request: AI 生成请求对象

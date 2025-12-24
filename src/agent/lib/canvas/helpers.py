@@ -264,3 +264,30 @@ def append_element_as_ymap(elements_array: Array, element: Dict[str, Any]) -> No
         el_type,
         len(elements_array),
     )
+
+
+def update_element_in_array(
+    elements_array: Array, element_id: str, updates: Dict[str, Any]
+) -> bool:
+    """更新 Y.Array 中指定元素的属性
+
+    Args:
+        elements_array: Y.Array 元素数组
+        element_id: 要更新的元素 ID
+        updates: 要更新的属性字典
+
+    Returns:
+        bool: 是否找到并更新了元素
+    """
+    for el in elements_array:
+        if isinstance(el, Map):
+            if el.get("id") == element_id:
+                for key, value in updates.items():
+                    el[key] = value
+                logger.debug(
+                    "[update_element_in_array] 已更新元素: id=%s, keys=%s",
+                    element_id,
+                    list(updates.keys()),
+                )
+                return True
+    return False
