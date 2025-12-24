@@ -41,3 +41,5 @@ data/*.json
 data/images/*
 !data/.gitkeep
 !data/images/.gitkeep
+data/lib/*
+!data/lib/.gitkeep

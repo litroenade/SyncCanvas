@@ -3,7 +3,9 @@
 """
 
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Any
+import json
 import numpy as np
+from pathlib import Path
 
 from sqlmodel import Session, select
 from openai import AsyncOpenAI
@@ -23,6 +25,10 @@ LIBRARIES_INDEX_URL: str = "https://libraries.excalidraw.com/libraries.json"
 LIBRARY_BASE_URL: str = "https://libraries.excalidraw.com"
 HTTP_TIMEOUT_SECONDS: int = 30
 EMBEDDING_DIMENSION: int = 1536
+
+# Library 本地存储目录
+LIBRARY_DIR = Path(__file__).parent.parent.parent.parent / "data" / "lib"
+LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
 
 _faiss_module = None
 
@@ -128,6 +134,7 @@ class LibraryService:
         description: str,
         source: str,
         items: List[Dict[str, Any]],
+        auto_load: bool = False,
     ) -> Library:
         with Session(engine) as session:
             library = Library(
@@ -159,6 +166,10 @@ class LibraryService:
                 session.add(db_item)
             session.commit()
             session.refresh(library)
+            
+            # 保存到本地文件
+            self._save_library_to_file(library_id, name, description, items, auto_load)
+            
             self._load_faiss_index()
             return library
 
@@ -246,6 +257,82 @@ class LibraryService:
     @property
     def embedding_available(self) -> bool:
         return self._init_embedding_client()
+
+    def _save_library_to_file(
+        self,
+        library_id: str,
+        name: str,
+        description: str,
+        items: List[Dict[str, Any]],
+        auto_load: bool = False,
+    ) -> None:
+        """保存 library 到本地文件"""
+        try:
+            library_data = {
+                "type": "excalidrawlib",
+                "version": 2,
+                "source": "local",
+                "libraryItems": items,
+                "auto_load": auto_load,
+            }
+            filename = f"{library_id}.excalidrawlib"
+            filepath = LIBRARY_DIR / filename
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(library_data, f, ensure_ascii=False, indent=2)
+            logger.info("Library saved to file: %s", filepath)
+        except Exception as e:
+            logger.error("Failed to save library to file: %s", e)
+
+    def load_library_from_file(self, library_id: str) -> Optional[Dict[str, Any]]:
+        """从本地文件加载 library"""
+        try:
+            filename = f"{library_id}.excalidrawlib"
+            filepath = LIBRARY_DIR / filename
+            if not filepath.exists():
+                return None
+            with open(filepath, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error("Failed to load library from file: %s", e)
+            return None
+
+    def get_auto_load_libraries(self) -> List[Dict[str, Any]]:
+        """获取所有设置为常加载的 libraries"""
+        auto_load_libs: List[Dict[str, Any]] = []
+        try:
+            for filepath in LIBRARY_DIR.glob("*.excalidrawlib"):
+                try:
+                    with open(filepath, "r", encoding="utf-8") as f:
+                        lib_data = json.load(f)
+                        if lib_data.get("auto_load", False):
+                            library_id = filepath.stem
+                            auto_load_libs.append({
+                                "id": library_id,
+                                "data": lib_data,
+                                "filepath": str(filepath),
+                            })
+                except Exception as e:
+                    logger.error("Failed to load library file %s: %s", filepath, e)
+        except Exception as e:
+            logger.error("Failed to scan library directory: %s", e)
+        return auto_load_libs
+
+    def set_library_auto_load(self, library_id: str, auto_load: bool) -> bool:
+        """设置 library 的常加载状态"""
+        try:
+            lib_data = self.load_library_from_file(library_id)
+            if lib_data is None:
+                return False
+            lib_data["auto_load"] = auto_load
+            filename = f"{library_id}.excalidrawlib"
+            filepath = LIBRARY_DIR / filename
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(lib_data, f, ensure_ascii=False, indent=2)
+            logger.info("Library %s auto_load set to %s", library_id, auto_load)
+            return True
+        except Exception as e:
+            logger.error("Failed to set auto_load for library %s: %s", library_id, e)
+            return False
 
 
 library_service: LibraryService = LibraryService.get_instance()

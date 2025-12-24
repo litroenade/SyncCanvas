@@ -46,6 +46,20 @@ class ImportRemoteLibraryArgs(BaseModel):
     """导入远程素材库的参数"""
 
     library_id: str = Field(..., description="素材库 ID (从 list_libraries 获取)")
+    auto_load: bool = Field(False, description="是否设置为常加载（自动加载）")
+
+
+class SetLibraryAutoLoadArgs(BaseModel):
+    """设置素材库常加载的参数"""
+
+    library_id: str = Field(..., description="素材库 ID")
+    auto_load: bool = Field(..., description="是否设置为常加载")
+
+
+class GetAutoLoadLibrariesArgs(BaseModel):
+    """获取常加载素材库的参数（无需参数）"""
+
+    pass
 
 
 @registry.register(
@@ -162,6 +176,7 @@ async def search_library_items(
 )
 async def import_remote_library(
     library_id: str,
+    auto_load: bool = False,
     context: Optional[AgentContext] = None,
 ) -> Dict[str, Any]:
     """导入远程素材库到本地数据库"""
@@ -191,13 +206,15 @@ async def import_remote_library(
             description=lib_info.get("description", ""),
             source=source,
             items=items,
+            auto_load=auto_load,
         )
 
         return {
             "status": "success",
-            "message": f"已导入素材库 '{library.name}' ({len(items)} 项)",
+            "message": f"已导入素材库 '{library.name}' ({len(items)} 项){' [常加载]' if auto_load else ''}",
             "library_id": library.id,
             "item_count": len(items),
+            "auto_load": auto_load,
         }
 
     except Exception as e:  # pylint: disable=broad-except
@@ -268,4 +285,64 @@ async def insert_library_item(
 
     except Exception as e:  # pylint: disable=broad-except
         logger.error("插入素材项失败: %s", e)
+        return {"status": "error", "message": str(e)}
+
+
+@registry.register(
+    "set_library_auto_load",
+    "设置素材库的常加载状态",
+    SetLibraryAutoLoadArgs,
+    category=ToolCategory.CANVAS,
+)
+async def set_library_auto_load(
+    library_id: str,
+    auto_load: bool,
+    context: Optional[AgentContext] = None,
+) -> Dict[str, Any]:
+    """设置素材库是否为常加载（自动加载）"""
+    try:
+        success = library_service.set_library_auto_load(library_id, auto_load)
+        if success:
+            return {
+                "status": "success",
+                "message": f"已{'启用' if auto_load else '禁用'}素材库 {library_id} 的常加载",
+                "library_id": library_id,
+                "auto_load": auto_load,
+            }
+        else:
+            return {
+                "status": "error",
+                "message": f"素材库 {library_id} 不存在或设置失败",
+            }
+    except Exception as e:  # pylint: disable=broad-except
+        logger.error("设置素材库常加载失败: %s", e)
+        return {"status": "error", "message": str(e)}
+
+
+@registry.register(
+    "get_auto_load_libraries",
+    "获取所有常加载的素材库",
+    GetAutoLoadLibrariesArgs,
+    category=ToolCategory.CANVAS,
+)
+async def get_auto_load_libraries(
+    context: Optional[AgentContext] = None,
+) -> Dict[str, Any]:
+    """获取所有设置为常加载的素材库"""
+    try:
+        auto_load_libs = library_service.get_auto_load_libraries()
+        result_list = []
+        for lib in auto_load_libs:
+            result_list.append({
+                "id": lib["id"],
+                "filepath": lib["filepath"],
+                "item_count": len(lib["data"].get("libraryItems", [])),
+            })
+        return {
+            "status": "success",
+            "message": f"找到 {len(result_list)} 个常加载素材库",
+            "libraries": result_list,
+        }
+    except Exception as e:  # pylint: disable=broad-except
+        logger.error("获取常加载素材库失败: %s", e)
         return {"status": "error", "message": str(e)}
