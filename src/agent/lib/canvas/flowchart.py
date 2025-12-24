@@ -1,5 +1,5 @@
 ﻿"""模块名称: flowchart
-主要功能: 流程图工具
+主要功能: 流程图工具 - 使用精确数学计算生成 Excalidraw 元素
 """
 
 import random
@@ -11,15 +11,118 @@ from src.agent.lib.canvas.schemas import CreateFlowchartNodeArgs, ConnectNodesAr
 from src.agent.lib.canvas.helpers import (
     require_room_id,
     generate_element_id,
-    base_excalidraw_element,
     find_element_by_id,
     append_element_as_ymap,
     get_theme_colors,
     update_element_in_array,
 )
+from src.agent.lib.math.text import calculate_centered_position
+from src.agent.lib.math.geometry import Rect, calculate_arrow_points
 from src.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def create_complete_flowchart_node(
+    node_id: str,
+    text_id: str,
+    label: str,
+    node_type: str,
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+    stroke_color: str,
+    bg_color: str,
+    text_color: str,
+) -> tuple:
+    """创建完整的流程图节点（形状 + 绑定文本）
+
+    使用精确数学计算确保文本居中
+
+    Returns:
+        (shape_element, text_element) 元组
+    """
+    # 计算文本居中位置
+    text_x, text_y, text_width, text_height = calculate_centered_position(
+        container_x=x,
+        container_y=y,
+        container_width=width,
+        container_height=height,
+        text=label,
+        font_size=18,
+        font_family=1,
+        line_height=1.25,
+    )
+
+    # 创建形状元素
+    shape = {
+        "id": node_id,
+        "type": node_type,
+        "x": x,
+        "y": y,
+        "width": width,
+        "height": height,
+        "frameId": None,
+        "angle": 0,
+        "strokeColor": stroke_color,
+        "backgroundColor": bg_color,
+        "fillStyle": "solid",
+        "strokeWidth": 2,
+        "strokeStyle": "solid",
+        "roughness": 1,
+        "opacity": 100,
+        "groupIds": [],
+        "seed": random.randint(1, 100000),
+        "version": 1,
+        "versionNonce": random.randint(1, 1000000000),
+        "isDeleted": False,
+        "boundElements": [{"id": text_id, "type": "text"}],
+        "updated": 1,
+        "link": None,
+        "locked": False,
+        "roundness": {"type": 3} if node_type in ("rectangle", "ellipse") else None,
+    }
+
+    # 创建文本元素
+    text_element = {
+        "id": text_id,
+        "type": "text",
+        "x": text_x,
+        "y": text_y,
+        "width": text_width,
+        "height": text_height,
+        "frameId": None,
+        "angle": 0,
+        "strokeColor": text_color,
+        "backgroundColor": "transparent",
+        "fillStyle": "solid",
+        "strokeWidth": 1,
+        "strokeStyle": "solid",
+        "roughness": 0,
+        "opacity": 100,
+        "groupIds": [],
+        "seed": random.randint(1, 100000),
+        "version": 1,
+        "versionNonce": random.randint(1, 1000000000),
+        "isDeleted": False,
+        "boundElements": None,
+        "updated": 1,
+        "link": None,
+        "locked": False,
+        "roundness": None,
+        "text": label,
+        "fontSize": 18,
+        "fontFamily": 1,
+        "textAlign": "center",
+        "verticalAlign": "middle",
+        "containerId": node_id,
+        "originalText": label,
+        "autoResize": True,
+        "lineHeight": 1.25,
+    }
+
+    return shape, text_element
 
 
 @registry.register(
@@ -39,7 +142,7 @@ async def create_flowchart_node(
     bg_color: str = "",
     context: Optional[AgentContext] = None,
 ) -> Dict[str, Any]:
-    """创建流程图节点，包含形状和绑定的文本
+    """创建流程图节点，使用精确数学计算确保正确布局
 
     Args:
         label: 节点标签文字
@@ -66,77 +169,42 @@ async def create_flowchart_node(
     theme_colors = get_theme_colors(context.theme)
     stroke_color = stroke_color or theme_colors["stroke"]
     bg_color = bg_color or theme_colors["background"]
+    text_color = theme_colors["text"]
 
     # 根据节点类型调整尺寸
     if node_type == "diamond":
-        width = max(width, 120)
-        height = max(height, 120)
+        width = max(width, 100)
+        height = max(height, 100)
     elif node_type == "ellipse":
         width = max(width, 120)
-        height = max(height, 50)
+        height = max(height, 60)
 
-    # 创建形状元素
+    # 生成 ID
     shape_id = generate_element_id(node_type)
-    shape = base_excalidraw_element(
-        node_type, x, y, width, height, stroke_color, bg_color, theme=context.theme
-    )
-    shape["id"] = shape_id
-
-    # 矩形添加圆角
-    if node_type == "rectangle":
-        shape["roundness"] = {"type": 3}
-
-    # 创建绑定的文本元素
     text_id = generate_element_id("text")
-    text_x = x + width / 2
-    text_y = y + height / 2
 
-    text_element = {
-        "id": text_id,
-        "type": "text",
-        "x": text_x,
-        "y": text_y,
-        "width": width - 20,
-        "height": 20,
-        "frameId": None,  # Required for Excalidraw
-        "angle": 0,  # Excalidraw 必需字段
-        "strokeColor": theme_colors["text"],  # 使用主题文本颜色
-        "backgroundColor": "transparent",
-        "fillStyle": "solid",
-        "strokeWidth": 1,
-        "strokeStyle": "solid",
-        "roughness": 0,
-        "opacity": 100,
-        "groupIds": [],
-        "seed": random.randint(1, 100000),
-        "version": 1,
-        "versionNonce": random.randint(1, 1000000000),
-        "isDeleted": False,
-        "boundElements": None,
-        "updated": 1,
-        "link": None,
-        "locked": False,
-        "roundness": None,  # 文本不需要圆角
-        "text": label,
-        "fontSize": 18,
-        "fontFamily": 1,
-        "textAlign": "center",
-        "verticalAlign": "middle",
-        "containerId": shape_id,  # 绑定到形状容器
-        "originalText": label,
-        "autoResize": True,  # Excalidraw 必需
-        "lineHeight": 1.25,  # Excalidraw 必需
-    }
-
-    # 更新形状的 boundElements
-    shape["boundElements"] = [{"id": text_id, "type": "text"}]
+    # 创建完整元素
+    shape, text_element = create_complete_flowchart_node(
+        node_id=shape_id,
+        text_id=text_id,
+        label=label,
+        node_type=node_type,
+        x=x,
+        y=y,
+        width=width,
+        height=height,
+        stroke_color=stroke_color,
+        bg_color=bg_color,
+        text_color=text_color,
+    )
 
     if context.virtual_mode:
+        # 虚拟模式：存入 virtual_elements
         context.virtual_elements.append(shape)
         context.virtual_elements.append(text_element)
         context.created_element_ids.append(shape_id)
         logger.info(
-            "[create_flowchart_node] 虚拟模式: 已添加 shape=%s, text=%s",
+            "[create_flowchart_node] 虚拟模式: 创建 shape=%s, text=%s",
             shape_id,
             text_id,
         )
@@ -147,9 +215,9 @@ async def create_flowchart_node(
             "text_id": text_id,
             "position": {"x": x, "y": y},
             "size": {"width": width, "height": height},
-            "elements": [shape, text_element],  # 虚拟模式返回完整元素
         }
 
+    # 非虚拟模式：写入画布
     with doc.transaction(origin="ai-engine/create_flowchart_node"):
         append_element_as_ymap(elements_array, shape)
         append_element_as_ymap(elements_array, text_element)
@@ -183,7 +251,7 @@ async def connect_nodes(
     stroke_color: str = "",
     context: Optional[AgentContext] = None,
 ) -> Dict[str, Any]:
-    """用绑定箭头连接两个节点
+    """用箭头连接两个节点，使用智能路径计算
 
     Args:
         from_id: 起始节点 ID
@@ -193,7 +261,7 @@ async def connect_nodes(
         context: Agent 上下文
 
     Returns:
-        dict: 包含 status, arrow_id, label_id 的结果
+        dict: 包含 status, arrow_id 的结果
     """
     if context is None:
         return {"status": "error", "message": "Context is required"}
@@ -206,9 +274,23 @@ async def connect_nodes(
     if doc is None or elements_array is None:
         return {"status": "error", "message": "Failed to get room doc"}
 
-    # 查找起始和结束节点
-    _, start_node = find_element_by_id(elements_array, from_id)
-    _, end_node = find_element_by_id(elements_array, to_id)
+    # 查找节点（从画布或虚拟元素中）
+    start_node = None
+    end_node = None
+
+    # 先从虚拟元素中查找
+    if context.virtual_mode and context.virtual_elements:
+        for el in context.virtual_elements:
+            if el.get("id") == from_id:
+                start_node = el
+            if el.get("id") == to_id:
+                end_node = el
+
+    # 如果虚拟元素中没有，从画布查找
+    if not start_node:
+        _, start_node = find_element_by_id(elements_array, from_id)
+    if not end_node:
+        _, end_node = find_element_by_id(elements_array, to_id)
 
     if not start_node:
         return {
@@ -226,81 +308,56 @@ async def connect_nodes(
             "to_id": to_id,
         }
 
-    # 计算节点边缘连接点
-    start_x = start_node.get("x", 0)
-    start_y = start_node.get("y", 0)
-    start_w = start_node.get("width", 100)
-    start_h = start_node.get("height", 100)
+    # 使用数学计算获取最佳箭头路径
+    from_rect = Rect.from_element(start_node)
+    to_rect = Rect.from_element(end_node)
+    start_point, points = calculate_arrow_points(from_rect, to_rect, gap=8.0)
 
-    end_x = end_node.get("x", 0)
-    end_y = end_node.get("y", 0)
-    end_w = end_node.get("width", 100)
-    end_h = end_node.get("height", 100)
-
-    # 计算中心点
-    start_cx = start_x + start_w / 2
-    start_cy = start_y + start_h / 2
-    end_cx = end_x + end_w / 2
-    end_cy = end_y + end_h / 2
-
-    # 确定连接点
-    if end_cy > start_cy:
-        arrow_start_y = start_y + start_h
-        arrow_end_y = end_y
-    else:
-        arrow_start_y = start_y
-        arrow_end_y = end_y + end_h
-
-    # 处理水平方向
-    if abs(end_cx - start_cx) > 50:
-        if end_cx > start_cx:
-            arrow_start_x = start_x + start_w
-            arrow_end_x = end_x
-        else:
-            arrow_start_x = start_x
-            arrow_end_x = end_x + end_w
-    else:
-        arrow_start_x = start_cx
-        arrow_end_x = end_cx
-
-    # 创建箭头
+    # 创建箭头元素
     arrow_id = generate_element_id("arrow")
-    arrow = base_excalidraw_element(
-        "arrow",
-        arrow_start_x,
-        arrow_start_y,
-        abs(arrow_end_x - arrow_start_x),
-        abs(arrow_end_y - arrow_start_y),
-        stroke_color,
-        "transparent",
-        theme=context.theme,
-    )
-    arrow.update(
-        {
-            "id": arrow_id,
-            "points": [
-                [0, 0],
-                [arrow_end_x - arrow_start_x, arrow_end_y - arrow_start_y],
-            ],
-            "startBinding": {
-                "elementId": from_id,
-                "focus": 0,
-                "gap": 8,  # 增加间距避免遮挡
-                "fixedPoint": None,
-            },
-            "endBinding": {
-                "elementId": to_id,
-                "focus": 0,
-                "gap": 8,  # 增加间距避免遮挡
-                "fixedPoint": None,
-            },
-            "startArrowhead": None,
-            "endArrowhead": "arrow",
-            "strokeWidth": 2,
-            "elbowed": False,  # 使用曲线箭头，不是折线
-            "roundness": {"type": 2},  # 线性元素使用 ADAPTIVE_RADIUS 实现曲线
-        }
-    )
+    arrow = {
+        "id": arrow_id,
+        "type": "arrow",
+        "x": start_point.x,
+        "y": start_point.y,
+        "width": abs(points[1][0]) if len(points) > 1 else 0,
+        "height": abs(points[1][1]) if len(points) > 1 else 0,
+        "frameId": None,
+        "angle": 0,
+        "strokeColor": stroke_color,
+        "backgroundColor": "transparent",
+        "fillStyle": "solid",
+        "strokeWidth": 2,
+        "strokeStyle": "solid",
+        "roughness": 1,
+        "opacity": 100,
+        "groupIds": [],
+        "seed": random.randint(1, 100000),
+        "version": 1,
+        "versionNonce": random.randint(1, 1000000000),
+        "isDeleted": False,
+        "boundElements": None,
+        "updated": 1,
+        "link": None,
+        "locked": False,
+        "points": points,
+        "startBinding": {
+            "elementId": from_id,
+            "focus": 0,
+            "gap": 8,
+            "fixedPoint": None,
+        },
+        "endBinding": {
+            "elementId": to_id,
+            "focus": 0,
+            "gap": 8,
+            "fixedPoint": None,
+        },
+        "startArrowhead": None,
+        "endArrowhead": "arrow",
+        "elbowed": False,
+        "roundness": {"type": 2},
+    }
 
     created_elements = [arrow]
     label_id = None
@@ -308,18 +365,19 @@ async def connect_nodes(
     # 如果有标签，创建标签文本
     if label:
         label_id = generate_element_id("label")
-        mid_x = (arrow_start_x + arrow_end_x) / 2
-        mid_y = (arrow_start_y + arrow_end_y) / 2
+        # 标签位于箭头中点
+        mid_x = start_point.x + points[1][0] / 2
+        mid_y = start_point.y + points[1][1] / 2
 
         label_element = {
             "id": label_id,
             "type": "text",
-            "x": mid_x - 15,
+            "x": mid_x - len(label) * 4,
             "y": mid_y - 10,
-            "width": 30,
+            "width": len(label) * 8,
             "height": 20,
-            "frameId": None,  # Required for Excalidraw
-            "angle": 0,  # Excalidraw 必需字段
+            "frameId": None,
+            "angle": 0,
             "strokeColor": stroke_color,
             "backgroundColor": "transparent",
             "fillStyle": "solid",
@@ -336,21 +394,38 @@ async def connect_nodes(
             "updated": 1,
             "link": None,
             "locked": False,
-            "roundness": None,  # 文本不需要圆角
+            "roundness": None,
             "text": label,
             "fontSize": 14,
             "fontFamily": 1,
             "textAlign": "center",
             "verticalAlign": "middle",
             "originalText": label,
-            "autoResize": True,  # Excalidraw 必需
-            "lineHeight": 1.25,  # Excalidraw 必需
-            "containerId": None,  # 独立文本，不绑定容器
+            "autoResize": True,
+            "lineHeight": 1.25,
+            "containerId": None,
         }
         created_elements.append(label_element)
 
+    if context.virtual_mode:
+        # 虚拟模式
+        for el in created_elements:
+            context.virtual_elements.append(el)
+        logger.info(
+            "[connect_nodes] 虚拟模式: 创建箭头 %s -> %s",
+            from_id,
+            to_id,
+        )
+        return {
+            "status": "success",
+            "message": f"已连接节点 {from_id} -> {to_id}"
+            + (f" (标签: {label})" if label else ""),
+            "arrow_id": arrow_id,
+            "label_id": label_id,
+        }
+
+    # 非虚拟模式：写入画布
     with doc.transaction(origin="ai-engine/connect_nodes"):
-        # 添加箭头和标签元素
         for el in created_elements:
             append_element_as_ymap(elements_array, el)
 
@@ -358,7 +433,6 @@ async def connect_nodes(
         start_bound = start_node.get("boundElements") or []
         if not isinstance(start_bound, list):
             start_bound = []
-        # 避免重复添加
         if not any(b.get("id") == arrow_id for b in start_bound if isinstance(b, dict)):
             start_bound.append({"id": arrow_id, "type": "arrow"})
             update_element_in_array(

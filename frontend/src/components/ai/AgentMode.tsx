@@ -61,6 +61,9 @@ export const AgentMode: React.FC<AgentModeProps> = ({
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
     const [thinkingStartTime, setThinkingStartTime] = useState<number | null>(null);
+    // 持久化的虚拟画布状态（跨消息累积）
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [persistedVirtualElements, setPersistedVirtualElements] = useState<any[]>([]);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     // 使用 WebSocket 流式 AI
@@ -152,6 +155,10 @@ export const AgentMode: React.FC<AgentModeProps> = ({
                     }
                     : msg
             ));
+            // 累积虚拟元素到持久化状态
+            if (virtualElements && virtualElements.length > 0) {
+                setPersistedVirtualElements(prev => [...prev, ...virtualElements]);
+            }
             setThinkingStartTime(null);
         }
     }, [response, isLoading, thinkingStartTime, virtualElements]);
@@ -350,8 +357,10 @@ export const AgentMode: React.FC<AgentModeProps> = ({
                                         console.warn('excalidrawAPI 不可用');
                                         return;
                                     }
+                                    // 后端生成的是完整 Excalidraw 元素，直接添加
                                     const existingElements = excalidrawAPI.getSceneElements();
-                                    const newElements = message.virtualElements as unknown as import('../../lib/yjs').ExcalidrawElement[];
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                    const newElements = message.virtualElements as any[];
                                     excalidrawAPI.updateScene({
                                         elements: [...existingElements, ...newElements],
                                     });

@@ -81,6 +81,93 @@ class CanvasStateProvider:
 
         return summary
 
+    def get_element_details(
+        self, elements: List[Dict[str, Any]], max_items: int = 20
+    ) -> str:
+        """生成详细元素列表，包含 ID 以便 Agent 引用
+
+        Args:
+            elements: Excalidraw 元素列表
+            max_items: 最多显示的元素数量
+
+        Returns:
+            格式化的元素列表
+        """
+        if not elements:
+            return "（无元素）"
+
+        # 类型映射
+        type_names = {
+            "rectangle": "矩形",
+            "ellipse": "椭圆",
+            "diamond": "菱形",
+            "arrow": "箭头",
+            "line": "线条",
+            "text": "文本",
+            "freedraw": "手绘",
+            "image": "图片",
+        }
+
+        # 构建元素到绑定文本的映射
+        container_texts: Dict[str, str] = {}
+        for el in elements:
+            if el.get("isDeleted"):
+                continue
+            if el.get("type") == "text" and el.get("containerId"):
+                container_texts[el["containerId"]] = el.get("text", "")[:30]
+
+        lines = []
+        count = 0
+        for el in elements:
+            if el.get("isDeleted"):
+                continue
+
+            el_type = el.get("type", "unknown")
+            el_id = el.get("id", "?")
+
+            # 跳过绑定到容器的文本（已在容器描述中显示）
+            if el_type == "text" and el.get("containerId"):
+                continue
+
+            type_name = type_names.get(el_type, el_type)
+            x = int(el.get("x", 0))
+            y = int(el.get("y", 0))
+
+            # 构建描述
+            if el_type in ("rectangle", "ellipse", "diamond"):
+                label = container_texts.get(el_id, "")
+                if label:
+                    desc = f'- {type_name} [{el_id}]: "{label}" 位于 ({x}, {y})'
+                else:
+                    desc = f"- {type_name} [{el_id}] 位于 ({x}, {y})"
+            elif el_type == "arrow":
+                start_id = (
+                    el.get("startBinding", {}).get("elementId", "?")
+                    if el.get("startBinding")
+                    else "?"
+                )
+                end_id = (
+                    el.get("endBinding", {}).get("elementId", "?")
+                    if el.get("endBinding")
+                    else "?"
+                )
+                desc = f"- {type_name} [{el_id}]: {start_id} → {end_id}"
+            elif el_type == "text":
+                text = el.get("text", "")[:20]
+                desc = f'- {type_name} [{el_id}]: "{text}"'
+            else:
+                desc = f"- {type_name} [{el_id}] 位于 ({x}, {y})"
+
+            lines.append(desc)
+            count += 1
+            if count >= max_items:
+                remaining = len([e for e in elements if not e.get("isDeleted")]) - count
+                if remaining > 0:
+                    lines.append(f"... 还有 {remaining} 个元素")
+                break
+
+        return "\n".join(lines) if lines else "（无可用元素）"
+
     def get_version_info(self, room_id: str) -> Dict[str, Any]:
         """获取版本控制信息
 
@@ -123,12 +210,14 @@ class CanvasStateProvider:
         self,
         elements: List[Dict[str, Any]],
         room_id: str,
+        include_details: bool = True,
     ) -> str:
         """构建完整的画布上下文 Prompt
 
         Args:
             elements: 画布元素列表
             room_id: 房间 ID
+            include_details: 是否包含详细元素列表
 
         Returns:
             注入到系统 Prompt 的上下文文本
@@ -138,6 +227,14 @@ class CanvasStateProvider:
         # 元素摘要
         element_summary = self.get_element_summary(elements)
         parts.append(f"【当前画布状态】\n{element_summary}")
+
+        # 详细元素列表（用于增量编辑）
+        if include_details and elements:
+            element_details = self.get_element_details(elements, max_items=15)
+            parts.append(f"【画布元素详情】\n{element_details}")
+            parts.append(
+                "提示: 使用 [element_id] 可通过 update_element, delete_element, move_element 操作元素"
+            )
 
         # 版本信息
         version_summary = self.get_version_summary(room_id)
