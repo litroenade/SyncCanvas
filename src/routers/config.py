@@ -2,7 +2,7 @@ from typing import Dict, Any, List, Optional
 import httpx
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
-from src.config import config, ModelConfig, ModelGroup
+from src.config import config, ModelGroup
 from src.deps import get_current_user
 from src.db.user import User
 from src.logger import get_logger
