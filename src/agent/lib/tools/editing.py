@@ -3,7 +3,7 @@
 提供元素的增量编辑功能：更新、删除、移动
 """
 
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 from src.agent.core.context import AgentContext
