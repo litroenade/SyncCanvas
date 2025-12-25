@@ -8,14 +8,18 @@ from dataclasses import dataclass
 import heapq
 
 from .geometry import Rect, Point
+from src.config import config
 
-# 从 canvas 模块导入常量
-from ..canvas.constants import (
-    PATHFINDING_GRID_SIZE,
-    PATHFINDING_OBSTACLE_PADDING,
-    PATHFINDING_MAX_ITERATIONS,
-    PATHFINDING_TURN_PENALTY,
-)
+
+def _get_pathfinding_params() -> tuple:
+    """从配置获取路径规划参数"""
+    c = config.canvas
+    return (
+        c.pathfinding_grid_size,
+        c.pathfinding_obstacle_padding,
+        c.pathfinding_max_iterations,
+        c.pathfinding_turn_penalty,
+    )
 
 
 @dataclass
@@ -67,17 +71,18 @@ class OrthogonalRouter:
 
     def __init__(
         self,
-        grid_size: float = PATHFINDING_GRID_SIZE,
-        padding: float = PATHFINDING_OBSTACLE_PADDING,
+        grid_size: float = 0.0,  # 0 表示使用配置默认值
+        padding: float = 0.0,  # 0 表示使用配置默认值
     ):
         """初始化路由器
 
         Args:
-            grid_size: 网格单元大小（像素）
-            padding: 节点边缘额外间距
+            grid_size: 网格单元大小（像素，0=使用配置默认）
+            padding: 节点边缘额外间距（0=使用配置默认）
         """
-        self.grid_size = grid_size
-        self.padding = padding
+        params = _get_pathfinding_params()
+        self.grid_size = grid_size if grid_size > 0 else params[0]
+        self.padding = padding if padding > 0 else params[1]
         self._obstacles: Set[GridCell] = set()
         self._bounds: Tuple[int, int, int, int] = (0, 0, 100, 100)
 
@@ -178,18 +183,20 @@ class OrthogonalRouter:
         self,
         start: Point,
         end: Point,
-        max_iterations: int = PATHFINDING_MAX_ITERATIONS,
+        max_iterations: int = 0,  # 0 表示使用配置默认值
     ) -> List[Point]:
         """A* 寻路
 
         Args:
             start: 起点坐标
             end: 终点坐标
-            max_iterations: 最大迭代次数
+            max_iterations: 最大迭代次数（0=使用配置默认）
 
         Returns:
             路径点列表，如果找不到路径则返回直线
         """
+        if max_iterations <= 0:
+            max_iterations = _get_pathfinding_params()[2]
         start_cell = self._point_to_cell(start)
         end_cell = self._point_to_cell(end)
 
@@ -242,7 +249,7 @@ class OrthogonalRouter:
                     prev_dx = current.cell.x - current.parent.cell.x
                     prev_dy = current.cell.y - current.parent.cell.y
                     if (dx, dy) != (prev_dx, prev_dy):
-                        move_cost += PATHFINDING_TURN_PENALTY
+                        move_cost += _get_pathfinding_params()[3]  # turn penalty
 
                 g_cost = current.g_cost + move_cost
 
@@ -335,7 +342,8 @@ def calculate_dynamic_params(
         heights.append(h)
 
     if not widths:
-        return (PATHFINDING_GRID_SIZE, PATHFINDING_OBSTACLE_PADDING)
+        params = _get_pathfinding_params()
+        return (params[0], params[1])
 
     # 动态计算网格大小：使用最小节点尺寸的 1/10
     min_dimension = min(min(widths), min(heights))

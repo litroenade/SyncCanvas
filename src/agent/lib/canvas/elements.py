@@ -477,14 +477,12 @@ async def batch_create_elements(
     )
 
     edges = edges or []
-    # 临时强制使用 dark 主题（待调查前端 theme 传递问题）
-    effective_theme = context.theme if context.theme else "dark"
+    # 使用上下文中的主题，默认为 light
+    effective_theme: str = context.theme or "light"
     theme_colors: Dict[str, str] = get_theme_colors(effective_theme)
 
-    # 调试日志
-    logger.info(
-        "[batch_create] theme=%s, effective=%s, colors=%s",
-        context.theme,
+    logger.debug(
+        "[batch_create] theme=%s, colors=%s",
         effective_theme,
         theme_colors,
     )

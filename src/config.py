@@ -230,6 +230,121 @@ class LoggingConfig(BaseModel):
     )
 
 
+class CanvasTheme(BaseModel):
+    """画布主题颜色配置"""
+
+    stroke: str = Field("#1e1e1e", title="描边颜色", description="形状边框颜色")
+    background: str = Field("#a5d8ff", title="背景颜色", description="形状填充颜色")
+    text: str = Field("#1e1e1e", title="文字颜色", description="文本颜色")
+    arrow: str = Field("#374151", title="箭头颜色", description="连接线颜色")
+
+
+class CanvasConfig(BaseModel):
+    """画布和图表配置
+
+    控制 AI 生成图表时的默认样式和布局参数。
+    """
+
+    # 节点默认尺寸
+    node_width: float = Field(160.0, title="节点宽度", description="流程图节点默认宽度")
+    node_height: float = Field(70.0, title="节点高度", description="流程图节点默认高度")
+    ellipse_width: float = Field(
+        120.0, title="椭圆宽度", description="开始/结束节点宽度"
+    )
+    ellipse_height: float = Field(
+        50.0, title="椭圆高度", description="开始/结束节点高度"
+    )
+    diamond_size: float = Field(120.0, title="菱形尺寸", description="判断节点尺寸")
+
+    # 布局间距（基准值，实际会根据节点数量动态调整）
+    base_horizontal_gap: float = Field(
+        80.0, title="基础水平间距", description="节点间水平间距基准值"
+    )
+    base_vertical_gap: float = Field(
+        100.0, title="基础垂直间距", description="节点间垂直间距基准值"
+    )
+    gap_scale_factor: float = Field(
+        0.1, title="间距缩放系数", description="每增加一个节点，间距增大的比例"
+    )
+    max_gap_scale: float = Field(
+        2.0, title="最大缩放倍数", description="间距最大增大倍数"
+    )
+
+    # 起始位置
+    start_x: float = Field(400.0, title="起始 X", description="图表起始 X 坐标")
+    start_y: float = Field(100.0, title="起始 Y", description="图表起始 Y 坐标")
+
+    # 字体
+    font_size: int = Field(18, title="字体大小", description="节点文字大小")
+    font_family: int = Field(
+        1, title="字体系列", description="1=手写风格, 2=正常, 3=代码"
+    )
+
+    # 路径规划参数
+    pathfinding_grid_size: float = Field(
+        10.0, title="路径网格大小", description="A* 算法网格单元大小"
+    )
+    pathfinding_obstacle_padding: float = Field(
+        25.0, title="障碍物间距", description="路径与障碍物的最小间距"
+    )
+    pathfinding_max_iterations: int = Field(
+        2000, title="最大迭代次数", description="A* 算法最大迭代次数"
+    )
+    pathfinding_turn_penalty: float = Field(
+        0.5, title="转弯惩罚", description="路径转弯的代价系数"
+    )
+
+    # 主题配置
+    light_theme: CanvasTheme = Field(
+        default_factory=lambda: CanvasTheme(),  # type: ignore[arg-type]
+        title="亮色主题",
+        description="浅色背景下的颜色",
+    )
+    dark_theme: CanvasTheme = Field(
+        default_factory=lambda: CanvasTheme(
+            stroke="#f1f5f9",
+            background="#1e3a5f",
+            text="#ffffff",
+            arrow="#94a3b8",
+        ),
+        title="暗色主题",
+        description="深色背景下的颜色",
+    )
+
+    def get_theme_colors(self, theme: str = "light") -> dict:
+        """获取指定主题的颜色配置
+
+        Args:
+            theme: 主题名称 ("light" | "dark")
+
+        Returns:
+            Dict[str, str]: 颜色配置字典
+        """
+        if theme == "dark":
+            return self.dark_theme.model_dump()
+        return self.light_theme.model_dump()
+
+    def calculate_dynamic_gaps(self, node_count: int) -> tuple:
+        """根据节点数量动态计算布局间距
+
+        节点越多，间距适当增大以避免拥挤。
+
+        Args:
+            node_count: 节点数量
+
+        Returns:
+            (horizontal_gap, vertical_gap) 元组
+        """
+        # 节点数量系数：5个以下不调整，超过5个逐渐增大
+        factor = 1.0 + max(0, (node_count - 5)) * self.gap_scale_factor
+        factor = min(factor, self.max_gap_scale)
+
+        return (
+            self.base_horizontal_gap * factor,
+            self.base_vertical_gap * factor,
+        )
+
+
 class AppConfig(BaseModel):
     """应用主配置
 
@@ -239,11 +354,12 @@ class AppConfig(BaseModel):
     # 配置文件版本，用于自动迁移
     version: str = "0.1.1"
 
-    security: SecurityConfig = Field(default_factory=SecurityConfig)
-    server: ServerConfig = Field(default_factory=ServerConfig)
-    database: DatabaseConfig = Field(default_factory=DatabaseConfig)
-    ai: AIProviderConfig = Field(default_factory=AIProviderConfig)
-    logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    security: SecurityConfig = Field(default_factory=lambda: SecurityConfig())  # type: ignore[arg-type]
+    server: ServerConfig = Field(default_factory=lambda: ServerConfig())  # type: ignore[arg-type]
+    database: DatabaseConfig = Field(default_factory=lambda: DatabaseConfig())  # type: ignore[arg-type]
+    ai: AIProviderConfig = Field(default_factory=lambda: AIProviderConfig())  # type: ignore[arg-type]
+    logging: LoggingConfig = Field(default_factory=lambda: LoggingConfig())  # type: ignore[arg-type]
+    canvas: CanvasConfig = Field(default_factory=lambda: CanvasConfig())  # type: ignore[arg-type]
 
     @field_validator("version")
     @classmethod
@@ -502,6 +618,10 @@ class ConfigManager:
     @property
     def logging(self) -> LoggingConfig:
         return self.config.logging
+
+    @property
+    def canvas(self) -> CanvasConfig:
+        return self.config.canvas
 
     @property
     def version(self) -> str:

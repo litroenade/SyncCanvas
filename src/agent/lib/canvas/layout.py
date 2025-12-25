@@ -8,6 +8,9 @@ from dataclasses import dataclass, field
 
 from src.logger import get_logger
 
+# 从 helpers 导入主题颜色函数
+from .helpers import get_theme_colors
+
 logger = get_logger(__name__)
 
 
@@ -40,35 +43,13 @@ class LayoutConfig:
     ellipse_height: float = 50
     decision_size: float = 120
 
-    # 间距
-    vertical_gap: float = 120
-    horizontal_gap: float = 200
+    # 间距 - 增大以避免重叠
+    vertical_gap: float = 140  # 增大垂直间距
+    horizontal_gap: float = 220  # 增大水平间距
 
     # 起始位置
     start_x: float = 400
     start_y: float = 100
-
-
-# 主题颜色预设
-THEME_COLORS = {
-    "light": {
-        "stroke": "#1e1e1e",
-        "background": "#a5d8ff",
-        "text": "#1e1e1e",
-        "arrow": "#1e1e1e",
-    },
-    "dark": {
-        "stroke": "#e2e8f0",
-        "background": "#3b82f6",
-        "text": "#f8fafc",
-        "arrow": "#e2e8f0",
-    },
-}
-
-
-def get_theme_colors(theme: str = "light") -> Dict[str, str]:
-    """获取主题颜色"""
-    return THEME_COLORS.get(theme, THEME_COLORS["light"])
 
 
 def get_node_size(node_type: str, config: LayoutConfig) -> tuple[float, float]:

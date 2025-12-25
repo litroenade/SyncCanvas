@@ -5,16 +5,20 @@ from pycrdt import Map
 
 from .helpers import base_excalidraw_element
 from .constants import (
-    DEFAULT_NODE_WIDTH,
-    DEFAULT_NODE_HEIGHT,
-    DEFAULT_FONT_SIZE,
-    DEFAULT_FONT_FAMILY,
     DEFAULT_LINE_HEIGHT,
     DEFAULT_OPACITY,
     SEED_RANGE,
     VERSION_NONCE_RANGE,
     DEFAULT_STROKE_WIDTH,
 )
+from src.config import config
+
+
+# 从配置获取默认值的辅助函数
+def _get_canvas_defaults() -> tuple:
+    """获取画布默认配置值"""
+    c = config.canvas
+    return (c.node_width, c.node_height, c.font_size, c.font_family)
 
 
 def create_shape_and_text(
@@ -40,8 +44,11 @@ def create_shape_and_text(
     label: str = spec.get("label", "")
     x: float = spec.get("x", 0)
     y: float = spec.get("y", 0)
-    width: float = spec.get("width", DEFAULT_NODE_WIDTH)
-    height: float = spec.get("height", DEFAULT_NODE_HEIGHT)
+
+    # 从配置获取默认尺寸
+    default_w, default_h, font_size, font_family = _get_canvas_defaults()
+    width: float = spec.get("width", default_w)
+    height: float = spec.get("height", default_h)
     stroke_color: str = spec.get("stroke_color") or theme_colors["stroke"]
     bg_color: str = spec.get("bg_color") or theme_colors["background"]
     text_color: str = spec.get("text_color") or theme_colors["text"]
@@ -66,8 +73,8 @@ def create_shape_and_text(
     # 只需要提供容器中心点作为初始位置
     safe_x: float = float(x) if x is not None else 0.0
     safe_y: float = float(y) if y is not None else 0.0
-    safe_width: float = float(width) if width is not None else DEFAULT_NODE_WIDTH
-    safe_height: float = float(height) if height is not None else DEFAULT_NODE_HEIGHT
+    safe_width: float = float(width) if width is not None else default_w
+    safe_height: float = float(height) if height is not None else default_h
 
     # 使用容器中心点作为文本初始位置
     center_x = safe_x + safe_width / 2
@@ -85,7 +92,7 @@ def create_shape_and_text(
         "x": center_x,
         "y": center_y,
         "width": text_area_width,
-        "height": DEFAULT_FONT_SIZE * DEFAULT_LINE_HEIGHT,
+        "height": font_size * DEFAULT_LINE_HEIGHT,
         "frameId": None,
         "angle": 0,
         "strokeColor": text_color,
@@ -105,8 +112,8 @@ def create_shape_and_text(
         "link": None,
         "locked": False,
         "text": label or "",
-        "fontSize": DEFAULT_FONT_SIZE,
-        "fontFamily": DEFAULT_FONT_FAMILY,
+        "fontSize": font_size,
+        "fontFamily": font_family,
         "textAlign": "center",
         "verticalAlign": "middle",
         "containerId": shape_id,

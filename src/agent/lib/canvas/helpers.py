@@ -10,8 +10,21 @@ from typing import Dict, Any, Tuple, Optional
 from pycrdt import Array, Map
 from src.logger import get_logger
 from src.agent.core.context import AgentContext
+from src.config import config
 
 logger = get_logger(__name__)
+
+
+def get_theme_colors(theme: str = "light") -> Dict[str, str]:
+    """获取主题颜色配置（从全局配置获取）
+
+    Args:
+        theme: 主题名称 ("light" | "dark")
+
+    Returns:
+        Dict[str, str]: 颜色配置字典
+    """
+    return config.canvas.get_theme_colors(theme)
 
 
 def require_room_id(context: Optional["AgentContext"]) -> str:
@@ -43,35 +56,6 @@ def generate_element_id(prefix: str = "el") -> str:
         str: 唯一 ID
     """
     return f"{prefix}_{uuid.uuid4().hex[:8]}"
-
-
-# 主题颜色预设
-THEME_COLORS = {
-    "light": {
-        "stroke": "#1e1e1e",
-        "background": "#e0f2fe",  # 浅蓝色背景（亮主题）
-        "text": "#1e1e1e",
-        "arrow": "#374151",
-    },
-    "dark": {
-        "stroke": "#f1f5f9",  # 白色笔画（深色主题可见）
-        "background": "#1e3a5f",  # 深蓝色背景（深色主题）
-        "text": "#f8fafc",
-        "arrow": "#94a3b8",  # 浅灰色箭头
-    },
-}
-
-
-def get_theme_colors(theme: str = "light") -> Dict[str, str]:
-    """获取主题颜色
-
-    Args:
-        theme: 主题名称 ("light" | "dark")
-
-    Returns:
-        Dict: 颜色配置
-    """
-    return THEME_COLORS.get(theme, THEME_COLORS["light"])
 
 
 def base_excalidraw_element(
