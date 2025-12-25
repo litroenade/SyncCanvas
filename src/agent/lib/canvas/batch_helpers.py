@@ -44,6 +44,7 @@ def create_shape_and_text(
     height: float = spec.get("height", DEFAULT_NODE_HEIGHT)
     stroke_color: str = spec.get("stroke_color") or theme_colors["stroke"]
     bg_color: str = spec.get("bg_color") or theme_colors["background"]
+    text_color: str = spec.get("text_color") or theme_colors["text"]
 
     # 创建形状元素
     shape = base_excalidraw_element(
@@ -55,6 +56,8 @@ def create_shape_and_text(
     # 矩形添加圆角
     if elem_type == "rectangle":
         shape["roundness"] = {"type": 3}
+    elif elem_type == "ellipse":
+        shape["roundness"] = {"type": 2}
 
     # 创建绑定的文本元素
     text_id: str = f"text_{shape_id}"
@@ -70,16 +73,22 @@ def create_shape_and_text(
     center_x = safe_x + safe_width / 2
     center_y = safe_y + safe_height / 2
 
+    # 椭圆形节点的文字区域比矩形小（约 70%）
+    if elem_type == "ellipse":
+        text_area_width = (safe_width - 20) * 0.7
+    else:
+        text_area_width = safe_width - 20
+
     text_element: Dict[str, Any] = {
         "id": text_id,
         "type": "text",
         "x": center_x,
         "y": center_y,
-        "width": safe_width - 20,  # 留一些边距
+        "width": text_area_width,
         "height": DEFAULT_FONT_SIZE * DEFAULT_LINE_HEIGHT,
         "frameId": None,
         "angle": 0,
-        "strokeColor": theme_colors["text"],
+        "strokeColor": text_color,
         "backgroundColor": "transparent",
         "fillStyle": "solid",
         "strokeWidth": 1,
@@ -125,7 +134,7 @@ def create_arrow_between_nodes(
     elements_source: List[Dict[str, Any]],
     theme_colors: Dict[str, str],
     direction: str = "TB",
-    use_pathfinding: bool = True,  # 默认启用 A* 路径规划
+    use_pathfinding: bool = False,  # 禁用 A*，使用简单路由
 ) -> Optional[Tuple[Dict[str, Any], Dict[str, Any]]]:
     """创建连接两个节点的箭头（A* 避障路由）
 

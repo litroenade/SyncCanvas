@@ -71,7 +71,6 @@ DEFAULT_START_X: Final[float] = 400.0
 DEFAULT_START_Y: Final[float] = 100.0
 """布局起始 Y 坐标"""
 
-# === 路径规划参数 ===
 PATHFINDING_GRID_SIZE: Final[float] = 10.0
 """A* 路径规划网格大小（像素）"""
 

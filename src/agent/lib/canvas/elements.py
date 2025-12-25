@@ -373,12 +373,15 @@ async def delete_elements(
     id_set = set(element_ids)
 
     with doc.transaction(origin="ai-engine/delete_elements"):
-        for i in range(len(elements_array) - 1, -1, -1):
+        # 倒序遍历以安全删除
+        i = len(elements_array) - 1
+        while i >= 0:
             el = elements_array[i]
             el_id = el.get("id") if isinstance(el, Map) else el.get("id")
             if el_id in id_set:
-                elements_array.delete(i, 1)  # type: ignore[attr-defined]
+                elements_array.pop(i)  # 使用 pop 替代 delete
                 removed.append(el_id)
+            i -= 1
 
     logger.info("删除元素: %d 个", len(removed), extra={"room": room_id})
 
@@ -474,7 +477,17 @@ async def batch_create_elements(
     )
 
     edges = edges or []
-    theme_colors: Dict[str, str] = get_theme_colors(context.theme)
+    # 临时强制使用 dark 主题（待调查前端 theme 传递问题）
+    effective_theme = context.theme if context.theme else "dark"
+    theme_colors: Dict[str, str] = get_theme_colors(effective_theme)
+
+    # 调试日志
+    logger.info(
+        "[batch_create] theme=%s, effective=%s, colors=%s",
+        context.theme,
+        effective_theme,
+        theme_colors,
+    )
 
     # 临时 ID 到真实 ID 的映射
     id_mapping: Dict[str, str] = {}

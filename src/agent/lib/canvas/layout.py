@@ -245,6 +245,7 @@ def calculate_layout(
                     "height": height,
                     "stroke_color": colors["stroke"],
                     "bg_color": colors["background"],
+                    "text_color": colors["text"],  # 传递文字颜色
                 }
             )
 
