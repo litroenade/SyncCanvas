@@ -5,12 +5,14 @@
 
 from src.agent.core.base import (
     BaseAgent,
-    AgentConfig,
-    ReActStep,
-    RoomLockManager,
-    ToolDefinition,
     PlanningAgent,
     CanvasAgent,
+)
+from src.agent.core.room_lock import RoomLockManager
+from src.agent.core.models import (
+    AgentConfig,
+    ReActStep,
+    ToolDefinition,
 )
 from src.agent.core.context import (
     AgentContext,

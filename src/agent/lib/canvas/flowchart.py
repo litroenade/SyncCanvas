@@ -1,9 +1,5 @@
-﻿"""模块名称: flowchart
-主要功能: 流程图工具 - 使用精确数学计算生成 Excalidraw 元素
-"""
-
-import random
-from typing import Optional, Dict, Any
+﻿import random
+from typing import Optional, Dict, Any, Tuple
 
 from src.agent.core.context import AgentContext
 from src.agent.core.registry import registry, ToolCategory
@@ -35,10 +31,8 @@ def create_complete_flowchart_node(
     stroke_color: str,
     bg_color: str,
     text_color: str,
-) -> tuple:
-    """创建完整的流程图节点（形状 + 绑定文本）
-
-    使用精确数学计算确保文本居中
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """创建完整的流程图节点
 
     Returns:
         (shape_element, text_element) 元组

@@ -11,7 +11,6 @@ class AgentRunService:
     """Agent 运行服务
 
     管理 Agent 运行的生命周期，包括创建、记录工具调用、完成/失败状态更新。
-    提供同步方法，支持通过异步包装调用。
 
     Attributes:
         session: 数据库会话
@@ -56,22 +55,6 @@ class AgentRunService:
         )
         return run
 
-    async def create_run_async(
-        self, room_id: str, prompt: str, model: str = "", user_id: Optional[int] = None
-    ) -> AgentRun:
-        """异步创建新的 Agent 运行记录
-
-        Args:
-            room_id: 房间/会话 ID
-            prompt: 用户输入的提示词
-            model: 使用的模型名称
-            user_id: 用户 ID (可选)
-
-        Returns:
-            AgentRun: 创建的运行记录
-        """
-        return self.create_run(room_id, prompt, model, user_id)
-
     def log_action(
         self, run_id: int, tool: str, arguments: Dict[str, Any], result: Dict[str, Any]
     ) -> AgentAction:
@@ -99,22 +82,6 @@ class AgentRunService:
 
         logger.debug("Agent 动作已记录", extra={"run_id": run_id, "tool": tool})
         return action
-
-    async def log_action_async(
-        self, run_id: int, tool: str, arguments: Dict[str, Any], result: Dict[str, Any]
-    ) -> AgentAction:
-        """异步记录工具调用
-
-        Args:
-            run_id: 运行记录 ID
-            tool: 工具名称
-            arguments: 调用参数
-            result: 执行结果
-
-        Returns:
-            AgentAction: 创建的动作记录
-        """
-        return self.log_action(run_id, tool, arguments, result)
 
     def complete_run(
         self, run_id: int, message: str = "", output: Optional[str] = None
@@ -144,21 +111,6 @@ class AgentRunService:
         logger.info("Agent 运行已完成", extra={"run_id": run_id, "status": "completed"})
         return run
 
-    async def complete_run_async(
-        self, run_id: int, message: str = "", output: Optional[str] = None
-    ) -> AgentRun:
-        """异步标记运行为完成状态
-
-        Args:
-            run_id: 运行记录 ID
-            message: 完成消息
-            output: 输出内容
-
-        Returns:
-            AgentRun: 更新后的运行记录
-        """
-        return self.complete_run(run_id, message, output)
-
     def fail_run(self, run_id: int, error: str = "") -> AgentRun:
         """标记运行为失败状态
 
@@ -183,18 +135,6 @@ class AgentRunService:
 
         logger.error("Agent 运行失败", extra={"run_id": run_id, "error": error})
         return run
-
-    async def fail_run_async(self, run_id: int, error: str = "") -> AgentRun:
-        """异步标记运行为失败状态
-
-        Args:
-            run_id: 运行记录 ID
-            error: 错误信息
-
-        Returns:
-            AgentRun: 更新后的运行记录
-        """
-        return self.fail_run(run_id, error)
 
     def get_run(self, run_id: int) -> Optional[AgentRun]:
         """获取运行记录

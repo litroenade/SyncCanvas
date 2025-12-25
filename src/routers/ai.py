@@ -6,7 +6,7 @@ from src.agent.core import registry
 from src.agent.prompts import prompt_manager
 from src.db.database import get_session
 from src.logger import get_logger
-from src.services.ai_service import ai_service
+from src.agent.service.service import ai_service
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 logger = get_logger(__name__)
@@ -123,7 +123,6 @@ async def generate_shapes(
         result = await ai_service.process_request(
             user_input=request.prompt,
             session_id=request.room_id,
-            db=session,
             theme=request.theme,
         )
 
@@ -483,7 +482,7 @@ async def ai_stream_websocket(
 
             # 处理请求
             try:
-                result = await ai_service.process_request_with_stream(
+                result = await ai_service.process_request(
                     user_input=prompt,
                     session_id=room_id,
                     step_callback=lambda step: _broadcast_step(

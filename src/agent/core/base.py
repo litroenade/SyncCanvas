@@ -6,10 +6,7 @@ import json
 import time
 import traceback
 from abc import ABC
-from contextlib import asynccontextmanager
-from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Set, TYPE_CHECKING, TypeVar
-from pydantic import BaseModel, Field
+from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 from openai.types.chat import ChatCompletionMessageParam
 from src.agent.prompts.reflection import SelfReflection
 from src.agent.core.llm import LLMClient, LLMResponse
@@ -18,138 +15,13 @@ from src.logger import get_logger
 from src.agent.core.state import AgentState, AgentStateMachine
 from src.agent.core.retry import RetryPolicy, ErrorRecoveryManager
 from src.agent.core.context import AgentContext, AgentMetrics, AgentStatus
+from .room_lock import RoomLockManager
+from .models import ToolDefinition, ReActStep, AgentConfig
 
 if TYPE_CHECKING:
     from src.agent.core.runs import AgentRunService
 
 logger = get_logger(__name__)
-
-T = TypeVar("T")
-
-
-class RoomLockManager:
-    """房间级别的并发锁管理器
-
-    防止同一房间同时有多个 Agent 操作，避免元素冲突。
-    """
-
-    _locks: Dict[str, asyncio.Lock] = {}
-    _active_rooms: Set[str] = set()
-
-    @classmethod
-    def get_lock(cls, room_id: str) -> asyncio.Lock:
-        """获取房间锁"""
-        if room_id not in cls._locks:
-            cls._locks[room_id] = asyncio.Lock()
-        return cls._locks[room_id]
-
-    @classmethod
-    @asynccontextmanager
-    async def acquire(cls, room_id: str, timeout: float = 30.0):
-        """获取房间锁的上下文管理器
-
-        Args:
-            room_id: 房间 ID
-            timeout: 获取锁的超时时间
-
-        Raises:
-            TimeoutError: 获取锁超时
-            RuntimeError: 房间正忙
-        """
-        lock = cls.get_lock(room_id)
-
-        try:
-            acquired = await asyncio.wait_for(lock.acquire(), timeout=timeout)
-            if not acquired:
-                raise RuntimeError(f"房间 {room_id} 正忙，请稍后再试")
-
-            cls._active_rooms.add(room_id)
-            logger.debug("获取房间锁: %s", room_id)
-
-            yield
-
-        except asyncio.TimeoutError as exc:
-            raise TimeoutError(f"获取房间 {room_id} 的锁超时") from exc
-        finally:
-            if room_id in cls._active_rooms:
-                cls._active_rooms.discard(room_id)
-            if lock.locked():
-                lock.release()
-                logger.debug("释放房间锁: %s", room_id)
-
-    @classmethod
-    def is_room_busy(cls, room_id: str) -> bool:
-        """检查房间是否正忙"""
-        return room_id in cls._active_rooms
-
-    @classmethod
-    def get_active_rooms(cls) -> list:
-        """获取所有活跃房间列表"""
-        return list(cls._active_rooms)
-
-
-@dataclass
-class ToolDefinition:
-    """工具定义"""
-
-    name: str
-    description: str
-    func: Callable
-    schema: Dict[str, Any]
-    timeout: float = 30.0  # 工具执行超时
-    retries: int = 2  # 重试次数
-
-
-@dataclass
-class ReActStep:
-    """ReAct 单步记录"""
-
-    step_number: int
-    thought: str = ""
-    action: Optional[str] = None
-    action_input: Optional[Dict[str, Any]] = None
-    observation: Optional[str] = None
-    success: bool = True
-    latency_ms: float = 0.0
-
-
-class AgentConfig(BaseModel):
-    """Agent 配置
-
-    集中管理 Agent 的各项配置参数。
-    使用 pydantic BaseModel 以支持 UI 渲染元数据。
-    """
-
-    max_iterations: int = Field(
-        default=15, title="最大迭代次数", description="ReAct 循环最大迭代次数"
-    )
-    max_retries: int = Field(
-        default=3, title="重试次数", description="LLM/工具调用失败重试次数"
-    )
-    llm_timeout: float = Field(
-        default=60.0, title="LLM 超时 (秒)", description="单次 LLM 调用超时时间"
-    )
-    tool_timeout: float = Field(
-        default=30.0, title="工具超时 (秒)", description="单个工具执行超时时间"
-    )
-    total_timeout: float = Field(
-        default=300.0, title="总超时 (秒)", description="Agent 任务总执行超时 (5分钟)"
-    )
-    retry_delay: float = Field(
-        default=1.0, title="重试间隔 (秒)", description="失败后重试等待时间"
-    )
-    enable_room_lock: bool = Field(
-        default=True, title="启用房间锁", description="防止同一房间同时多个 Agent 操作"
-    )
-    enable_self_reflection: bool = Field(
-        default=True, title="启用自反思", description="每轮迭代后进行自我评估"
-    )
-    reflection_interval: int = Field(
-        default=2,
-        ge=1,
-        title="反思间隔",
-        description="每隔多少轮进行一次自反思 (1=每轮, 2=第2/4/6轮)",
-    )
 
 
 class BaseAgent(ABC):
@@ -189,7 +61,7 @@ class BaseAgent(ABC):
         self._status = AgentStatus.IDLE
         self._steps: List[ReActStep] = []
         self._metrics = AgentMetrics()
-        self._on_step_callback: Optional[Callable[[ReActStep], None]] = None
+        self._on_step_callback: Optional[Callable[[ReActStep], Optional[Any]]] = None
 
         # 状态机和错误恢复
         self._state_machine = AgentStateMachine()
@@ -242,7 +114,7 @@ class BaseAgent(ABC):
         """获取所有工具的 OpenAI Function Calling 定义"""
         return [tool.schema for tool in self.tools.values()]
 
-    def set_step_callback(self, callback: Callable[[ReActStep], None]) -> None:
+    def set_step_callback(self, callback: Callable[[ReActStep], Optional[Any]]) -> None:
         """设置步骤回调"""
         self._on_step_callback = callback
 
@@ -264,7 +136,7 @@ class BaseAgent(ABC):
         """记录工具调用到数据库"""
         if self.run_service:
             try:
-                await self.run_service.log_action_async(
+                self.run_service.log_action(
                     run_id=context.run_id,
                     tool=tool_name,
                     arguments=args,

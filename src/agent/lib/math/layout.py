@@ -3,7 +3,7 @@
 提供流程图等图形的自动布局算法
 """
 
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from dataclasses import dataclass
 
 
@@ -34,7 +34,7 @@ class FlowLayout:
     支持从上到下 (TB) 或从左到右 (LR) 布局
     """
 
-    def __init__(self, config: LayoutConfig = None, direction: str = "TB"):
+    def __init__(self, config: Optional[LayoutConfig] = None, direction: str = "TB"):
         """
         Args:
             config: 布局配置
@@ -50,8 +50,8 @@ class FlowLayout:
         self,
         node_id: str,
         node_type: str = "rectangle",
-        width: float = None,
-        height: float = None,
+        width: Optional[float] = None,
+        height: Optional[float] = None,
     ) -> Dict[str, float]:
         """添加节点并计算其位置
 

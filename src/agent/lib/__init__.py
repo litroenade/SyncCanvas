@@ -20,7 +20,6 @@ def __getattr__(name: str):
     elif name == "utils":
         from src.agent.lib import utils
         return utils
-    # 常用组件
     elif name == "LibraryService":
         from src.agent.lib.library import LibraryService
         return LibraryService
@@ -40,7 +39,3 @@ def __getattr__(name: str):
 
 
 __all__: list[str] = []
-
-# 所有组件使用延迟加载，通过 __getattr__ 访问：
-# 子模块: canvas, library, tools, version_control, utils
-# 常用组件: LibraryService, library_service, Library, LibraryItem, IGitService

@@ -71,10 +71,6 @@ COMMON_PROVIDERS = [
     {"name": "SiliconFlow", "url": "https://api.siliconflow.cn/v1"},
     {"name": "OpenAI", "url": "https://api.openai.com/v1"},
     {"name": "DeepSeek", "url": "https://api.deepseek.com/v1"},
-    {"name": "通义千问", "url": "https://dashscope.aliyuncs.com/compatible-mode/v1"},
-    {"name": "豆包", "url": "https://ark.cn-beijing.volces.com/api/v3"},
-    {"name": "智谱清言", "url": "https://open.bigmodel.cn/api/paas/v4"},
-    {"name": "Kimi", "url": "https://api.moonshot.cn/v1"},
     {
         "name": "Google Gemini",
         "url": "https://generativelanguage.googleapis.com/v1beta/openai",
