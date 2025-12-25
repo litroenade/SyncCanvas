@@ -70,3 +70,16 @@ DEFAULT_START_X: Final[float] = 400.0
 
 DEFAULT_START_Y: Final[float] = 100.0
 """布局起始 Y 坐标"""
+
+# === 路径规划参数 ===
+PATHFINDING_GRID_SIZE: Final[float] = 10.0
+"""A* 路径规划网格大小（像素）"""
+
+PATHFINDING_OBSTACLE_PADDING: Final[float] = 25.0
+"""障碍物边缘间距（像素）"""
+
+PATHFINDING_MAX_ITERATIONS: Final[int] = 2000
+"""A* 算法最大迭代次数"""
+
+PATHFINDING_TURN_PENALTY: Final[float] = 0.5
+"""路径转弯惩罚系数"""

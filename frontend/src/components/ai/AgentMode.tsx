@@ -20,7 +20,7 @@ import {
 import { useAIStream } from '../../hooks/useAIStream';
 import { ToolProgress, ToolStep } from './ToolProgress';
 import { ChatInput, ConversationMode } from './ChatInput';
-import { PreviewCanvas } from './PreviewCanvas';
+import { VirtualCanvas } from './VirtualCanvas';
 import { MermaidCodePreview, extractMermaidCode } from './MermaidCodePreview';
 import './AgentMode.css';
 
@@ -347,30 +347,28 @@ export const AgentMode: React.FC<AgentModeProps> = ({
                     {/* Planning 模式内嵌预览图 */}
                     {!isUser && message.virtualElements && message.virtualElements.length > 0 && (
                         <div className="mt-3">
-                            <PreviewCanvas
+                            <VirtualCanvas
+                                key={`virtual-${message.id}`}
                                 elements={message.virtualElements as unknown as import('../../lib/yjs').ExcalidrawElement[]}
                                 files={{}}
                                 isDark={isDark}
-                                maxHeight={200}
-                                onAddToCanvas={() => {
+                                minHeight={150}
+                                maxHeight={300}
+                                onAddToCanvas={(elementsToAdd) => {
                                     if (!excalidrawAPI) {
                                         console.warn('excalidrawAPI 不可用');
                                         return;
                                     }
-                                    // 后端生成的是完整 Excalidraw 元素，直接添加
                                     const existingElements = excalidrawAPI.getSceneElements();
-                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                    const newElements = message.virtualElements as any[];
                                     excalidrawAPI.updateScene({
-                                        elements: [...existingElements, ...newElements],
+                                        elements: [...existingElements, ...elementsToAdd],
                                     });
-                                    excalidrawAPI.scrollToContent(newElements, {
+                                    excalidrawAPI.scrollToContent(elementsToAdd, {
                                         fitToViewport: true,
                                         animate: true,
                                         duration: 300,
                                     });
                                 }}
-                                onClear={undefined}
                             />
                         </div>
                     )}

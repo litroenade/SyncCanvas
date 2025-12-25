@@ -1,7 +1,3 @@
-"""模块名称: llm
-主要功能: LLM 客户端实现
-"""
-
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
@@ -15,7 +11,7 @@ logger = get_logger(__name__)
 
 @dataclass
 class LLMConfig:
-    """LLM 配置
+    """LLM 配置 
 
     Attributes:
         provider: 提供商名称
@@ -64,7 +60,7 @@ class LLMClient:
 
     @property
     def current_config(self) -> LLMConfig:
-        """获取当前主 LLM 配置 (公开 API)"""
+        """获取当前主 LLM 配置"""
         primary, _ = self._get_config()
         return primary
 

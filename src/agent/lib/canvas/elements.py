@@ -1,8 +1,4 @@
-﻿"""模块名称: elements
-主要功能: 基础元素操作工具
-"""
-
-import random
+﻿import random
 from typing import Optional, List, Dict, Any
 
 from pycrdt import Map
@@ -142,7 +138,6 @@ async def create_element(
             break
     if not found:
         logger.error("[create_element]   元素未找到! 可能写入失败")
-    # ========== 诊断日志结束 ==========
 
     context.created_element_ids.append(element["id"])
     logger.info(
@@ -443,6 +438,7 @@ async def clear_canvas(
 async def batch_create_elements(
     elements: list,
     edges: Optional[list] = None,
+    direction: str = "TB",
     context: Optional[AgentContext] = None,
 ) -> Dict[str, Any]:
     """批量创建元素和连接线
@@ -452,6 +448,7 @@ async def batch_create_elements(
     Args:
         elements: 元素规格列表，每项包含 {id, type, label, x, y, width, height, ...}
         edges: 边规格列表，每项包含 {from_id, to_id, label}
+        direction: 布局方向 (TB/BT/LR/RL)
         context: Agent 上下文
 
     Returns:
@@ -498,7 +495,7 @@ async def batch_create_elements(
     # 2. 创建所有连接线
     for edge in edges:
         result = create_arrow_between_nodes(
-            edge, id_mapping, all_elements, theme_colors
+            edge, id_mapping, all_elements, theme_colors, direction
         )
         if result:
             arrow, edge_info = result
@@ -618,6 +615,7 @@ async def auto_layout_create(
     return await batch_create_elements(
         elements=positioned_elements,
         edges=positioned_edges,
+        direction=direction,
         context=context,
     )
 

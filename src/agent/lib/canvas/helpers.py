@@ -49,15 +49,15 @@ def generate_element_id(prefix: str = "el") -> str:
 THEME_COLORS = {
     "light": {
         "stroke": "#1e1e1e",
-        "background": "#a5d8ff",
+        "background": "#e0f2fe",  # 浅蓝色背景（亮主题）
         "text": "#1e1e1e",
-        "arrow": "#1e1e1e",
+        "arrow": "#374151",
     },
     "dark": {
-        "stroke": "#e2e8f0",
-        "background": "#3b82f6",
+        "stroke": "#f1f5f9",  # 白色笔画（深色主题可见）
+        "background": "#1e3a5f",  # 深蓝色背景（深色主题）
         "text": "#f8fafc",
-        "arrow": "#e2e8f0",
+        "arrow": "#94a3b8",  # 浅灰色箭头
     },
 }
 

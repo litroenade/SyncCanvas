@@ -1,7 +1,3 @@
-"""模块名称: tools
-主要功能: AI Engine 工具注册和管理
-"""
-
 from __future__ import annotations
 
 import inspect
