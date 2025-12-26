@@ -120,6 +120,21 @@ export const aiApi = {
         const response = await apiClient.get(`/ai/status/${roomId}`);
         return response.data.is_busy;
     },
+
+    /**
+     * 生成对话摘要标题
+     * @param message - 用户消息
+     * @returns 摘要标题
+     */
+    summarize: async (message: string): Promise<{ title: string }> => {
+        try {
+            const response = await apiClient.post('/ai/summarize', { message });
+            return { title: response.data.title };
+        } catch {
+            // 回退：截取消息前 15 个字符
+            return { title: message.slice(0, 15) + (message.length > 15 ? '...' : '') };
+        }
+    },
 };
 
 

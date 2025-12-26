@@ -98,6 +98,62 @@ async def generate_mermaid(request: MermaidRequest):
     return MermaidResponse(code=result["code"], status=result["status"])
 
 
+class SummarizeRequest(BaseModel):
+    """对话摘要请求"""
+
+    message: str = Field(..., description="用户消息", min_length=1, max_length=500)
+
+
+class SummarizeResponse(BaseModel):
+    """对话摘要响应"""
+
+    title: str = Field(..., description="生成的摘要标题")
+    status: str = "success"
+
+
+@router.post("/summarize", response_model=SummarizeResponse)
+async def generate_summary(request: SummarizeRequest):
+    """生成对话标题摘要
+
+    根据用户消息生成简短的对话标题（最多 20 个字符）。
+
+    Args:
+        request: 包含用户消息的请求
+
+    Returns:
+        SummarizeResponse: 包含生成的摘要标题
+    """
+    from src.agent.core.llm import LLMClient
+
+    # 使用简单提示生成标题
+    prompt = f"""请为以下用户消息生成一个简短的标题（最多 15 个中文字符或 30 个英文字符）。
+只输出标题文本，不要任何其他内容。
+
+用户消息：{request.message[:200]}
+
+标题："""
+
+    try:
+        client = LLMClient()
+        response = await client.chat_completion(
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=50,
+        )
+        # 从 LLMResponse 提取内容
+        title = (response.content or "").strip().strip("\"'")[:30]
+
+        if not title:
+            # 回退：截取消息前 15 个字符
+            title = request.message[:15] + ("..." if len(request.message) > 15 else "")
+
+        return SummarizeResponse(title=title)
+    except Exception as e:
+        logger.warning("生成摘要失败: %s", e)
+        # 回退方案
+        title = request.message[:15] + ("..." if len(request.message) > 15 else "")
+        return SummarizeResponse(title=title)
+
+
 @router.post("/generate", response_model=GenerateResponse)
 async def generate_shapes(
     request: GenerateRequest, session: Session = Depends(get_session)
@@ -480,7 +536,7 @@ async def ai_stream_websocket(
             theme = data.get("theme", "light")
             virtual_mode = data.get("virtual_mode", False)
             mode = data.get("mode", "agent")  # agent | planning | mermaid
-            
+
             # 根据模式调整提示词
             processed_prompt = prompt
             if mode == "mermaid" and "mermaid" not in prompt.lower():

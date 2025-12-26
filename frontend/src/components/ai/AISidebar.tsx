@@ -8,9 +8,10 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../lib/utils';
-import { Bot, X, GripVertical } from 'lucide-react';
+import { Bot, X, GripVertical, Plus, History, Minus } from 'lucide-react';
 import { AgentMode } from './AgentMode';
 import { ConversationMode } from './ChatInput';
+import { aiApi } from '../../services/api/ai';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ExcalidrawAPI = any;
@@ -34,6 +35,7 @@ const MIN_WIDTH = 360;
 const MAX_WIDTH = 800;
 const DEFAULT_WIDTH = 450;
 const STORAGE_KEY = 'ai-sidebar-mode';
+const TITLE_STORAGE_KEY = 'ai-conversation-title';
 
 export const AISidebar: React.FC<AISidebarProps> = ({
     roomId,
@@ -50,6 +52,27 @@ export const AISidebar: React.FC<AISidebarProps> = ({
     const [width, setWidth] = useState(DEFAULT_WIDTH);
     const [isResizing, setIsResizing] = useState(false);
     const sidebarRef = useRef<HTMLDivElement>(null);
+
+    // 对话标题状态
+    const [conversationTitle, setConversationTitle] = useState<string>(() => {
+        return localStorage.getItem(`${TITLE_STORAGE_KEY}-${roomId}`) || 'AI 助手';
+    });
+
+    // 标题更新回调 - 当用户发送第一条消息时调用
+    const handleFirstMessage = useCallback(async (message: string) => {
+        if (conversationTitle === 'AI 助手' && message) {
+            const { title } = await aiApi.summarize(message);
+            setConversationTitle(title);
+            localStorage.setItem(`${TITLE_STORAGE_KEY}-${roomId}`, title);
+        }
+    }, [conversationTitle, roomId]);
+
+    // 新建对话
+    const handleNewConversation = useCallback(() => {
+        setConversationTitle('AI 助手');
+        localStorage.removeItem(`${TITLE_STORAGE_KEY}-${roomId}`);
+        // TODO: 清空聊天消息
+    }, [roomId]);
 
     // 保存模式到 localStorage
     useEffect(() => {
@@ -146,43 +169,96 @@ export const AISidebar: React.FC<AISidebarProps> = ({
                             />
                         </div>
 
-                        {/* 头部 */}
+                        {/* 头部 - Cursor 风格 */}
                         <div
                             className={cn(
                                 'flex items-center justify-between',
-                                'px-4 py-3 border-b',
+                                'px-3 py-2.5 border-b',
                                 isDark ? 'border-zinc-700/50' : 'border-zinc-200/50'
                             )}
                         >
-                            <div className="flex items-center gap-2">
+                            {/* 左侧：对话标题 */}
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
                                 <div
                                     className={cn(
-                                        'p-1.5 rounded-lg',
+                                        'p-1.5 rounded-lg flex-shrink-0',
                                         'bg-gradient-to-br from-violet-500 to-purple-600'
                                     )}
                                 >
-                                    <Bot size={16} className="text-white" />
+                                    <Bot size={14} className="text-white" />
                                 </div>
                                 <span
                                     className={cn(
-                                        'font-semibold text-sm',
-                                        isDark ? 'text-zinc-100' : 'text-zinc-800'
+                                        'font-medium text-sm truncate',
+                                        isDark ? 'text-zinc-200' : 'text-zinc-700'
                                     )}
+                                    title={conversationTitle}
                                 >
-                                    AI 助手
+                                    {conversationTitle}
                                 </span>
                             </div>
-                            <button
-                                onClick={onToggle}
-                                className={cn(
-                                    'p-1.5 rounded-lg transition-colors',
-                                    isDark
-                                        ? 'hover:bg-zinc-700 text-zinc-400'
-                                        : 'hover:bg-zinc-100 text-zinc-500'
-                                )}
-                            >
-                                <X size={18} />
-                            </button>
+
+                            {/* 右侧：工具按钮 */}
+                            <div className="flex items-center gap-0.5">
+                                {/* 新建对话 */}
+                                <button
+                                    onClick={handleNewConversation}
+                                    className={cn(
+                                        'p-1.5 rounded-md transition-colors',
+                                        isDark
+                                            ? 'hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200'
+                                            : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700'
+                                    )}
+                                    title="新建对话"
+                                >
+                                    <Plus size={16} />
+                                </button>
+
+                                {/* 历史记录 */}
+                                <button
+                                    onClick={() => {
+                                        // TODO: 显示历史记录
+                                        console.log('History');
+                                    }}
+                                    className={cn(
+                                        'p-1.5 rounded-md transition-colors',
+                                        isDark
+                                            ? 'hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200'
+                                            : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700'
+                                    )}
+                                    title="历史记录"
+                                >
+                                    <History size={16} />
+                                </button>
+
+                                {/* 最小化 */}
+                                <button
+                                    onClick={onToggle}
+                                    className={cn(
+                                        'p-1.5 rounded-md transition-colors',
+                                        isDark
+                                            ? 'hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200'
+                                            : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700'
+                                    )}
+                                    title="最小化"
+                                >
+                                    <Minus size={16} />
+                                </button>
+
+                                {/* 关闭 */}
+                                <button
+                                    onClick={onToggle}
+                                    className={cn(
+                                        'p-1.5 rounded-md transition-colors',
+                                        isDark
+                                            ? 'hover:bg-zinc-700 text-zinc-400 hover:text-red-400'
+                                            : 'hover:bg-zinc-100 text-zinc-500 hover:text-red-500'
+                                    )}
+                                    title="关闭"
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
                         </div>
 
                         {/* 聊天界面 - 统一的聊天体验，模式只影响 AI 行为 */}
@@ -193,6 +269,7 @@ export const AISidebar: React.FC<AISidebarProps> = ({
                                 mode={mode}
                                 onModeChange={setMode}
                                 excalidrawAPI={excalidrawAPI}
+                                onFirstMessage={handleFirstMessage}
                             />
                         </div>
                     </motion.aside>

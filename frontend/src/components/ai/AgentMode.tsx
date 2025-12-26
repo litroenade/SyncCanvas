@@ -30,6 +30,8 @@ interface AgentModeProps {
     onElementsCreated?: (elementIds: string[]) => void;
     mode: ConversationMode;
     onModeChange: (mode: ConversationMode) => void;
+    /** 当用户发送第一条消息时调用，用于生成对话标题 */
+    onFirstMessage?: (message: string) => void;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     excalidrawAPI?: any;
 }
@@ -55,6 +57,7 @@ export const AgentMode: React.FC<AgentModeProps> = ({
     onElementsCreated,
     mode,
     onModeChange,
+    onFirstMessage,
     excalidrawAPI,
 }) => {
     const [input, setInput] = useState('');
@@ -180,6 +183,11 @@ export const AgentMode: React.FC<AgentModeProps> = ({
         const text = input.trim();
         if (!text || isLoading) return;
 
+        // 如果是第一条消息，触发标题生成
+        if (messages.length === 0 && onFirstMessage) {
+            onFirstMessage(text);
+        }
+
         // 添加用户消息
         const userMessage: ChatMessage = {
             id: `user-${Date.now()}`,
@@ -208,7 +216,7 @@ export const AgentMode: React.FC<AgentModeProps> = ({
             theme: isDark ? 'dark' : 'light',
             mode,  // 传递当前选择的模式 (agent/planning/mermaid)
         });
-    }, [input, isLoading, sendRequest, reset, isDark, mode]);
+    }, [input, isLoading, sendRequest, reset, isDark, mode, messages.length, onFirstMessage]);
 
     // 渲染消息
     const renderMessage = (message: ChatMessage) => {

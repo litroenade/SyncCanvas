@@ -5,20 +5,16 @@ from pycrdt import Map
 
 from .helpers import base_excalidraw_element
 from .constants import (
+    DEFAULT_NODE_WIDTH,
+    DEFAULT_NODE_HEIGHT,
+    DEFAULT_FONT_SIZE,
+    DEFAULT_FONT_FAMILY,
     DEFAULT_LINE_HEIGHT,
     DEFAULT_OPACITY,
     SEED_RANGE,
     VERSION_NONCE_RANGE,
     DEFAULT_STROKE_WIDTH,
 )
-from src.config import config
-
-
-# 从配置获取默认值的辅助函数
-def _get_canvas_defaults() -> tuple:
-    """获取画布默认配置值"""
-    c = config.canvas
-    return (c.node_width, c.node_height, c.font_size, c.font_family)
 
 
 def create_shape_and_text(
@@ -44,11 +40,8 @@ def create_shape_and_text(
     label: str = spec.get("label", "")
     x: float = spec.get("x", 0)
     y: float = spec.get("y", 0)
-
-    # 从配置获取默认尺寸
-    default_w, default_h, font_size, font_family = _get_canvas_defaults()
-    width: float = spec.get("width", default_w)
-    height: float = spec.get("height", default_h)
+    width: float = spec.get("width", DEFAULT_NODE_WIDTH)
+    height: float = spec.get("height", DEFAULT_NODE_HEIGHT)
     stroke_color: str = spec.get("stroke_color") or theme_colors["stroke"]
     bg_color: str = spec.get("bg_color") or theme_colors["background"]
     text_color: str = spec.get("text_color") or theme_colors["text"]
@@ -69,30 +62,18 @@ def create_shape_and_text(
     # 创建绑定的文本元素
     text_id: str = f"text_{shape_id}"
 
-    # 绑定到容器的文本元素，Excalidraw 会自动处理位置和居中
-    # 只需要提供容器中心点作为初始位置
-    safe_x: float = float(x) if x is not None else 0.0
-    safe_y: float = float(y) if y is not None else 0.0
-    safe_width: float = float(width) if width is not None else default_w
-    safe_height: float = float(height) if height is not None else default_h
-
-    # 使用容器中心点作为文本初始位置
-    center_x = safe_x + safe_width / 2
-    center_y = safe_y + safe_height / 2
-
-    # 椭圆形节点的文字区域比矩形小（约 70%）
-    if elem_type == "ellipse":
-        text_area_width = (safe_width - 20) * 0.7
-    else:
-        text_area_width = safe_width - 20
+    # === 关键修复：完全依赖 Excalidraw 自动居中 ===
+    # 当设置 containerId 时，Excalidraw 会根据 textAlign 和 verticalAlign 自动计算位置
+    # x, y 使用容器左上角坐标，Excalidraw 会自动调整
+    # width, height 设置为 0，启用 autoResize 让 Excalidraw 自动计算
 
     text_element: Dict[str, Any] = {
         "id": text_id,
         "type": "text",
-        "x": center_x,
-        "y": center_y,
-        "width": text_area_width,
-        "height": font_size * DEFAULT_LINE_HEIGHT,
+        "x": float(x) if x is not None else 0.0,  # 容器左上角 x
+        "y": float(y) if y is not None else 0.0,  # 容器左上角 y
+        "width": 0,  # Excalidraw 自动计算
+        "height": 0,  # Excalidraw 自动计算
         "frameId": None,
         "angle": 0,
         "strokeColor": text_color,
@@ -112,13 +93,13 @@ def create_shape_and_text(
         "link": None,
         "locked": False,
         "text": label or "",
-        "fontSize": font_size,
-        "fontFamily": font_family,
+        "fontSize": DEFAULT_FONT_SIZE,
+        "fontFamily": DEFAULT_FONT_FAMILY,
         "textAlign": "center",
         "verticalAlign": "middle",
-        "containerId": shape_id,
+        "containerId": shape_id,  # 绑定到容器，触发自动居中
         "originalText": label or "",
-        "autoResize": True,
+        "autoResize": True,  # 启用自动调整大小
         "lineHeight": DEFAULT_LINE_HEIGHT,
     }
 
@@ -141,7 +122,7 @@ def create_arrow_between_nodes(
     elements_source: List[Dict[str, Any]],
     theme_colors: Dict[str, str],
     direction: str = "TB",
-    use_pathfinding: bool = False,  # 禁用 A*，使用简单路由
+    use_pathfinding: bool = True,  # 启用 A* 路径规划
 ) -> Optional[Tuple[Dict[str, Any], Dict[str, Any]]]:
     """创建连接两个节点的箭头（A* 避障路由）
 

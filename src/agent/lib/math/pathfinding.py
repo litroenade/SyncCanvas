@@ -349,9 +349,9 @@ def calculate_dynamic_params(
     min_dimension = min(min(widths), min(heights))
     grid_size = max(5.0, min(20.0, min_dimension / 10))
 
-    # 动态计算 padding：使用平均节点宽度的 1/5
+    # 动态计算 padding：使用平均节点宽度的 1/3（增加边距避免视觉遮挡）
     avg_width = sum(widths) / len(widths)
-    padding = max(15.0, min(40.0, avg_width / 5))
+    padding = max(25.0, min(60.0, avg_width / 3))
 
     return (grid_size, padding)
 
