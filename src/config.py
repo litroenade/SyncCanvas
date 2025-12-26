@@ -245,16 +245,18 @@ class CanvasConfig(BaseModel):
     控制 AI 生成图表时的默认样式和布局参数。
     """
 
-    # 节点默认尺寸
-    node_width: float = Field(160.0, title="节点宽度", description="流程图节点默认宽度")
-    node_height: float = Field(70.0, title="节点高度", description="流程图节点默认高度")
+    # 节点默认尺寸（适应中文文字）
+    node_width: float = Field(
+        200.0, title="节点宽度", description="流程图节点默认宽度（中文需要更宽）"
+    )
+    node_height: float = Field(80.0, title="节点高度", description="流程图节点默认高度")
     ellipse_width: float = Field(
-        120.0, title="椭圆宽度", description="开始/结束节点宽度"
+        160.0, title="椭圆宽度", description="开始/结束节点宽度"
     )
     ellipse_height: float = Field(
-        50.0, title="椭圆高度", description="开始/结束节点高度"
+        60.0, title="椭圆高度", description="开始/结束节点高度"
     )
-    diamond_size: float = Field(120.0, title="菱形尺寸", description="判断节点尺寸")
+    diamond_size: float = Field(140.0, title="菱形尺寸", description="判断节点尺寸")
 
     # 布局间距（基准值，实际会根据节点数量动态调整）
     base_horizontal_gap: float = Field(

@@ -1,6 +1,7 @@
 """元素编辑工具
 
-提供元素的增量编辑功能：更新、删除、移动
+提供元素的增量编辑功能：删除、移动、更新文本
+注意: update_element 已移至 elements.py，避免重复注册
 """
 
 from typing import Optional, Dict, Any
@@ -16,16 +17,6 @@ from src.agent.lib.canvas.helpers import (
 from src.logger import get_logger
 
 logger = get_logger(__name__)
-
-
-class UpdateElementArgs(BaseModel):
-    """update_element 工具参数"""
-
-    element_id: str = Field(..., description="要更新的元素 ID")
-    updates: Dict[str, Any] = Field(
-        ...,
-        description="要更新的属性字典，如 {'strokeColor': '#ff0000', 'backgroundColor': '#ffcccc'}",
-    )
 
 
 class DeleteElementArgs(BaseModel):
@@ -47,91 +38,6 @@ class UpdateTextArgs(BaseModel):
 
     element_id: str = Field(..., description="文本元素或包含文本的容器元素 ID")
     new_text: str = Field(..., description="新的文本内容")
-
-
-@registry.register(
-    "update_element",
-    "修改画布上元素的属性（颜色、样式等）",
-    UpdateElementArgs,
-    category=ToolCategory.CANVAS,
-)
-async def update_element(
-    element_id: str,
-    updates: Dict[str, Any],
-    context: Optional[AgentContext] = None,
-) -> Dict[str, Any]:
-    """更新元素属性
-
-    可更新的常用属性：
-    - strokeColor: 描边颜色
-    - backgroundColor: 背景颜色
-    - strokeWidth: 描边宽度
-    - opacity: 不透明度 (0-100)
-    - roughness: 粗糙度 (0-2)
-
-    Args:
-        element_id: 元素 ID
-        updates: 要更新的属性字典
-        context: Agent 上下文
-
-    Returns:
-        dict: 操作结果
-    """
-    if context is None:
-        return {"status": "error", "message": "Context is required"}
-
-    room_id = require_room_id(context)
-    doc, elements_array = await context.get_room_and_doc()
-    if doc is None or elements_array is None:
-        return {"status": "error", "message": "Failed to get room doc"}
-
-    # 查找元素
-    idx, element = find_element_by_id(elements_array, element_id)
-    if idx < 0:
-        # 尝试从虚拟元素中查找
-        if context.virtual_mode and context.virtual_elements:
-            for i, el in enumerate(context.virtual_elements):
-                if el.get("id") == element_id:
-                    # 更新虚拟元素
-                    context.virtual_elements[i].update(updates)
-                    logger.info(
-                        "[update_element] 虚拟模式: 更新元素 %s",
-                        element_id,
-                    )
-                    return {
-                        "status": "success",
-                        "message": f"已更新元素 {element_id} 的属性",
-                        "updated_keys": list(updates.keys()),
-                    }
-        return {
-            "status": "error",
-            "message": f"找不到元素: {element_id}",
-        }
-
-    # 过滤掉不应该修改的属性
-    protected_keys = {"id", "type", "isDeleted", "version", "versionNonce"}
-    safe_updates = {k: v for k, v in updates.items() if k not in protected_keys}
-
-    if not safe_updates:
-        return {
-            "status": "error",
-            "message": "没有可更新的属性（id, type 等不可修改）",
-        }
-
-    with doc.transaction(origin="ai-engine/update_element"):
-        update_element_in_array(elements_array, element_id, safe_updates)
-
-    logger.info(
-        "更新元素: %s",
-        element_id,
-        extra={"room": room_id, "updates": list(safe_updates.keys())},
-    )
-
-    return {
-        "status": "success",
-        "message": f"已更新元素 {element_id} 的属性",
-        "updated_keys": list(safe_updates.keys()),
-    }
 
 
 @registry.register(

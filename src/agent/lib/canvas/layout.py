@@ -2,11 +2,12 @@
 主要功能: 图表布局引擎
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Tuple
 from enum import Enum
 from dataclasses import dataclass, field
 
 from src.logger import get_logger
+from src.config import config
 
 # 从 helpers 导入主题颜色函数
 from .helpers import get_theme_colors
@@ -32,34 +33,35 @@ class NodeType(Enum):
     TEXT = "text"  # 文本
 
 
-@dataclass
-class LayoutConfig:
-    """布局配置"""
+def get_node_size(node_type: str, node_count: int = 1) -> Tuple[float, float]:
+    """根据节点类型获取尺寸，使用 CanvasConfig 配置
 
-    # 节点尺寸
-    node_width: float = 160
-    node_height: float = 70
-    ellipse_width: float = 120
-    ellipse_height: float = 50
-    decision_size: float = 120
+    Args:
+        node_type: 节点类型
+        node_count: 节点数量（用于动态调整）
 
-    # 间距 - 增大以避免重叠
-    vertical_gap: float = 140  # 增大垂直间距
-    horizontal_gap: float = 220  # 增大水平间距
-
-    # 起始位置
-    start_x: float = 400
-    start_y: float = 100
-
-
-def get_node_size(node_type: str, config: LayoutConfig) -> tuple[float, float]:
-    """获取节点尺寸"""
+    Returns:
+        (width, height) 元组
+    """
+    c = config.canvas
     if node_type == "ellipse":
-        return (config.ellipse_width, config.ellipse_height)
+        return (c.ellipse_width, c.ellipse_height)
     elif node_type == "diamond":
-        return (config.decision_size, config.decision_size)
+        return (c.diamond_size, c.diamond_size)
     else:
-        return (config.node_width, config.node_height)
+        return (c.node_width, c.node_height)
+
+
+def get_layout_gaps(node_count: int = 1) -> Tuple[float, float]:
+    """获取布局间距，支持动态调整
+
+    Args:
+        node_count: 节点数量
+
+    Returns:
+        (horizontal_gap, vertical_gap) 元组
+    """
+    return config.canvas.calculate_dynamic_gaps(node_count)
 
 
 @dataclass
@@ -149,7 +151,6 @@ def topological_levels(nodes: List[Dict], edges: List[Dict]) -> Dict[str, int]:
 
 def calculate_layout(
     structure: Dict[str, Any],
-    config: Optional[LayoutConfig] = None,
     theme: str = "light",
 ) -> LayoutResult:
     """
@@ -162,21 +163,22 @@ def calculate_layout(
             "nodes": [{"id": "n1", "type": "ellipse", "label": "开始"}, ...],
             "edges": [{"from": "n1", "to": "n2", "label": ""}, ...]
         }
-        config: 布局配置
         theme: 颜色主题 ("light" | "dark")
 
     Returns:
         LayoutResult: 带坐标的节点和边
     """
-    if config is None:
-        config = LayoutConfig()
-
     nodes = structure.get("nodes", [])
     edges = structure.get("edges", [])
     direction = structure.get("direction", "TB")
 
     if not nodes:
         return LayoutResult()
+
+    # 从全局配置获取布局参数
+    canvas_config = config.canvas
+    node_count = len(nodes)
+    horizontal_gap, vertical_gap = get_layout_gaps(node_count)
 
     colors = get_theme_colors(theme)
 
@@ -193,7 +195,7 @@ def calculate_layout(
 
     # 3. 计算坐标
     positioned_nodes = []
-    node_positions: Dict[str, tuple[float, float, float, float]] = {}
+    node_positions: Dict[str, Tuple[float, float, float, float]] = {}
 
     for level in sorted(level_nodes.keys()):
         layer_nodes = level_nodes[level]
@@ -201,19 +203,19 @@ def calculate_layout(
 
         for col, node in enumerate(layer_nodes):
             node_type = node.get("type", "rectangle")
-            width, height = get_node_size(node_type, config)
+            width, height = get_node_size(node_type, node_count)
 
             if direction in ("TB", "BT"):
                 # 垂直布局
                 x = (
-                    config.start_x
-                    + (col - layer_width / 2 + 0.5) * config.horizontal_gap
+                    canvas_config.start_x
+                    + (col - layer_width / 2 + 0.5) * horizontal_gap
                 )
-                y = config.start_y + level * (height + config.vertical_gap)
+                y = canvas_config.start_y + level * (height + vertical_gap)
             else:
                 # 水平布局
-                x = config.start_x + level * (width + config.horizontal_gap)
-                y = config.start_y + (col - layer_width / 2 + 0.5) * config.vertical_gap
+                x = canvas_config.start_x + level * (width + horizontal_gap)
+                y = canvas_config.start_y + (col - layer_width / 2 + 0.5) * vertical_gap
 
             positioned_nodes.append(
                 {
@@ -226,7 +228,7 @@ def calculate_layout(
                     "height": height,
                     "stroke_color": colors["stroke"],
                     "bg_color": colors["background"],
-                    "text_color": colors["text"],  # 传递文字颜色
+                    "text_color": colors["text"],
                 }
             )
 
@@ -249,14 +251,12 @@ def calculate_layout(
             )
 
     logger.info(
-        "布局计算完成: %d 节点, %d 连接, 方向=%s",
+        "布局计算完成: %d 节点, %d 连接, 方向=%s, 间距=(%d, %d)",
         len(positioned_nodes),
         len(positioned_edges),
         direction,
+        horizontal_gap,
+        vertical_gap,
     )
 
     return LayoutResult(nodes=positioned_nodes, edges=positioned_edges)
-
-
-# 默认配置实例
-default_layout_config = LayoutConfig()

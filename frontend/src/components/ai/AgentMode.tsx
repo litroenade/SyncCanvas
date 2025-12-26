@@ -61,9 +61,6 @@ export const AgentMode: React.FC<AgentModeProps> = ({
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
     const [thinkingStartTime, setThinkingStartTime] = useState<number | null>(null);
-    // 持久化的虚拟画布状态（跨消息累积）
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [persistedVirtualElements, setPersistedVirtualElements] = useState<any[]>([]);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     // 使用 WebSocket 流式 AI
@@ -155,10 +152,6 @@ export const AgentMode: React.FC<AgentModeProps> = ({
                     }
                     : msg
             ));
-            // 累积虚拟元素到持久化状态
-            if (virtualElements && virtualElements.length > 0) {
-                setPersistedVirtualElements(prev => [...prev, ...virtualElements]);
-            }
             setThinkingStartTime(null);
         }
     }, [response, isLoading, thinkingStartTime, virtualElements]);
@@ -368,6 +361,12 @@ export const AgentMode: React.FC<AgentModeProps> = ({
                                         animate: true,
                                         duration: 300,
                                     });
+                                    // 添加后清空该消息的虚拟元素，防止重复添加
+                                    setMessages(prev => prev.map(msg =>
+                                        msg.id === message.id
+                                            ? { ...msg, virtualElements: undefined }
+                                            : msg
+                                    ));
                                 }}
                             />
                         </div>

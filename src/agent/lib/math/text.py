@@ -31,6 +31,32 @@ class FontMetrics:
         return 1.0
 
 
+def is_cjk_char(char: str) -> bool:
+    """判断是否为 CJK（中日韩）字符
+
+    覆盖的 Unicode 范围:
+    - CJK 统一汉字: 4E00-9FFF
+    - CJK 扩展 A: 3400-4DBF
+    - CJK 扩展 B-F: 20000-2FA1F
+    - 韩文音节: AC00-D7AF
+    - 平假名: 3040-309F
+    - 片假名: 30A0-30FF
+    - CJK 符号和标点: 3000-303F
+    - 全角 ASCII: FF00-FFEF
+    """
+    code = ord(char)
+    return (
+        (0x4E00 <= code <= 0x9FFF)  # CJK 统一汉字
+        or (0x3400 <= code <= 0x4DBF)  # CJK 扩展 A
+        or (0x20000 <= code <= 0x2FA1F)  # CJK 扩展 B-F
+        or (0xAC00 <= code <= 0xD7AF)  # 韩文音节
+        or (0x3040 <= code <= 0x309F)  # 平假名
+        or (0x30A0 <= code <= 0x30FF)  # 片假名
+        or (0x3000 <= code <= 0x303F)  # CJK 符号和标点
+        or (0xFF00 <= code <= 0xFFEF)  # 全角字符
+    )
+
+
 def estimate_text_width(
     text: str, font_size: float = 18, font_family: int = 1
 ) -> float:
@@ -43,15 +69,14 @@ def estimate_text_width(
     Args:
         text: 文本内容
         font_size: 字号
-        font_family: 字体系列
+        font_family: 字体系列 (未使用，保留兼容)
 
     Returns:
         估算的像素宽度
     """
     width = 0.0
     for char in text:
-        code = ord(char)
-        if code > 0x2E7F:  # CJK 范围 (简化判断)
+        if is_cjk_char(char):
             width += font_size * 1.0
         else:
             width += font_size * 0.6

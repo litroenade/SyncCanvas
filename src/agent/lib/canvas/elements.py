@@ -295,7 +295,47 @@ async def update_element(
         return {"status": "error", "message": "Failed to get room doc"}
 
     index, current = find_element_by_id(elements_array, element_id)
+
+    # 虚拟模式支持：如果画布中找不到，尝试从虚拟元素中查找
     if index < 0:
+        if context.virtual_mode and context.virtual_elements:
+            for i, el in enumerate(context.virtual_elements):
+                if el.get("id") == element_id:
+                    # 更新虚拟元素
+                    updated_fields = []
+                    if x is not None:
+                        el["x"] = x
+                        updated_fields.append("x")
+                    if y is not None:
+                        el["y"] = y
+                        updated_fields.append("y")
+                    if width is not None:
+                        el["width"] = width
+                        updated_fields.append("width")
+                    if height is not None:
+                        el["height"] = height
+                        updated_fields.append("height")
+                    if text is not None:
+                        el["text"] = text
+                        el["originalText"] = text
+                        updated_fields.append("text")
+                    if stroke_color is not None:
+                        el["strokeColor"] = stroke_color
+                        updated_fields.append("strokeColor")
+                    if bg_color is not None:
+                        el["backgroundColor"] = bg_color
+                        updated_fields.append("backgroundColor")
+
+                    logger.info(
+                        "[update_element] 虚拟模式: 更新元素 %s",
+                        element_id,
+                    )
+                    return {
+                        "status": "success",
+                        "message": f"已更新元素 {element_id} (虚拟模式)",
+                        "element_id": element_id,
+                        "updated_fields": updated_fields,
+                    }
         return {"status": "error", "message": f"元素不存在: {element_id}"}
 
     updated_fields = []

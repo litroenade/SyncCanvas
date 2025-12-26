@@ -402,6 +402,14 @@ class BaseAgent(ABC):
         # 总超时控制
         async with asyncio.timeout(self.config.total_timeout):
             while iteration < self.config.max_iterations:
+                # 检查状态机是否已终止（超时/取消/失败）
+                if self._state_machine.is_terminal:
+                    logger.warning(
+                        "Agent 循环因状态终止: %s",
+                        self._state_machine.state.name,
+                    )
+                    return f"任务已终止: {self._state_machine.state.name}"
+
                 # 检查是否被取消
                 if context.is_cancelled:
                     self._status = AgentStatus.CANCELLED
