@@ -12,7 +12,6 @@ from src.agent.core import (
     registry,
 )
 from src.agent.core.runs import AgentRunService
-from src.agent.memory import memory_service
 from src.db.database import get_sync_session, engine
 from src.logger import get_logger
 
@@ -106,8 +105,16 @@ class AIService:
             return
 
         try:
-            safe_content = content[:4000] if len(content) > 4000 else content
-            await memory_service.save_message(room_id, role, safe_content)
+            if (
+                hasattr(self, "_current_conversation_id")
+                and self._current_conversation_id
+            ):
+                from src.agent.memory import memory_service
+
+                safe_content = content[:10000] if len(content) > 10000 else content
+                await memory_service.save_message(
+                    self._current_conversation_id, role, safe_content
+                )
         except Exception as e:
             logger.warning("保存记忆失败 (room=%s, role=%s): %s", room_id, role, e)
 
@@ -119,6 +126,7 @@ class AIService:
         user_id: Optional[str] = None,
         theme: str = "light",
         virtual_mode: bool = False,
+        conversation_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """处理用户 AI 请求
 
@@ -149,6 +157,9 @@ class AIService:
             run_id = run.id
         assert run_id is not None, "Run ID should be set after creation"
 
+        # 保存当前对话 ID
+        self._current_conversation_id = conversation_id
+
         # 初始化上下文
         context = AgentContext(
             run_id=run_id,
@@ -156,6 +167,7 @@ class AIService:
             user_id=user_id,
             theme=theme,
             virtual_mode=virtual_mode,
+            conversation_id=conversation_id,
         )
         self._active_contexts[run_id] = context
 

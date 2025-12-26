@@ -45,6 +45,7 @@ export interface UseAIStreamReturn extends AIStreamState {
         theme?: string;
         virtual_mode?: boolean;
         mode?: 'agent' | 'planning' | 'mermaid';
+        conversation_id?: number;
     }) => Promise<void>;
     /** 重置状态 */
     reset: () => void;

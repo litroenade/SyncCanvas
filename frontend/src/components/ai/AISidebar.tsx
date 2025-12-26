@@ -8,10 +8,11 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../lib/utils';
-import { Bot, X, GripVertical, Plus, History, Minus } from 'lucide-react';
+import { Bot, X, GripVertical, Plus, History, Trash2, MessageSquare } from 'lucide-react';
 import { AgentMode } from './AgentMode';
 import { ConversationMode } from './ChatInput';
 import { aiApi } from '../../services/api/ai';
+import { useConversationStore, ConversationInfo } from '../../stores/conversation_store';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ExcalidrawAPI = any;
@@ -58,6 +59,26 @@ export const AISidebar: React.FC<AISidebarProps> = ({
         return localStorage.getItem(`${TITLE_STORAGE_KEY}-${roomId}`) || 'AI 助手';
     });
 
+    // 历史面板状态
+    const [showHistory, setShowHistory] = useState(false);
+    const {
+        conversations,
+        activeConversationId,
+        isLoading: isHistoryLoading,
+        setRoomId,
+        fetchConversations,
+        createConversation,
+        selectConversation,
+        deleteConversation,
+    } = useConversationStore();
+
+    // 初始化房间 ID
+    useEffect(() => {
+        if (roomId) {
+            setRoomId(roomId);
+        }
+    }, [roomId, setRoomId]);
+
     // 标题更新回调 - 当用户发送第一条消息时调用
     const handleFirstMessage = useCallback(async (message: string) => {
         if (conversationTitle === 'AI 助手' && message) {
@@ -68,11 +89,26 @@ export const AISidebar: React.FC<AISidebarProps> = ({
     }, [conversationTitle, roomId]);
 
     // 新建对话
-    const handleNewConversation = useCallback(() => {
+    const handleNewConversation = useCallback(async () => {
         setConversationTitle('AI 助手');
         localStorage.removeItem(`${TITLE_STORAGE_KEY}-${roomId}`);
-        // TODO: 清空聊天消息
-    }, [roomId]);
+        await createConversation('新对话', mode);
+        setShowHistory(false);
+    }, [roomId, createConversation, mode]);
+
+    // 选择历史对话
+    const handleSelectConversation = useCallback((conv: ConversationInfo) => {
+        setConversationTitle(conv.title);
+        localStorage.setItem(`${TITLE_STORAGE_KEY}-${roomId}`, conv.title);
+        selectConversation(conv.id);  // 更新活跃对话 ID
+        setShowHistory(false);
+    }, [roomId, selectConversation]);
+
+    // 删除对话
+    const handleDeleteConversation = useCallback(async (id: number, e: React.MouseEvent) => {
+        e.stopPropagation();
+        await deleteConversation(id);
+    }, [deleteConversation]);
 
     // 保存模式到 localStorage
     useEffect(() => {
@@ -217,35 +253,23 @@ export const AISidebar: React.FC<AISidebarProps> = ({
                                 {/* 历史记录 */}
                                 <button
                                     onClick={() => {
-                                        // TODO: 显示历史记录
-                                        console.log('History');
+                                        setShowHistory(!showHistory);
+                                        if (!showHistory) fetchConversations();
                                     }}
                                     className={cn(
                                         'p-1.5 rounded-md transition-colors',
-                                        isDark
-                                            ? 'hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200'
-                                            : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700'
+                                        showHistory
+                                            ? (isDark ? 'bg-violet-600 text-white' : 'bg-violet-500 text-white')
+                                            : (isDark
+                                                ? 'hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200'
+                                                : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700')
                                     )}
                                     title="历史记录"
                                 >
                                     <History size={16} />
                                 </button>
 
-                                {/* 最小化 */}
-                                <button
-                                    onClick={onToggle}
-                                    className={cn(
-                                        'p-1.5 rounded-md transition-colors',
-                                        isDark
-                                            ? 'hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200'
-                                            : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700'
-                                    )}
-                                    title="最小化"
-                                >
-                                    <Minus size={16} />
-                                </button>
-
-                                {/* 关闭 */}
+                                {/* 关闭/收起侧边栏 */}
                                 <button
                                     onClick={onToggle}
                                     className={cn(
@@ -254,12 +278,74 @@ export const AISidebar: React.FC<AISidebarProps> = ({
                                             ? 'hover:bg-zinc-700 text-zinc-400 hover:text-red-400'
                                             : 'hover:bg-zinc-100 text-zinc-500 hover:text-red-500'
                                     )}
-                                    title="关闭"
+                                    title="收起侧边栏"
                                 >
                                     <X size={16} />
                                 </button>
                             </div>
                         </div>
+
+                        {/* 历史面板 */}
+                        <AnimatePresence>
+                            {showHistory && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.2 }}
+                                    className={cn(
+                                        'border-b overflow-hidden',
+                                        isDark ? 'border-zinc-700/50 bg-zinc-800/50' : 'border-zinc-200/50 bg-zinc-50/50'
+                                    )}
+                                >
+                                    <div className="max-h-64 overflow-y-auto p-2 space-y-1">
+                                        {isHistoryLoading ? (
+                                            <div className="text-center py-4 text-zinc-500">加载中...</div>
+                                        ) : conversations.length === 0 ? (
+                                            <div className="text-center py-4 text-zinc-500">暂无历史对话</div>
+                                        ) : (
+                                            conversations.map((conv) => (
+                                                <div
+                                                    key={conv.id}
+                                                    onClick={() => handleSelectConversation(conv)}
+                                                    className={cn(
+                                                        'flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer group',
+                                                        'transition-colors',
+                                                        conv.is_active
+                                                            ? (isDark ? 'bg-violet-600/20 text-violet-300' : 'bg-violet-100 text-violet-700')
+                                                            : (isDark ? 'hover:bg-zinc-700' : 'hover:bg-zinc-100')
+                                                    )}
+                                                >
+                                                    <MessageSquare size={14} className="flex-shrink-0" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className={cn(
+                                                            'text-sm font-medium truncate',
+                                                            isDark ? 'text-zinc-200' : 'text-zinc-700'
+                                                        )}>
+                                                            {conv.title}
+                                                        </div>
+                                                        <div className="text-xs text-zinc-500">
+                                                            {conv.message_count} 条消息
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={(e) => handleDeleteConversation(conv.id, e)}
+                                                        className={cn(
+                                                            'opacity-0 group-hover:opacity-100 p-1 rounded',
+                                                            'transition-opacity',
+                                                            isDark ? 'hover:bg-red-600/20 text-red-400' : 'hover:bg-red-100 text-red-500'
+                                                        )}
+                                                        title="删除对话"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
 
                         {/* 聊天界面 - 统一的聊天体验，模式只影响 AI 行为 */}
                         <div className="flex-1 overflow-hidden">
@@ -270,6 +356,7 @@ export const AISidebar: React.FC<AISidebarProps> = ({
                                 onModeChange={setMode}
                                 excalidrawAPI={excalidrawAPI}
                                 onFirstMessage={handleFirstMessage}
+                                conversationId={activeConversationId}
                             />
                         </div>
                     </motion.aside>

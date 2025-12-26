@@ -122,7 +122,7 @@ def create_arrow_between_nodes(
     elements_source: List[Dict[str, Any]],
     theme_colors: Dict[str, str],
     direction: str = "TB",
-    use_pathfinding: bool = True,  # 启用 A* 路径规划
+    use_pathfinding: bool = False,  # 暂时禁用 A* 路径规划（有 bug）
 ) -> Optional[Tuple[Dict[str, Any], Dict[str, Any]]]:
     """创建连接两个节点的箭头（A* 避障路由）
 

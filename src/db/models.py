@@ -114,16 +114,38 @@ class AgentAction(SQLModel, table=True):
     )
 
 
-class AgentMessage(SQLModel, table=True):
-    """
-    Agent 对话消息模型
+class Conversation(SQLModel, table=True):
+    """AI 对话会话
+
+    存储独立的 AI 对话会话，每个会话包含多条消息。
     """
 
     id: Optional[int] = Field(default=None, primary_key=True)
     room_id: str = Field(index=True, max_length=36)
+    user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    title: str = Field(default="新对话", max_length=100)
+    mode: str = Field(default="planning", max_length=20)  # agent/planning/mermaid
+    is_active: bool = Field(default=True)  # 当前活跃的对话
+    message_count: int = Field(default=0)
+    created_at: int = Field(
+        default_factory=lambda: int(datetime.utcnow().timestamp() * 1000)
+    )
+    updated_at: int = Field(
+        default_factory=lambda: int(datetime.utcnow().timestamp() * 1000)
+    )
+
+
+class AgentMessage(SQLModel, table=True):
+    """Agent 对话消息"""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    conversation_id: int = Field(foreign_key="conversation.id", index=True)
     run_id: Optional[int] = Field(default=None, foreign_key="agentrun.id", index=True)
-    role: str = Field(max_length=20)  # user | assistant | system
-    content: str = Field(max_length=4000)
+    role: str = Field(max_length=20)  # user | assistant
+    content: str = Field(max_length=10000)
+    extra_data: dict = Field(
+        default_factory=dict, sa_column=Column(JSON)
+    )  # 工具调用、虚拟元素等
     created_at: int = Field(
         default_factory=lambda: int(datetime.utcnow().timestamp() * 1000)
     )

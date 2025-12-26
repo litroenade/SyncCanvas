@@ -76,6 +76,7 @@ class AgentContext:
     virtual_mode: bool = (
         False  # 虚拟模式：工具调用不写入 Yjs，而是存储到 virtual_elements
     )
+    conversation_id: Optional[int] = None  # 对话 ID
     shared_state: Dict[str, Any] = field(default_factory=dict)
     tool_results: List[Dict[str, Any]] = field(default_factory=list)
     created_element_ids: List[str] = field(default_factory=list)
@@ -200,16 +201,19 @@ class AgentContext:
             return self._memory_history
 
         try:
-            from src.agent.memory import memory_service
+            if self.conversation_id:
+                from src.agent.memory import memory_service
 
-            self._memory_history = await memory_service.get_history(
-                self.session_id, limit=limit
-            )
-            logger.debug(
-                "[AgentContext] 加载记忆: room=%s, count=%d",
-                self.session_id,
-                len(self._memory_history),
-            )
+                self._memory_history = await memory_service.get_messages(
+                    self.conversation_id, limit=limit
+                )
+                logger.debug(
+                    "[AgentContext] 加载记忆: conv=%d, count=%d",
+                    self.conversation_id,
+                    len(self._memory_history),
+                )
+            else:
+                self._memory_history = []
             return self._memory_history
         except Exception as e:  # pylint: disable=broad-except
             logger.warning("[AgentContext] 加载记忆失败: %s", e)

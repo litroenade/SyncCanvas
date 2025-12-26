@@ -154,6 +154,111 @@ async def generate_summary(request: SummarizeRequest):
         return SummarizeResponse(title=title)
 
 
+# ==================== 对话历史 API ====================
+
+
+class ConversationInfo(BaseModel):
+    """对话信息"""
+
+    id: int
+    room_id: str
+    title: str
+    mode: str
+    is_active: bool
+    message_count: int
+    created_at: int
+    updated_at: int
+
+
+class ConversationsListResponse(BaseModel):
+    """对话列表响应"""
+
+    conversations: list[ConversationInfo]
+    total: int
+
+
+class CreateConversationRequest(BaseModel):
+    """创建对话请求"""
+
+    title: str = Field(default="新对话", max_length=100)
+    mode: str = Field(default="planning", max_length=20)
+
+
+class UpdateConversationRequest(BaseModel):
+    """更新对话请求"""
+
+    title: str = Field(max_length=100)
+
+
+@router.get("/conversations/{room_id}", response_model=ConversationsListResponse)
+async def list_conversations(room_id: str, limit: int = 50):
+    """获取房间的所有对话"""
+    from src.agent.memory.service import memory_service
+
+    conversations = await memory_service.get_conversations(room_id, limit)
+    return ConversationsListResponse(
+        conversations=[
+            ConversationInfo(
+                id=c.id or 0,  # 确保不为 None
+                room_id=c.room_id,
+                title=c.title,
+                mode=c.mode,
+                is_active=c.is_active,
+                message_count=c.message_count,
+                created_at=c.created_at,
+                updated_at=c.updated_at,
+            )
+            for c in conversations
+            if c.id is not None
+        ],
+        total=len(conversations),
+    )
+
+
+@router.post("/conversations/{room_id}")
+async def create_conversation(room_id: str, request: CreateConversationRequest):
+    """创建新对话"""
+    from src.agent.memory.service import memory_service
+
+    conv = await memory_service.create_conversation(
+        room_id=room_id,
+        title=request.title,
+        mode=request.mode,
+    )
+    return {"status": "created", "conversation_id": conv.id, "title": conv.title}
+
+
+@router.get("/conversations/{room_id}/{conversation_id}/messages")
+async def get_conversation_messages(
+    room_id: str, conversation_id: int, limit: int = 50
+):
+    """获取对话消息"""
+    from src.agent.memory.service import memory_service
+
+    messages = await memory_service.get_messages(conversation_id, limit)
+    return {"messages": messages, "total": len(messages)}
+
+
+@router.patch("/conversations/{room_id}/{conversation_id}")
+async def update_conversation(
+    room_id: str, conversation_id: int, request: UpdateConversationRequest
+):
+    """更新对话标题"""
+    from src.agent.memory.service import memory_service
+
+    await memory_service.update_conversation_title(conversation_id, request.title)
+    return {"status": "updated", "title": request.title}
+
+
+@router.delete("/conversations/{room_id}/{conversation_id}")
+async def delete_conversation(room_id: str, conversation_id: int):
+    """删除对话"""
+    from src.agent.memory.service import memory_service
+
+    deleted_count = await memory_service.delete_conversation(conversation_id)
+    return {"status": "deleted", "messages_deleted": deleted_count}
+
+
 @router.post("/generate", response_model=GenerateResponse)
 async def generate_shapes(
     request: GenerateRequest, session: Session = Depends(get_session)
@@ -536,6 +641,7 @@ async def ai_stream_websocket(
             theme = data.get("theme", "light")
             virtual_mode = data.get("virtual_mode", False)
             mode = data.get("mode", "agent")  # agent | planning | mermaid
+            conversation_id = data.get("conversation_id")  # 可选的对话 ID
 
             # 根据模式调整提示词
             processed_prompt = prompt
@@ -552,6 +658,7 @@ async def ai_stream_websocket(
                     ),
                     theme=theme,
                     virtual_mode=virtual_mode,
+                    conversation_id=conversation_id,  # 传递对话 ID
                 )
 
                 # 发送完成消息

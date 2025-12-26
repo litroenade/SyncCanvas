@@ -32,6 +32,8 @@ interface AgentModeProps {
     onModeChange: (mode: ConversationMode) => void;
     /** 当用户发送第一条消息时调用，用于生成对话标题 */
     onFirstMessage?: (message: string) => void;
+    /** 当前对话 ID */
+    conversationId?: number | null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     excalidrawAPI?: any;
 }
@@ -58,6 +60,7 @@ export const AgentMode: React.FC<AgentModeProps> = ({
     mode,
     onModeChange,
     onFirstMessage,
+    conversationId,
     excalidrawAPI,
 }) => {
     const [input, setInput] = useState('');
@@ -211,12 +214,13 @@ export const AgentMode: React.FC<AgentModeProps> = ({
         setThinkingStartTime(Date.now());
         reset();
 
-        // 发送请求，传递当前模式
+        // 发送请求，传递当前模式和对话 ID
         await sendRequest(text, {
             theme: isDark ? 'dark' : 'light',
             mode,  // 传递当前选择的模式 (agent/planning/mermaid)
+            conversation_id: conversationId ?? undefined,
         });
-    }, [input, isLoading, sendRequest, reset, isDark, mode, messages.length, onFirstMessage]);
+    }, [input, isLoading, sendRequest, reset, isDark, mode, messages.length, onFirstMessage, conversationId]);
 
     // 渲染消息
     const renderMessage = (message: ChatMessage) => {
