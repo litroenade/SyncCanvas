@@ -476,14 +476,20 @@ async def ai_stream_websocket(
                 }
             )
 
-            # 获取主题和虚拟模式
+            # 获取主题、虚拟模式和对话模式
             theme = data.get("theme", "light")
             virtual_mode = data.get("virtual_mode", False)
+            mode = data.get("mode", "agent")  # agent | planning | mermaid
+            
+            # 根据模式调整提示词
+            processed_prompt = prompt
+            if mode == "mermaid" and "mermaid" not in prompt.lower():
+                processed_prompt = f"请使用 Mermaid 语法来实现以下需求: {prompt}"
 
             # 处理请求
             try:
                 result = await ai_service.process_request(
-                    user_input=prompt,
+                    user_input=processed_prompt,
                     session_id=room_id,
                     step_callback=lambda step: _broadcast_step(
                         websocket, room_id, step

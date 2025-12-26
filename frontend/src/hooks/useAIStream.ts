@@ -177,17 +177,8 @@ export function useAIStream({ roomId, autoConnect = false }: UseAIStreamOptions)
             adjustedOptions.virtual_mode = true;
         }
 
-        // Mermaid 模式可以在 prompt 中增加提示
-        let finalPrompt = prompt;
-        if (mode === 'mermaid') {
-            // 如果用户没有明确提到 mermaid，添加提示
-            if (!prompt.toLowerCase().includes('mermaid')) {
-                finalPrompt = `请使用 Mermaid 语法来实现以下需求: ${prompt}`;
-            }
-        }
-
-        // 发送请求
-        clientRef.current.sendRequest(finalPrompt, adjustedOptions);
+        // 发送请求（Mermaid 模式的提示词处理由后端统一完成）
+        clientRef.current.sendRequest(prompt, adjustedOptions);
     }, [connect]);
 
     // 重置状态
