@@ -127,6 +127,7 @@ class AIService:
         theme: str = "light",
         virtual_mode: bool = False,
         conversation_id: Optional[int] = None,
+        mode: str = "agent",  # agent | planning | mermaid
     ) -> Dict[str, Any]:
         """处理用户 AI 请求
 
@@ -168,6 +169,7 @@ class AIService:
             theme=theme,
             virtual_mode=virtual_mode,
             conversation_id=conversation_id,
+            mode=mode,  # 传递对话模式
         )
         self._active_contexts[run_id] = context
 

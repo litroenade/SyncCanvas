@@ -130,6 +130,43 @@ class BaseAgent(ABC):
         except Exception as e:  # pylint: disable=broad-except
             logger.warning("加载上下文失败: %s", e)
 
+    def _get_mode_instructions(self, mode: str) -> str:
+        """根据对话模式返回额外的系统指令
+
+        Args:
+            mode: 对话模式 (agent | planning | mermaid)
+
+        Returns:
+            str: 模式特定的指令文本
+        """
+        if mode == "mermaid":
+            return """## 特殊模式: Mermaid
+你当前处于 **Mermaid 模式**。用户希望你生成 Mermaid 语法的图表代码。
+
+**重要规则**:
+1. 必须使用 Mermaid 语法生成图表代码，而不是使用 auto_layout_create 或 batch_create_elements 等工具
+2. 直接在回复中输出 Mermaid 代码块，使用 ```mermaid ... ``` 格式
+3. 支持的图表类型: flowchart, sequenceDiagram, classDiagram, stateDiagram, erDiagram, gantt, pie, mindmap 等
+4. 不要调用任何画布工具，只输出 Mermaid 代码和简要说明
+
+示例输出格式:
+```mermaid
+graph TD
+    A[开始] --> B[步骤1]
+    B --> C[步骤2]
+    C --> D[结束]
+```"""
+        elif mode == "planning":
+            return """## 特殊模式: Planning
+你当前处于 **Planning 模式**。这是一个规划预览模式。
+
+**重要规则**:
+1. 生成的元素不会直接写入画布，而是预览在侧边栏
+2. 用户可以审核后拖拽到主画布
+3. 使用 virtual_mode=True 的行为"""
+        else:
+            return ""  # agent 模式无额外指令
+
     async def _log_action(
         self, context: AgentContext, tool_name: str, args: Dict[str, Any], result: Any
     ) -> None:
@@ -376,6 +413,11 @@ class BaseAgent(ABC):
         system_content = self._build_system_prompt()
         if context._canvas_context:
             system_content = f"{system_content}\n\n{context._canvas_context}"
+
+        # 根据 mode 注入不同的指令
+        mode_instructions = self._get_mode_instructions(context.mode)
+        if mode_instructions:
+            system_content = f"{system_content}\n\n{mode_instructions}"
 
         # 初始化消息历史
         messages: List[ChatCompletionMessageParam] = [

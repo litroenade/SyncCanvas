@@ -77,6 +77,7 @@ class AgentContext:
         False  # 虚拟模式：工具调用不写入 Yjs，而是存储到 virtual_elements
     )
     conversation_id: Optional[int] = None  # 对话 ID
+    mode: str = "agent"  # 对话模式: agent | planning | mermaid
     shared_state: Dict[str, Any] = field(default_factory=dict)
     tool_results: List[Dict[str, Any]] = field(default_factory=list)
     created_element_ids: List[str] = field(default_factory=list)

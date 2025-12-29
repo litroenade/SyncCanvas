@@ -206,16 +206,17 @@ def calculate_layout(
             width, height = get_node_size(node_type, node_count)
 
             if direction in ("TB", "BT"):
-                # 垂直布局
-                x = (
-                    canvas_config.start_x
-                    + (col - layer_width / 2 + 0.5) * horizontal_gap
+                # 垂直布局：水平间距需要考虑节点宽度
+                x = canvas_config.start_x + (col - layer_width / 2 + 0.5) * (
+                    width + horizontal_gap
                 )
                 y = canvas_config.start_y + level * (height + vertical_gap)
             else:
                 # 水平布局
                 x = canvas_config.start_x + level * (width + horizontal_gap)
-                y = canvas_config.start_y + (col - layer_width / 2 + 0.5) * vertical_gap
+                y = canvas_config.start_y + (col - layer_width / 2 + 0.5) * (
+                    height + vertical_gap
+                )
 
             positioned_nodes.append(
                 {

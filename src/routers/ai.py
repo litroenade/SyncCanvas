@@ -658,7 +658,8 @@ async def ai_stream_websocket(
                     ),
                     theme=theme,
                     virtual_mode=virtual_mode,
-                    conversation_id=conversation_id,  # 传递对话 ID
+                    conversation_id=conversation_id,
+                    mode=mode,  # 传递模式
                 )
 
                 # 发送完成消息
