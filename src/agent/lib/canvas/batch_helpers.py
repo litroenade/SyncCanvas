@@ -62,18 +62,21 @@ def create_shape_and_text(
     # 创建绑定的文本元素
     text_id: str = f"text_{shape_id}"
 
-    # === 关键修复：完全依赖 Excalidraw 自动居中 ===
-    # 当设置 containerId 时，Excalidraw 会根据 textAlign 和 verticalAlign 自动计算位置
-    # x, y 使用容器左上角坐标，Excalidraw 会自动调整
-    # width, height 设置为 0，启用 autoResize 让 Excalidraw 自动计算
+    # === 关键修复：设置实际宽高和正确字体 ===
+    # 使用容器内部尺寸，让文字居中
+    # fontFamily: 2=Helvetica（正常字体，支持中文）
+    text_width = width * 0.9  # 容器宽度的 90%
+    text_height = height * 0.6  # 容器高度的 60%
+    text_x = x + (width - text_width) / 2  # 水平居中
+    text_y = y + (height - text_height) / 2  # 垂直居中
 
     text_element: Dict[str, Any] = {
         "id": text_id,
         "type": "text",
-        "x": float(x) if x is not None else 0.0,  # 容器左上角 x
-        "y": float(y) if y is not None else 0.0,  # 容器左上角 y
-        "width": 0,  # Excalidraw 自动计算
-        "height": 0,  # Excalidraw 自动计算
+        "x": float(text_x) if text_x is not None else 0.0,
+        "y": float(text_y) if text_y is not None else 0.0,
+        "width": float(text_width),  # 实际宽度
+        "height": float(text_height),  # 实际高度
         "frameId": None,
         "angle": 0,
         "strokeColor": text_color,
@@ -94,12 +97,12 @@ def create_shape_and_text(
         "locked": False,
         "text": label or "",
         "fontSize": DEFAULT_FONT_SIZE,
-        "fontFamily": DEFAULT_FONT_FAMILY,
+        "fontFamily": DEFAULT_FONT_FAMILY,  # Excalidraw 原生字体
         "textAlign": "center",
         "verticalAlign": "middle",
-        "containerId": shape_id,  # 绑定到容器，触发自动居中
+        "containerId": shape_id,  # 绑定到容器
         "originalText": label or "",
-        "autoResize": True,  # 启用自动调整大小
+        "autoResize": True,
         "lineHeight": DEFAULT_LINE_HEIGHT,
     }
 

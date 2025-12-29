@@ -30,3 +30,6 @@ dependencies = [
     "aiohttp>=3.13.2",
     "faiss-cpu>=1.13.1",
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*" = ["E402"]

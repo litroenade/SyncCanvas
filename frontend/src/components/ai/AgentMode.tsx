@@ -51,6 +51,8 @@ interface ChatMessage {
     virtualElements?: Record<string, unknown>[];
     /** 消息发送时使用的模式 */
     usedMode?: ConversationMode;
+    /** 是否已添加到画布 */
+    addedToCanvas?: boolean;
 }
 
 export const AgentMode: React.FC<AgentModeProps> = ({
@@ -359,6 +361,7 @@ export const AgentMode: React.FC<AgentModeProps> = ({
                                 isDark={isDark}
                                 minHeight={150}
                                 maxHeight={300}
+                                addedToCanvas={message.addedToCanvas}
                                 onAddToCanvas={(elementsToAdd) => {
                                     if (!excalidrawAPI) {
                                         console.warn('excalidrawAPI 不可用');
@@ -373,10 +376,10 @@ export const AgentMode: React.FC<AgentModeProps> = ({
                                         animate: true,
                                         duration: 300,
                                     });
-                                    // 添加后清空该消息的虚拟元素，防止重复添加
+                                    // 标记已添加到画布，保留预览图作为历史记录
                                     setMessages(prev => prev.map(msg =>
                                         msg.id === message.id
-                                            ? { ...msg, virtualElements: undefined }
+                                            ? { ...msg, addedToCanvas: true }
                                             : msg
                                     ));
                                 }}

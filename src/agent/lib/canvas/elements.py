@@ -94,7 +94,7 @@ async def create_element(
             {
                 "text": text or "文本",
                 "fontSize": 20,
-                "fontFamily": 1,  # 1=Virgil(手写), 2=Helvetica, 3=Cascadia
+                "fontFamily": 1,  # 1=Virgil(Excalidraw 原生), 2=Helvetica, 3=Cascadia
                 "textAlign": "left",
                 "verticalAlign": "top",
                 "originalText": text or "文本",

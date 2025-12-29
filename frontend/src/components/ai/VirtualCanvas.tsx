@@ -4,7 +4,7 @@
  * 使用静态图片预览虚拟画布内容
  * 与主画布完全隔离
  */
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { exportToCanvas } from '@excalidraw/excalidraw';
 import type { ExcalidrawElement, BinaryFiles } from '../../lib/yjs';
 import { cn } from '../../lib/utils';
@@ -19,6 +19,8 @@ interface VirtualCanvasProps {
     isDark: boolean;
     /** 添加到主画布回调 */
     onAddToCanvas?: (elements: ExcalidrawElement[]) => void;
+    /** 是否已添加到画布 */
+    addedToCanvas?: boolean;
     /** 最小高度 */
     minHeight?: number;
     /** 最大高度 */
@@ -30,21 +32,27 @@ export const VirtualCanvas: React.FC<VirtualCanvasProps> = ({
     files,
     isDark,
     onAddToCanvas,
+    addedToCanvas = false,
     minHeight = 120,
     maxHeight = 300,
 }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [hasError, setHasError] = useState(false);
 
     // 生成预览图
     useEffect(() => {
         if (!elements || elements.length === 0) {
             setPreviewUrl(null);
+            setIsLoading(false);
+            setHasError(false);
             return;
         }
 
         const generatePreview = async () => {
+            setIsLoading(true);
+            setHasError(false);
             try {
                 const canvas = await exportToCanvas({
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -61,7 +69,10 @@ export const VirtualCanvas: React.FC<VirtualCanvasProps> = ({
                 setPreviewUrl(canvas.toDataURL('image/png'));
             } catch (error) {
                 console.error('生成预览失败:', error);
+                setHasError(true);
                 setPreviewUrl(null);
+            } finally {
+                setIsLoading(false);
             }
         };
 
@@ -131,7 +142,7 @@ export const VirtualCanvas: React.FC<VirtualCanvasProps> = ({
                 </button>
 
                 {/* 添加到主画布 */}
-                {hasElements && onAddToCanvas && (
+                {hasElements && onAddToCanvas && !addedToCanvas && (
                     <button
                         onClick={handleAddToCanvas}
                         className={cn(
@@ -145,6 +156,12 @@ export const VirtualCanvas: React.FC<VirtualCanvasProps> = ({
                         <Plus size={12} />
                         添加到画布
                     </button>
+                )}
+                {/* 已添加标记 */}
+                {hasElements && addedToCanvas && (
+                    <span className="px-2.5 py-1.5 text-xs font-medium text-green-500">
+                        ✓ 已添加
+                    </span>
                 )}
             </div>
 
@@ -164,7 +181,10 @@ export const VirtualCanvas: React.FC<VirtualCanvasProps> = ({
                         'text-sm',
                         isDark ? 'text-zinc-600' : 'text-zinc-400'
                     )}>
-                        {hasElements ? '生成预览中...' : '虚拟画布 - AI 生成后在此预览'}
+                        {isLoading ? '生成预览中...' :
+                            hasError ? '预览生成失败' :
+                                hasElements ? '准备预览...' :
+                                    '虚拟画布 - AI 生成后在此预览'}
                     </p>
                 )}
             </div>

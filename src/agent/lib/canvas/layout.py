@@ -175,10 +175,9 @@ def calculate_layout(
     if not nodes:
         return LayoutResult()
 
-    # 从全局配置获取布局参数
+    # 从全局配置获取基础参数
     canvas_config = config.canvas
     node_count = len(nodes)
-    horizontal_gap, vertical_gap = get_layout_gaps(node_count)
 
     colors = get_theme_colors(theme)
 
@@ -193,6 +192,26 @@ def calculate_layout(
             level_nodes[level] = []
         level_nodes[level].append(node)
 
+    # === 动态间距计算 ===
+    # 根据每层最大节点数计算间距，确保不重叠
+    max_nodes_per_level = max(len(nodes_list) for nodes_list in level_nodes.values())
+
+    # 获取最大节点尺寸
+    max_width, max_height = 0.0, 0.0
+    for node in nodes:
+        node_type = node.get("type", "rectangle")
+        w, h = get_node_size(node_type, node_count)
+        max_width = max(max_width, w)
+        max_height = max(max_height, h)
+
+    # 动态计算间距：基础间距 + 根据节点数调整
+    # 节点越多，间距适当增大
+    scale_factor = 1.0 + max(0, (max_nodes_per_level - 2)) * 0.15
+    scale_factor = min(scale_factor, 2.0)  # 最大 2 倍
+
+    horizontal_gap = max(50.0, canvas_config.base_horizontal_gap * scale_factor)
+    vertical_gap = max(80.0, canvas_config.base_vertical_gap * scale_factor)
+
     # 3. 计算坐标
     positioned_nodes = []
     node_positions: Dict[str, Tuple[float, float, float, float]] = {}
@@ -206,17 +225,24 @@ def calculate_layout(
             width, height = get_node_size(node_type, node_count)
 
             if direction in ("TB", "BT"):
-                # 垂直布局：水平间距需要考虑节点宽度
-                x = canvas_config.start_x + (col - layer_width / 2 + 0.5) * (
-                    width + horizontal_gap
-                )
-                y = canvas_config.start_y + level * (height + vertical_gap)
+                # 垂直布局：动态计算水平位置
+                # 使用最大节点宽度确保间距一致
+                cell_width = max_width + horizontal_gap
+                total_layer_width = layer_width * cell_width
+                start_x = canvas_config.start_x - total_layer_width / 2 + cell_width / 2
+
+                x = start_x + col * cell_width
+                y = canvas_config.start_y + level * (max_height + vertical_gap)
             else:
                 # 水平布局
-                x = canvas_config.start_x + level * (width + horizontal_gap)
-                y = canvas_config.start_y + (col - layer_width / 2 + 0.5) * (
-                    height + vertical_gap
+                cell_height = max_height + vertical_gap
+                total_layer_height = layer_width * cell_height
+                start_y = (
+                    canvas_config.start_y - total_layer_height / 2 + cell_height / 2
                 )
+
+                x = canvas_config.start_x + level * (max_width + horizontal_gap)
+                y = start_y + col * cell_height
 
             positioned_nodes.append(
                 {
