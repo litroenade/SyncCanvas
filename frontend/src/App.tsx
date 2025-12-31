@@ -1,8 +1,14 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import React, { Component, ErrorInfo, ReactNode, useEffect } from 'react';
-import { Canvas } from './components/Canvas';
+const Canvas = React.lazy(() => import('./components/canvas/Canvas').then(module => ({ default: module.Canvas })));
 import { Login } from './pages/Login';
-import { useYjs } from './hooks/useYjs';
+import { Rooms } from './pages/Rooms';
+import { Welcome } from './pages/Welcome';
+import Settings from './pages/Settings';
+
+import { Loader2 } from 'lucide-react';
+import { ThemeProvider } from './components/common/ThemeProvider';
+import { NotificationProvider } from './components/common/NotificationProvider';
 
 // ==================== 错误边界组件 ====================
 interface ErrorBoundaryProps {
@@ -96,7 +102,10 @@ const GlobalErrorHandler = () => {
 // ==================== 路由保护 ====================
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const token = localStorage.getItem('token');
-  if (!token) {
+  const isGuest = localStorage.getItem('isGuest') === 'true';
+
+  // 允许有 token 或游客模式访问
+  if (!token && !isGuest) {
     return <Navigate to="/login" replace />;
   }
   return <>{children}</>;
@@ -105,30 +114,70 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 // ==================== 主应用 ====================
 function App() {
   return (
-    <ErrorBoundary>
-      <GlobalErrorHandler />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Board />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
-      </BrowserRouter>
-    </ErrorBoundary>
+    <ThemeProvider>
+      <NotificationProvider>
+        <ErrorBoundary>
+          <GlobalErrorHandler />
+          <BrowserRouter>
+            <Routes>
+              {/* 欢迎页 - 应用入口 */}
+              <Route path="/" element={<Welcome />} />
+
+              {/* 登录页 */}
+              <Route path="/login" element={<Login />} />
+
+              {/* 房间列表 */}
+              <Route
+                path="/rooms"
+                element={
+                  <ProtectedRoute>
+                    <Rooms />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* AI 设置页面 */}
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedRoute>
+                    <Settings />
+                  </ProtectedRoute>
+                }
+              />
+
+
+              {/* 画布房间 */}
+              <Route
+                path="/room/:roomId"
+                element={
+                  <ProtectedRoute>
+                    <Board />
+                  </ProtectedRoute>
+                }
+              />
+            </Routes>
+          </BrowserRouter>
+        </ErrorBoundary>
+      </NotificationProvider>
+    </ThemeProvider>
   );
 }
 
 const Board = () => {
-  useYjs(); // Initialize Yjs sync only when on the board
+  const { roomId } = useParams<{ roomId: string }>();
   return (
     <div className="App">
-      <Canvas />
+      <React.Suspense fallback={
+        <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
+          <div className="text-center">
+            <Loader2 className="h-10 w-10 animate-spin text-blue-500 mx-auto mb-4" />
+            <p className="text-gray-500 dark:text-gray-400">正在加载画布...</p>
+          </div>
+        </div>
+      }>
+        <Canvas roomId={roomId} />
+      </React.Suspense>
     </div>
   );
 };

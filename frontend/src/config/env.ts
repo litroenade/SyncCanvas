@@ -11,10 +11,10 @@
  */
 export const config = {
   /** API 基础路径 */
-  apiBaseUrl: import.meta.env.DEV ? 'http://localhost:8021' : '',
+  apiBaseUrl: import.meta.env.DEV ? 'http://localhost:8000/api' : '/api',
 
   /** WebSocket 基础路径 */
-  wsBaseUrl: import.meta.env.DEV ? 'ws://localhost:8021/ws' : '/ws',
+  wsBaseUrl: import.meta.env.DEV ? 'ws://localhost:8000/ws' : '/ws',
 
   /** WebSocket 认证令牌 */
   wsToken: import.meta.env.VITE_WS_TOKEN ?? '',

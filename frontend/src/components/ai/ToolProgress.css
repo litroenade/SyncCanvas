@@ -1,0 +1,198 @@
+/**
+ * ToolProgress 组件样式
+ */
+
+.tool-progress {
+    border-radius: 8px;
+    background: var(--bg-secondary, #f8f9fa);
+    overflow: hidden;
+}
+
+/* 进度摘要 */
+.progress-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    background: var(--bg-tertiary, #e9ecef);
+    border-bottom: 1px solid var(--border-color, #dee2e6);
+}
+
+.tool-progress.collapsed .progress-summary {
+    border-bottom: none;
+}
+
+.summary-icon {
+    display: flex;
+}
+
+.summary-icon .spin {
+    animation: spin 1s linear infinite;
+    color: var(--color-primary, #3b82f6);
+}
+
+.summary-icon .success {
+    color: var(--color-success, #22c55e);
+}
+
+.summary-icon .error {
+    color: var(--color-error, #ef4444);
+}
+
+.summary-text {
+    color: var(--text-primary, #1a1a1a);
+}
+
+/* 步骤列表 */
+.step-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* 单个步骤 */
+.step-item {
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-primary, white);
+    border-left: 3px solid transparent;
+    transition: all 0.15s;
+}
+
+.step-item.pending {
+    opacity: 0.5;
+    border-left-color: var(--text-secondary, #94a3b8);
+}
+
+.step-item.running {
+    border-left-color: var(--color-primary, #3b82f6);
+    background: rgba(59, 130, 246, 0.05);
+}
+
+.step-item.done {
+    border-left-color: var(--color-success, #22c55e);
+}
+
+.step-item.error {
+    border-left-color: var(--color-error, #ef4444);
+    background: rgba(239, 68, 68, 0.05);
+}
+
+/* 步骤头部 */
+.step-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+}
+
+.step-number {
+    color: var(--text-secondary, #64748b);
+    font-weight: 500;
+    min-width: 1.5rem;
+}
+
+.step-icon {
+    font-size: 0.875rem;
+}
+
+.step-action {
+    font-weight: 500;
+    color: var(--text-primary, #1a1a1a);
+    flex: 1;
+}
+
+.step-status {
+    display: flex;
+}
+
+.step-status .spin {
+    animation: spin 1s linear infinite;
+    color: var(--color-primary, #3b82f6);
+}
+
+.step-status .success {
+    color: var(--color-success, #22c55e);
+}
+
+.step-status .error {
+    color: var(--color-error, #ef4444);
+}
+
+.step-latency {
+    font-size: 0.6875rem;
+    color: var(--text-secondary, #94a3b8);
+    background: var(--bg-tertiary, #f1f5f9);
+    padding: 0.125rem 0.375rem;
+    border-radius: 4px;
+}
+
+/* 思考过程 */
+.step-thought {
+    margin-top: 0.375rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary, #64748b);
+    font-style: italic;
+    padding-left: 2rem;
+}
+
+/* 执行结果 */
+.step-observation {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    margin-left: 2rem;
+}
+
+.step-observation.success {
+    background: rgba(34, 197, 94, 0.1);
+    color: var(--color-success-dark, #15803d);
+}
+
+.step-observation.error {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--color-error-dark, #b91c1c);
+}
+
+/* 动画 */
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* 暗色模式 */
+@media (prefers-color-scheme: dark) {
+    .tool-progress {
+        background: var(--bg-secondary, #1e293b);
+    }
+
+    .progress-summary {
+        background: var(--bg-tertiary, #334155);
+        border-bottom-color: var(--border-color, #475569);
+    }
+
+    .step-item {
+        background: var(--bg-primary, #0f172a);
+    }
+
+    .step-item.running {
+        background: rgba(59, 130, 246, 0.1);
+    }
+
+    .step-item.error {
+        background: rgba(239, 68, 68, 0.1);
+    }
+
+    .step-action {
+        color: var(--text-primary, #f1f5f9);
+    }
+}

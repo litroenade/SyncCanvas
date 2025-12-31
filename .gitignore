@@ -1,16 +1,45 @@
+# Python
 .venv
 __pycache__
 *.pyc
+*.pyo
+*.egg-info
+
+# Environment
 .env
+
+# Config (contains secrets)
+config.toml
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Node
 node_modules
-dist
 .npm-cache
-*.sqlite
-*.db
-*.venv
-*logs
-*data
+
+# Frontend build output
+frontend/dist
+frontend/build_log.txt
+frontend/public
+
+# IDE
+.vscode
+.devcontainer
+.idea
 *.VscodeCounter
-*.vscode
-*.devcontainer
+
+# Logs
+logs/
+*.log
+
+
+# Data directory - keep structure, ignore contents
+data/*.db
+data/*.json
+data/images/*
+!data/.gitkeep
+!data/images/.gitkeep
+data/lib/*
+!data/lib/.gitkeep

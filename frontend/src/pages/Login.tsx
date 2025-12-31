@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { config } from '../config/env';
 import { useThemeStore } from '../stores/useThemeStore';
 import { cn } from '../lib/utils';
 import { Sun, Moon, User, Users } from 'lucide-react';
-import { useCanvasStore } from '../stores/useCanvasStore';
 
 export const Login: React.FC = () => {
     const [username, setUsername] = useState('');
@@ -12,7 +12,6 @@ export const Login: React.FC = () => {
     const [error, setError] = useState('');
     const navigate = useNavigate();
     const { theme, toggleTheme } = useThemeStore();
-    const { setIsGuest } = useCanvasStore();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -39,8 +38,7 @@ export const Login: React.FC = () => {
             localStorage.setItem('token', data.access_token);
             localStorage.setItem('username', username);
             localStorage.removeItem('isGuest');
-            setIsGuest(false);
-            navigate('/');
+            navigate('/rooms');
         } catch (err: any) {
             setError(err.message);
         }
@@ -50,8 +48,7 @@ export const Login: React.FC = () => {
         localStorage.removeItem('token');
         localStorage.removeItem('username');
         localStorage.setItem('isGuest', 'true');
-        setIsGuest(true);
-        navigate('/');
+        navigate('/rooms');
     };
 
     return (
@@ -61,20 +58,58 @@ export const Login: React.FC = () => {
                 ? "bg-slate-900"
                 : "bg-gray-50"
         )}>
-            {/* Background Gradients */}
+            {/* Background Gradients with better animation */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                <div className={cn(
-                    "absolute -top-[20%] -left-[10%] w-[70%] h-[70%] rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob",
-                    theme === 'dark' ? "bg-purple-900" : "bg-purple-300"
-                )}></div>
-                <div className={cn(
-                    "absolute top-[20%] -right-[10%] w-[70%] h-[70%] rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000",
-                    theme === 'dark' ? "bg-indigo-900" : "bg-indigo-300"
-                )}></div>
-                <div className={cn(
-                    "absolute -bottom-[20%] left-[20%] w-[70%] h-[70%] rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000",
-                    theme === 'dark' ? "bg-blue-900" : "bg-blue-300"
-                )}></div>
+                <motion.div
+                    animate={{
+                        scale: [1, 1.2, 1],
+                        x: [0, 50, 0],
+                        y: [0, 30, 0],
+                    }}
+                    transition={{
+                        duration: 20,
+                        repeat: Infinity,
+                        ease: "easeInOut"
+                    }}
+                    className={cn(
+                        "absolute -top-[20%] -left-[10%] w-[70%] h-[70%] rounded-full mix-blend-multiply filter blur-[100px] opacity-20",
+                        theme === 'dark' ? "bg-purple-900" : "bg-purple-300"
+                    )}
+                />
+                <motion.div
+                    animate={{
+                        scale: [1, 1.1, 1],
+                        x: [0, -30, 0],
+                        y: [0, 50, 0],
+                    }}
+                    transition={{
+                        duration: 15,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                        delay: 2
+                    }}
+                    className={cn(
+                        "absolute top-[20%] -right-[10%] w-[70%] h-[70%] rounded-full mix-blend-multiply filter blur-[100px] opacity-20",
+                        theme === 'dark' ? "bg-indigo-900" : "bg-indigo-300"
+                    )}
+                />
+                <motion.div
+                    animate={{
+                        scale: [1, 1.3, 1],
+                        x: [0, 40, 0],
+                        y: [0, -40, 0],
+                    }}
+                    transition={{
+                        duration: 18,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                        delay: 4
+                    }}
+                    className={cn(
+                        "absolute -bottom-[20%] left-[20%] w-[70%] h-[70%] rounded-full mix-blend-multiply filter blur-[100px] opacity-20",
+                        theme === 'dark' ? "bg-blue-900" : "bg-blue-300"
+                    )}
+                />
             </div>
 
             <button
@@ -89,12 +124,17 @@ export const Login: React.FC = () => {
                 {theme === 'dark' ? <Moon size={20} /> : <Sun size={20} />}
             </button>
 
-            <div className={cn(
-                "relative p-8 md:p-10 rounded-3xl w-full max-w-md transition-all duration-300 backdrop-blur-xl border shadow-2xl mx-4",
-                theme === 'dark'
-                    ? "bg-slate-800/40 border-slate-700/50 text-slate-100 shadow-black/20"
-                    : "bg-white/70 border-white/50 text-slate-800 shadow-xl"
-            )}>
+            <motion.div
+                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                className={cn(
+                    "relative p-8 md:p-10 rounded-3xl w-full max-w-md transition-all duration-300 backdrop-blur-xl border shadow-2xl mx-4",
+                    theme === 'dark'
+                        ? "bg-slate-800/40 border-slate-700/50 text-slate-100 shadow-black/20"
+                        : "bg-white/70 border-white/50 text-slate-800 shadow-xl"
+                )}
+            >
                 <div className="text-center mb-8">
                     <div className={cn(
                         "w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center text-3xl font-bold shadow-lg transform rotate-3",
@@ -146,19 +186,21 @@ export const Login: React.FC = () => {
                             className={cn(
                                 "w-full px-4 py-3 rounded-xl border outline-none transition-all duration-200",
                                 theme === 'dark'
-                                    ? "bg-slate-900/50 border-slate-700 text-slate-100 focus:border-blue-500 focus:bg-slate-900/80 placeholder:text-slate-600"
-                                    : "bg-white/50 border-slate-200 text-slate-900 focus:border-blue-500 focus:bg-white placeholder:text-slate-400"
+                                    ? "bg-slate-900/50 border-slate-700 text-slate-100 focus:border-blue-500 focus:bg-slate-900/80 focus:ring-2 focus:ring-blue-500/20 placeholder:text-slate-600"
+                                    : "bg-white/50 border-slate-200 text-slate-900 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20 placeholder:text-slate-400"
                             )}
-                            placeholder="输入服务端密钥 (data/settings.json)"
+                            placeholder="输入服务端密钥 ()"
                             required
                         />
                     </div>
-                    <button
+                    <motion.button
+                        whileHover={{ scale: 1.02, boxShadow: "0 10px 20px -10px rgba(59, 130, 246, 0.5)" }}
+                        whileTap={{ scale: 0.98 }}
                         type="submit"
-                        className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3.5 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-semibold shadow-lg shadow-blue-500/25 active:scale-[0.98]"
+                        className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3.5 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-semibold shadow-lg shadow-blue-500/25"
                     >
                         登录
-                    </button>
+                    </motion.button>
                 </form>
 
                 <div className="relative my-8">
@@ -170,10 +212,12 @@ export const Login: React.FC = () => {
                     </div>
                 </div>
 
-                <button
+                <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     onClick={handleGuestLogin}
                     className={cn(
-                        "w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border transition-all duration-200 font-medium active:scale-[0.98]",
+                        "w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border transition-all duration-200 font-medium",
                         theme === 'dark'
                             ? "border-slate-700 hover:bg-slate-700/50 text-slate-300"
                             : "border-slate-200 hover:bg-slate-50 text-slate-600"
@@ -181,8 +225,8 @@ export const Login: React.FC = () => {
                 >
                     <Users size={18} />
                     游客访问 (仅浏览)
-                </button>
-            </div>
+                </motion.button>
+            </motion.div>
         </div>
     );
 };

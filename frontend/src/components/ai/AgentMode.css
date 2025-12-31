@@ -1,0 +1,192 @@
+/**
+ * AgentMode - 现代对话气泡式样式
+ */
+
+.agent-mode {
+  position: relative;
+}
+
+/* 消息入场动画 */
+.agent-mode .message-container {
+  animation: messageSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 快速提示按钮入场动画 */
+.agent-mode button {
+  animation: fadeIn 0.4s ease-out backwards;
+}
+
+.agent-mode button:nth-child(1) {
+  animation-delay: 0.05s;
+}
+
+.agent-mode button:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.agent-mode button:nth-child(3) {
+  animation-delay: 0.15s;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 滚动条样式 */
+.agent-mode .flex-1::-webkit-scrollbar {
+  width: 6px;
+}
+
+.agent-mode .flex-1::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.agent-mode .flex-1::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.2);
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+.agent-mode .flex-1::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 246, 0.4);
+}
+
+/* 输入框自动调整高度 */
+.agent-mode textarea,
+.chat-input-container textarea {
+  min-height: 24px;
+  max-height: 120px;
+  field-sizing: content;
+}
+
+/* 消息气泡样式 */
+.agent-mode .message-container>div:last-child>div:first-child {
+  position: relative;
+}
+
+/* 用户消息尾巴 */
+.agent-mode .message-container.flex-row-reverse>div:last-child>div:first-child::after {
+  content: '';
+  position: absolute;
+  right: -6px;
+  top: 12px;
+  width: 12px;
+  height: 12px;
+  background: inherit;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+
+/* 工具调用展开动画 */
+.agent-mode .tool-expanded {
+  animation: expandDown 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: top;
+}
+
+@keyframes expandDown {
+  from {
+    opacity: 0;
+    transform: scaleY(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+/* 思考动画 */
+.thinking-dots::after {
+  content: '...';
+  animation: thinkingDots 1.4s infinite;
+}
+
+@keyframes thinkingDots {
+
+  0%,
+  20% {
+    content: '.';
+  }
+
+  40% {
+    content: '..';
+  }
+
+  60%,
+  100% {
+    content: '...';
+  }
+}
+
+/* 空状态图标浮动动画 */
+.agent-mode .text-center>div:first-child {
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+/* 按钮禁用状态 */
+.agent-mode button[disabled],
+.chat-input-container button[disabled] {
+  cursor: not-allowed;
+}
+
+/* 输入框焦点样式 */
+.chat-input-container textarea:focus {
+  animation: none;
+}
+
+/* 模型选择器下拉菜单入场动画 */
+.model-selector-dropdown {
+  animation: dropdownFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 发送按钮悬停效果 */
+.chat-input-container button:not([disabled]):hover {
+  transform: scale(1.02);
+}
+
+.chat-input-container button:not([disabled]):active {
+  transform: scale(0.98);
+}

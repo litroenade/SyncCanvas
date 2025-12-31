@@ -1,0 +1,304 @@
+/**
+ * ConfigEditor 组件样式
+ */
+
+.config-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+/* 单个字段 */
+.config-field {
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    background: var(--bg-secondary, #f8f9fa);
+    transition: background 0.2s, box-shadow 0.2s;
+}
+
+.config-field:hover {
+    background: var(--bg-hover, #f0f1f3);
+}
+
+.config-field.has-error {
+    background: var(--bg-error, #fff5f5);
+    border: 1px solid var(--color-error, #e53e3e);
+}
+
+/* 字段头部 */
+.config-field-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.config-label {
+    font-weight: 500;
+    font-size: 0.875rem;
+    color: var(--text-primary, #1a1a1a);
+}
+
+.config-label .required {
+    color: var(--color-error, #e53e3e);
+    margin-left: 2px;
+}
+
+.config-tooltip {
+    color: var(--text-secondary, #666);
+    cursor: help;
+    display: flex;
+    align-items: center;
+}
+
+.config-tooltip:hover {
+    color: var(--text-primary, #1a1a1a);
+}
+
+/* 字段内容 */
+.config-field-body {
+    min-height: 2.25rem;
+}
+
+.config-display-value {
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.config-display-value:hover {
+    background: var(--bg-tertiary, #e9ecef);
+}
+
+.config-value {
+    font-size: 0.875rem;
+    color: var(--text-primary, #1a1a1a);
+}
+
+.config-value.secret {
+    color: var(--text-secondary, #666);
+    letter-spacing: 2px;
+}
+
+.config-value.bool.true {
+    color: var(--color-success, #38a169);
+}
+
+.config-value.bool.false {
+    color: var(--text-secondary, #666);
+}
+
+/* 编辑行 */
+.config-edit-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.config-edit-actions {
+    display: flex;
+    gap: 0.25rem;
+    flex-shrink: 0;
+}
+
+.config-edit-actions button {
+    padding: 0.375rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+}
+
+.config-edit-actions .save-btn {
+    background: var(--color-success, #38a169);
+    color: white;
+}
+
+.config-edit-actions .save-btn:hover {
+    background: var(--color-success-hover, #2f855a);
+}
+
+.config-edit-actions .cancel-btn {
+    background: var(--bg-tertiary, #e9ecef);
+    color: var(--text-secondary, #666);
+}
+
+.config-edit-actions .cancel-btn:hover {
+    background: var(--bg-hover, #dce0e5);
+}
+
+/* 输入控件 */
+.config-input,
+.config-select,
+.config-textarea {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 6px;
+    font-size: 0.875rem;
+    background: var(--bg-primary, white);
+    color: var(--text-primary, #1a1a1a);
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.config-input:focus,
+.config-select:focus,
+.config-textarea:focus {
+    outline: none;
+    border-color: var(--color-primary, #3b82f6);
+    box-shadow: 0 0 0 3px var(--color-primary-alpha, rgba(59, 130, 246, 0.15));
+}
+
+.config-input:disabled,
+.config-select:disabled,
+.config-textarea:disabled {
+    background: var(--bg-disabled, #f1f5f9);
+    cursor: not-allowed;
+}
+
+.config-number {
+    max-width: 120px;
+}
+
+.config-textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+/* 密钥输入 */
+.config-secret-input {
+    display: flex;
+    flex: 1;
+    position: relative;
+}
+
+.config-secret-input .config-input {
+    padding-right: 2.5rem;
+}
+
+.config-secret-input .secret-toggle {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 0.25rem;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary, #666);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+}
+
+.config-secret-input .secret-toggle:hover {
+    color: var(--text-primary, #1a1a1a);
+}
+
+/* 开关 */
+.config-toggle {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}
+
+.config-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--bg-tertiary, #cbd5e1);
+    border-radius: 24px;
+    transition: 0.2s;
+}
+
+.toggle-slider::before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    border-radius: 50%;
+    transition: 0.2s;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.config-toggle input:checked+.toggle-slider {
+    background-color: var(--color-primary, #3b82f6);
+}
+
+.config-toggle input:checked+.toggle-slider::before {
+    transform: translateX(20px);
+}
+
+.config-toggle input:disabled+.toggle-slider {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* 错误信息 */
+.config-field-error {
+    margin-top: 0.375rem;
+    font-size: 0.75rem;
+    color: var(--color-error, #e53e3e);
+}
+
+/* 加载动画 */
+.config-edit-actions .spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* 暗色主题 */
+@media (prefers-color-scheme: dark) {
+    .config-field {
+        background: var(--bg-secondary, #1e293b);
+    }
+
+    .config-field:hover {
+        background: var(--bg-hover, #334155);
+    }
+
+    .config-display-value:hover {
+        background: var(--bg-tertiary, #475569);
+    }
+
+    .config-input,
+    .config-select,
+    .config-textarea {
+        background: var(--bg-primary, #0f172a);
+        border-color: var(--border-color, #334155);
+        color: var(--text-primary, #f1f5f9);
+    }
+
+    .config-label {
+        color: var(--text-primary, #f1f5f9);
+    }
+
+    .config-value {
+        color: var(--text-primary, #f1f5f9);
+    }
+}

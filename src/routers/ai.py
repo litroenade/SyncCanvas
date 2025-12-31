@@ -1,16 +1,12 @@
-"""模块名称: ai
-主要功能: AI 生成形状并注入白板的 API 路由
-"""
-
-import uuid
-
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from pycrdt import Map
-
-from src.ai.agent import ai_agent
-from src.ws.sync import websocket_server
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel, Field
+from sqlmodel import Session
+from src.agent.core import RoomLockManager, ReActStep
+from src.agent.core import registry
+from src.agent.prompts import prompt_manager
+from src.db.database import get_session
 from src.logger import get_logger
+from src.agent.service.service import ai_service
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 logger = get_logger(__name__)
@@ -20,50 +16,701 @@ class GenerateRequest(BaseModel):
     """AI 生成请求模型
 
     Attributes:
-        prompt (str): 用户输入的提示词
-        room_id (str): 目标房间 ID
+        prompt: 用户输入的提示词
+        room_id: 目标房间 ID
+        theme: 画布主题 (light/dark)
     """
 
-    prompt: str
+    prompt: str = Field(
+        ..., description="用户输入的提示词", min_length=1, max_length=2000
+    )
+    room_id: str = Field(..., description="目标房间 ID")
+    theme: str = Field("light", description="画布主题 (light/dark)")
+
+
+class GenerateResponse(BaseModel):
+    """AI 生成响应模型
+
+    Attributes:
+        status: 请求状态 (success/error)
+        response: AI 响应文本
+        run_id: 运行记录 ID
+        elements_created: 创建的元素 ID 列表
+        tools_used: 使用的工具列表
+    """
+
+    status: str
+    response: str
+    run_id: int
+    elements_created: list = []
+    tools_used: list = []
+
+
+class RunHistoryRequest(BaseModel):
+    """运行历史查询请求
+
+    Attributes:
+        room_id: 房间 ID
+        limit: 返回数量限制
+    """
+
+    room_id: str = Field(..., description="房间 ID")
+    limit: int = Field(20, description="返回数量限制", ge=1, le=100)
+
+
+class MermaidRequest(BaseModel):
+    """Mermaid 生成请求模型
+
+    Attributes:
+        prompt: 用户描述的流程图内容
+    """
+
+    prompt: str = Field(..., description="流程图描述", min_length=1, max_length=2000)
+
+
+class MermaidResponse(BaseModel):
+    """Mermaid 生成响应模型
+
+    Attributes:
+        code: 生成的 Mermaid 代码
+        status: 状态
+    """
+
+    code: str
+    status: str = "success"
+
+
+@router.post("/mermaid", response_model=MermaidResponse)
+async def generate_mermaid(request: MermaidRequest):
+    """使用 AI 生成 Mermaid 流程图代码
+
+    Args:
+        request: Mermaid 生成请求
+
+    Returns:
+        MermaidResponse: 包含生成的 Mermaid 代码
+    """
+    from src.agent.lib.tools.mermaid import generate_mermaid_code
+
+    logger.info("收到 Mermaid 生成请求", extra={"prompt_length": len(request.prompt)})
+
+    result = await generate_mermaid_code(request.prompt)
+    return MermaidResponse(code=result["code"], status=result["status"])
+
+
+class SummarizeRequest(BaseModel):
+    """对话摘要请求"""
+
+    message: str = Field(..., description="用户消息", min_length=1, max_length=500)
+
+
+class SummarizeResponse(BaseModel):
+    """对话摘要响应"""
+
+    title: str = Field(..., description="生成的摘要标题")
+    status: str = "success"
+
+
+@router.post("/summarize", response_model=SummarizeResponse)
+async def generate_summary(request: SummarizeRequest):
+    """生成对话标题摘要
+
+    根据用户消息生成简短的对话标题（最多 20 个字符）。
+
+    Args:
+        request: 包含用户消息的请求
+
+    Returns:
+        SummarizeResponse: 包含生成的摘要标题
+    """
+    from src.agent.core.llm import LLMClient
+
+    # 使用简单提示生成标题
+    prompt = f"""请为以下用户消息生成一个简短的标题（最多 15 个中文字符或 30 个英文字符）。
+只输出标题文本，不要任何其他内容。
+
+用户消息：{request.message[:200]}
+
+标题："""
+
+    try:
+        client = LLMClient()
+        response = await client.chat_completion(
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=50,
+        )
+        # 从 LLMResponse 提取内容
+        title = (response.content or "").strip().strip("\"'")[:30]
+
+        if not title:
+            # 回退：截取消息前 15 个字符
+            title = request.message[:15] + ("..." if len(request.message) > 15 else "")
+
+        return SummarizeResponse(title=title)
+    except Exception as e:
+        logger.warning("生成摘要失败: %s", e)
+        # 回退方案
+        title = request.message[:15] + ("..." if len(request.message) > 15 else "")
+        return SummarizeResponse(title=title)
+
+
+# ==================== 对话历史 API ====================
+
+
+class ConversationInfo(BaseModel):
+    """对话信息"""
+
+    id: int
     room_id: str
+    title: str
+    mode: str
+    is_active: bool
+    message_count: int
+    created_at: int
+    updated_at: int
 
 
-@router.post("/generate")
-async def generate_shapes(request: GenerateRequest):
-    """使用 AI 根据文本提示生成形状并注入到白板中。
+class ConversationsListResponse(BaseModel):
+    """对话列表响应"""
+
+    conversations: list[ConversationInfo]
+    total: int
+
+
+class CreateConversationRequest(BaseModel):
+    """创建对话请求"""
+
+    title: str = Field(default="新对话", max_length=100)
+    mode: str = Field(default="planning", max_length=20)
+
+
+class UpdateConversationRequest(BaseModel):
+    """更新对话请求"""
+
+    title: str = Field(max_length=100)
+
+
+@router.get("/conversations/{room_id}", response_model=ConversationsListResponse)
+async def list_conversations(room_id: str, limit: int = 50):
+    """获取房间的所有对话"""
+    from src.agent.memory.service import memory_service
+
+    conversations = await memory_service.get_conversations(room_id, limit)
+    return ConversationsListResponse(
+        conversations=[
+            ConversationInfo(
+                id=c.id or 0,  # 确保不为 None
+                room_id=c.room_id,
+                title=c.title,
+                mode=c.mode,
+                is_active=c.is_active,
+                message_count=c.message_count,
+                created_at=c.created_at,
+                updated_at=c.updated_at,
+            )
+            for c in conversations
+            if c.id is not None
+        ],
+        total=len(conversations),
+    )
+
+
+@router.post("/conversations/{room_id}")
+async def create_conversation(room_id: str, request: CreateConversationRequest):
+    """创建新对话"""
+    from src.agent.memory.service import memory_service
+
+    conv = await memory_service.create_conversation(
+        room_id=room_id,
+        title=request.title,
+        mode=request.mode,
+    )
+    return {"status": "created", "conversation_id": conv.id, "title": conv.title}
+
+
+@router.get("/conversations/{room_id}/{conversation_id}/messages")
+async def get_conversation_messages(
+    room_id: str, conversation_id: int, limit: int = 50
+):
+    """获取对话消息"""
+    from src.agent.memory.service import memory_service
+
+    messages = await memory_service.get_messages(conversation_id, limit)
+    return {"messages": messages, "total": len(messages)}
+
+
+@router.patch("/conversations/{room_id}/{conversation_id}")
+async def update_conversation(
+    room_id: str, conversation_id: int, request: UpdateConversationRequest
+):
+    """更新对话标题"""
+    from src.agent.memory.service import memory_service
+
+    await memory_service.update_conversation_title(conversation_id, request.title)
+    return {"status": "updated", "title": request.title}
+
+
+@router.delete("/conversations/{room_id}/{conversation_id}")
+async def delete_conversation(room_id: str, conversation_id: int):
+    """删除对话"""
+    from src.agent.memory.service import memory_service
+
+    deleted_count = await memory_service.delete_conversation(conversation_id)
+    return {"status": "deleted", "messages_deleted": deleted_count}
+
+
+@router.post("/generate", response_model=GenerateResponse)
+async def generate_shapes(
+    request: GenerateRequest, session: Session = Depends(get_session)
+):
+    """使用 AI Agent 根据用户描述在白板上绘制图形
 
     Args:
         request: AI 生成请求对象
+        session: 数据库会话
 
     Returns:
-        dict: 包含状态和生成形状数量的响应
+        GenerateResponse: AI 处理结果
 
     Raises:
-        HTTPException: 生成或注入失败时抛出 500 错误
+        HTTPException: 处理失败时抛出 500 错误
     """
     logger.info(
-        "收到 AI 生成请求: %s 房间: %s", request.prompt, request.room_id
+        "收到 AI 生成请求",
+        extra={"room_id": request.room_id, "prompt_length": len(request.prompt)},
     )
 
-    shapes = await ai_agent.generate_shapes(request.prompt)
-
-    if not shapes:
-        raise HTTPException(status_code=500, detail="生成形状失败")
-
-    # 将形状注入到 CRDT 文档
     try:
-        # 从 websocket_server 获取房间
-        room = websocket_server.get_room(request.room_id)
-        doc = room.ydoc
-        shapes_map = doc.get("shapes", type=Map)
+        result = await ai_service.process_request(
+            user_input=request.prompt,
+            session_id=request.room_id,
+            theme=request.theme,
+        )
 
-        with doc.transaction(origin="ai"):
-            for shape in shapes:
-                shape_id = str(uuid.uuid4())
-                shapes_map[shape_id] = shape
+        return GenerateResponse(
+            status=result.get("status", "success"),
+            response=result.get("response", ""),
+            run_id=result.get("run_id", 0),
+            elements_created=result.get("elements_created", []),
+            tools_used=result.get("tools_used", []),
+        )
 
-    except Exception as e:
-        logger.error("注入形状失败: %s", e)
+    except Exception as e:  # pylint: disable=broad-except
+        logger.error("AI 生成失败: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
 
-    return {"status": "success", "count": len(shapes)}
+
+@router.get("/runs/{room_id}")
+async def get_room_runs(
+    room_id: str, limit: int = 20, session: Session = Depends(get_session)
+):
+    """获取房间的 AI 运行历史
+
+    Args:
+        room_id: 房间 ID
+        limit: 返回数量限制
+        session: 数据库会话
+
+    Returns:
+        dict: 运行历史列表
+    """
+    result = await ai_service.get_run_history(
+        session_id=room_id, db=session, limit=limit
+    )
+    return result
+
+
+@router.get("/run/{run_id}")
+async def get_run_detail(run_id: int, session: Session = Depends(get_session)):
+    """获取指定运行的详情
+
+    包含运行的所有工具调用记录。
+
+    Args:
+        run_id: 运行记录 ID
+        session: 数据库会话
+
+    Returns:
+        dict: 运行详情
+
+    Raises:
+        HTTPException: 运行记录不存在时抛出 404 错误
+    """
+    result = await ai_service.get_run_detail(run_id, session)
+
+    if result.get("status") == "error":
+        raise HTTPException(
+            status_code=404, detail=result.get("message", "run_not_found")
+        )
+
+    return result
+
+
+@router.get("/tools")
+async def list_tools():
+    """获取所有可用工具列表
+
+    返回 AI Agent 可以使用的所有工具及其元数据。
+
+    Returns:
+        dict: 工具列表
+    """
+    tools = registry.list_tools()
+    return {"status": "success", "count": len(tools), "tools": tools}
+
+
+@router.get("/tools/{tool_name}")
+async def get_tool_info(tool_name: str):
+    """获取单个工具的详细信息
+
+    Args:
+        tool_name: 工具名称
+
+    Returns:
+        dict: 工具详情
+
+    Raises:
+        HTTPException: 工具不存在时抛出 404 错误
+    """
+    meta = registry.get_metadata(tool_name)
+    if not meta:
+        raise HTTPException(status_code=404, detail=f"工具 {tool_name} 不存在")
+
+    schema = registry.get_schema(tool_name) or {}
+
+    return {
+        "status": "success",
+        "tool": {
+            "name": meta.name,
+            "description": meta.description,
+            "category": meta.category.value,
+            "requires_room": meta.requires_room,
+            "timeout": meta.timeout,
+            "retries": meta.retries,
+            "dangerous": meta.dangerous,
+            "schema": schema.get("function", {}).get("parameters", {}),
+        },
+    }
+
+
+@router.get("/status")
+async def get_agent_status():
+    """获取 Agent 系统状态
+
+    返回当前活跃房间、工具数量等状态信息。
+
+    Returns:
+        dict: 系统状态
+    """
+    # 获取活跃房间列表
+    active_rooms = RoomLockManager.get_active_rooms()
+
+    # 统计工具
+    tools = registry.list_tools()
+    enabled_tools = [t for t in tools if t.get("enabled")]
+
+    # 按分类统计
+    category_counts = {}
+    for tool in tools:
+        cat = tool.get("category", "unknown")
+        category_counts[cat] = category_counts.get(cat, 0) + 1
+
+    return {
+        "status": "success",
+        "agent": {
+            "active_rooms": active_rooms,
+            "active_count": len(active_rooms),
+        },
+        "tools": {
+            "total": len(tools),
+            "enabled": len(enabled_tools),
+            "by_category": category_counts,
+        },
+    }
+
+
+@router.get("/status/{room_id}")
+async def get_room_agent_status(room_id: str):
+    """检查指定房间的 Agent 状态
+
+    Args:
+        room_id: 房间 ID
+
+    Returns:
+        dict: 房间 Agent 状态
+    """
+    is_busy = RoomLockManager.is_room_busy(room_id)
+
+    return {
+        "status": "success",
+        "room_id": room_id,
+        "is_busy": is_busy,
+        "message": "房间正在处理 AI 任务" if is_busy else "房间空闲",
+    }
+
+
+@router.post("/cancel/{run_id}")
+async def cancel_run(run_id: int):
+    """取消正在进行的 AI 请求
+
+    Args:
+        run_id: 运行记录 ID
+
+    Returns:
+        dict: 操作结果
+    """
+    result = await ai_service.cancel_request(run_id)
+    return result
+
+
+@router.get("/stats")
+async def get_service_stats():
+    """获取 AI 服务统计信息
+
+    返回请求总数、成功率、平均响应时间等统计数据。
+
+    Returns:
+        dict: 服务统计信息
+    """
+    return ai_service.get_service_status()
+
+
+@router.post("/tools/{tool_name}/disable")
+async def disable_tool(tool_name: str):
+    """禁用指定工具
+
+    Args:
+        tool_name: 工具名称
+
+    Returns:
+        dict: 操作结果
+    """
+    return ai_service.disable_tool(tool_name)
+
+
+@router.post("/tools/{tool_name}/enable")
+async def enable_tool(tool_name: str):
+    """启用指定工具
+
+    Args:
+        tool_name: 工具名称
+
+    Returns:
+        dict: 操作结果
+    """
+    return ai_service.enable_tool(tool_name)
+
+
+@router.get("/templates")
+async def list_templates():
+    """列出所有可用的 Prompt 模板
+
+    Returns:
+        dict: 模板列表
+    """
+    templates = prompt_manager.list_templates()
+    return {"status": "success", "count": len(templates), "templates": templates}
+
+
+@router.get("/templates/{template_name}")
+async def get_template(template_name: str):
+    """获取模板源码
+
+    Args:
+        template_name: 模板名称
+
+    Returns:
+        dict: 模板源码
+    """
+    source = prompt_manager.get_template_source(template_name)
+    if source is None:
+        raise HTTPException(status_code=404, detail=f"模板 {template_name} 不存在")
+
+    return {
+        "status": "success",
+        "name": template_name,
+        "source": source,
+        "length": len(source),
+    }
+
+
+class RenderTemplateRequest(BaseModel):
+    """渲染模板请求"""
+
+    template_name: str = Field(..., description="模板名称")
+    variables: dict = Field(default_factory=dict, description="模板变量")
+
+
+class AIWebSocketManager:
+    """AI WebSocket 连接管理器
+
+    管理每个房间的 WebSocket 连接，支持向多个连接广播消息。
+    """
+
+    def __init__(self):
+        # room_id -> list of active websockets
+        self._connections: dict[str, list[WebSocket]] = {}
+
+    async def connect(self, websocket: WebSocket, room_id: str) -> None:
+        """接受 WebSocket 连接"""
+        await websocket.accept()
+        if room_id not in self._connections:
+            self._connections[room_id] = []
+        self._connections[room_id].append(websocket)
+        logger.info("AI WebSocket 连接: room=%s", room_id)
+
+    def disconnect(self, websocket: WebSocket, room_id: str) -> None:
+        """断开连接"""
+        if room_id in self._connections:
+            if websocket in self._connections[room_id]:
+                self._connections[room_id].remove(websocket)
+            if not self._connections[room_id]:
+                del self._connections[room_id]
+        logger.info("AI WebSocket 断开: room=%s", room_id)
+
+    async def broadcast_to_room(self, room_id: str, message: dict) -> None:
+        """向房间所有连接广播消息"""
+        if room_id not in self._connections:
+            return
+
+        disconnected = []
+        for ws in self._connections[room_id]:
+            try:
+                await ws.send_json(message)
+            except Exception:  # pylint: disable=broad-except
+                disconnected.append(ws)
+
+        # 清理断开的连接
+        for ws in disconnected:
+            self._connections[room_id].remove(ws)
+
+
+# 全局 WebSocket 管理器
+ai_ws_manager = AIWebSocketManager()
+
+
+@router.websocket("/stream/{room_id}")
+async def ai_stream_websocket(
+    websocket: WebSocket,
+    room_id: str,
+):
+    """WebSocket 流式 AI 响应
+
+    连接后发送 JSON 消息开始请求:
+    {"type": "request", "prompt": "画一个流程图"}
+
+    接收实时步骤消息:
+    {"type": "step", "step_number": 1, "thought": "...", "action": "create_flowchart_node", ...}
+    {"type": "tool_result", "tool": "create_flowchart_node", "result": {...}}
+    {"type": "complete", "response": "已完成绘制", "elements_created": [...]}
+    {"type": "error", "message": "..."}
+    """
+    await ai_ws_manager.connect(websocket, room_id)
+
+    try:
+        while True:
+            # 接收请求
+            data = await websocket.receive_json()
+
+            if data.get("type") != "request":
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "message": "无效消息类型，请发送 {type: 'request', prompt: '...'}",
+                    }
+                )
+                continue
+
+            prompt = data.get("prompt", "")
+            if not prompt:
+                await websocket.send_json(
+                    {"type": "error", "message": "prompt 不能为空"}
+                )
+                continue
+
+            # 发送开始消息
+            await websocket.send_json(
+                {
+                    "type": "started",
+                    "room_id": room_id,
+                    "prompt": prompt[:100] + "..." if len(prompt) > 100 else prompt,
+                }
+            )
+
+            # 获取主题、虚拟模式和对话模式
+            theme = data.get("theme", "light")
+            virtual_mode = data.get("virtual_mode", False)
+            mode = data.get("mode", "agent")  # agent | planning | mermaid
+            conversation_id = data.get("conversation_id")  # 可选的对话 ID
+
+            # 根据模式调整提示词
+            processed_prompt = prompt
+            if mode == "mermaid" and "mermaid" not in prompt.lower():
+                processed_prompt = f"请使用 Mermaid 语法来实现以下需求: {prompt}"
+
+            # 处理请求
+            try:
+                result = await ai_service.process_request(
+                    user_input=processed_prompt,
+                    session_id=room_id,
+                    step_callback=lambda step: _broadcast_step(
+                        websocket, room_id, step
+                    ),
+                    theme=theme,
+                    virtual_mode=virtual_mode,
+                    conversation_id=conversation_id,
+                    mode=mode,  # 传递模式
+                )
+
+                # 发送完成消息
+                complete_msg = {
+                    "type": "complete",
+                    "status": result.get("status", "success"),
+                    "response": result.get("response", ""),
+                    "run_id": result.get("run_id", 0),
+                    "elements_created": result.get("elements_created", []),
+                    "tools_used": result.get("tools_used", []),
+                    "metrics": result.get("metrics", {}),
+                }
+                # 虚拟模式：返回元素数据
+                if virtual_mode:
+                    complete_msg["virtual_elements"] = result.get(
+                        "virtual_elements", []
+                    )
+                await websocket.send_json(complete_msg)
+
+            except Exception as e:  # pylint: disable=broad-except
+                logger.error("AI WebSocket 处理错误: %s", e)
+                await websocket.send_json({"type": "error", "message": str(e)})
+
+    except WebSocketDisconnect:
+        ai_ws_manager.disconnect(websocket, room_id)
+    except Exception as e:  # pylint: disable=broad-except
+        logger.error("AI WebSocket 异常: %s", e)
+        ai_ws_manager.disconnect(websocket, room_id)
+
+
+async def _broadcast_step(websocket: WebSocket, _room_id: str, step: ReActStep) -> None:
+    """广播 Agent 步骤"""
+    # 检查 WebSocket 是否已关闭
+    if websocket.client_state.value != 1:  # 1 = CONNECTED
+        return
+
+    try:
+        message = {
+            "type": "step",
+            "step_number": step.step_number,
+            "thought": step.thought,
+            "action": step.action,
+            "action_input": step.action_input,
+            "observation": (
+                step.observation[:500]
+                if (step.observation and len(step.observation) > 500)
+                else step.observation
+            ),
+            "success": step.success,
+            "latency_ms": round(step.latency_ms, 2),
+        }
+        await websocket.send_json(message)
+    except Exception as e:  # pylint: disable=broad-except
+        logger.warning("广播步骤失败: %s", e)

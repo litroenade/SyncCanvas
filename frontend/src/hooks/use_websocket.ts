@@ -32,31 +32,47 @@ interface UseWebSocketOptions {
 /**
  * WebSocket Hook
  * 
- * 提供 WebSocket 连接管理功能
+ * 提供 WebSocket 连接管理功能，与全局连接状态 store 集成
  * 
  * @param options - WebSocket 配置
  * @returns WebSocket 实例和发送消息函数
  */
 export function useWebSocket(options: UseWebSocketOptions) {
   const wsRef = useRef<WSManager | null>(null)
-  const { setIsConnected } = useConnectionStore()
+  const { setStatus, incrementReconnect } = useConnectionStore()
+
+  // 标记是否是首次连接
+  const isFirstConnectRef = useRef(true)
 
   useEffect(() => {
+    // 设置连接中状态
+    setStatus('connecting')
+
     // 创建 WebSocket 管理器
     wsRef.current = new WSManager({
       url: options.url,
       autoReconnect: options.autoReconnect ?? true,
       onOpen: () => {
-        setIsConnected(true)
+        setStatus('connected')
+        isFirstConnectRef.current = false
         options.onOpen?.()
       },
       onClose: () => {
-        setIsConnected(false)
+        // 如果不是首次连接且启用了自动重连，设置为重连中
+        if (!isFirstConnectRef.current && (options.autoReconnect ?? true)) {
+          incrementReconnect()
+        } else {
+          setStatus('disconnected')
+        }
         options.onClose?.()
       },
-      onError: (error) => {
-        console.error('WebSocket 错误:', error)
-        setIsConnected(false)
+      onError: () => {
+        // 错误时如果启用了自动重连，会触发重连
+        if (!isFirstConnectRef.current && (options.autoReconnect ?? true)) {
+          incrementReconnect()
+        } else {
+          setStatus('disconnected')
+        }
       },
       onMessage: options.onMessage,
       onBinaryMessage: options.onBinaryMessage,
@@ -66,8 +82,9 @@ export function useWebSocket(options: UseWebSocketOptions) {
     return () => {
       wsRef.current?.close()
       wsRef.current = null
+      setStatus('disconnected')
     }
-  }, [options.url, options.autoReconnect, options.onMessage, setIsConnected])
+  }, [options.url, options.autoReconnect])
 
   /**
    * 发送消息
@@ -91,3 +108,4 @@ export function useWebSocket(options: UseWebSocketOptions) {
     sendBinary,
   }
 }
+

@@ -1,23 +1,377 @@
+/**
+ * 模块名称：ExcalidrawYjsManager
+ * 主要功能：Excalidraw 与 Yjs 的双向同步管理器
+ * 
+ * 使用 Y.Array 存储 Excalidraw 元素，实现实时协作。
+ */
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import { config } from '../config/env';
 
-// 创建单例 Yjs 文档
-export const ydoc = new Y.Doc();
+// Excalidraw 元素类型定义（简化版，避免类型导入问题）
+export interface ExcalidrawElement {
+    id: string;
+    type: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    isDeleted?: boolean;
+    [key: string]: unknown;
+}
 
-// 创建单例 WebsocketProvider
-// 我们目前使用固定的房间名称
-export const provider = new WebsocketProvider(
-    config.wsBaseUrl,
-    'default-room',
-    ydoc
-);
+export interface BinaryFileData {
+    id: string;
+    dataURL: string;
+    created: number;
+    mimeType: string;
+    [key: string]: unknown;
+}
 
-export const shapesMap = ydoc.getMap('shapes');
+export type BinaryFiles = Record<string, BinaryFileData>;
 
-// 创建 UndoManager，追踪 shapesMap 的变化
-export const undoManager = new Y.UndoManager(shapesMap);
+/**
+ * Excalidraw Yjs 房间管理器
+ * 
+ * 管理与后端的 WebSocket 连接，同步 Excalidraw 元素到 Y.Array
+ */
+class ExcalidrawYjsManager {
+    private _roomId: string | null = null;
+    private _ydoc: Y.Doc | null = null;
+    private _provider: WebsocketProvider | null = null;
+    private _elementsArray: Y.Array<Y.Map<unknown>> | null = null;
+    private _filesMap: Y.Map<string> | null = null;
+    private _undoManager: Y.UndoManager | null = null;
+    private _listeners: (() => void)[] = [];
 
-provider.on('status', (event: { status: string }) => {
-    console.log('Yjs 连接状态:', event.status);
-});
+    get roomId() { return this._roomId; }
+    get ydoc() { return this._ydoc; }
+    get provider() { return this._provider; }
+    get elementsArray() { return this._elementsArray; }
+    get filesMap() { return this._filesMap; }
+    get undoManager() { return this._undoManager; }
+    get isConnected() { return this._provider !== null; }
+    get isWsConnected() { return this._provider?.wsconnected ?? false; }
+
+    getAwareness() { return this._provider?.awareness; }
+
+    /**
+     * 连接到指定房间
+     * @param roomId - 房间 ID
+     */
+    connect(roomId: string): void {
+        // 已连接同一房间，跳过
+        if (this._roomId === roomId && this._provider) return;
+
+        // 断开旧连接
+        this._cleanup();
+
+        this._roomId = roomId;
+        this._ydoc = new Y.Doc();
+
+        const token = localStorage.getItem('token');
+        this._provider = new WebsocketProvider(
+            config.wsBaseUrl,
+            roomId,
+            this._ydoc,
+            { params: token ? { token } : undefined }
+        );
+
+        // 使用 Y.Array 存储 Excalidraw 元素
+        this._elementsArray = this._ydoc.getArray('elements');
+        this._filesMap = this._ydoc.getMap('files');
+        this._undoManager = new Y.UndoManager(this._elementsArray);
+    }
+
+    /**
+     * 断开连接
+     */
+    disconnect(): void {
+        this._cleanup();
+    }
+
+    /**
+     * 注册文档变更监听器
+     */
+    onDocChange(listener: () => void) {
+        this._listeners.push(listener);
+    }
+
+    /**
+     * 取消文档变更监听器
+     */
+    offDocChange(listener: () => void) {
+        this._listeners = this._listeners.filter(l => l !== listener);
+    }
+
+    private _notify() {
+        this._listeners.forEach(l => l());
+    }
+
+    /**
+     * 将 Y.Map 或嵌套结构转换为普通 JS 对象
+     */
+    private _yMapToObject(item: unknown): unknown {
+        // Y.Map 有 toJSON 方法，使用它来递归转换
+        if (item && typeof item === 'object' && 'toJSON' in item && typeof (item as { toJSON: () => unknown }).toJSON === 'function') {
+            return (item as { toJSON: () => unknown }).toJSON();
+        }
+        // Y.Array
+        if (item && typeof item === 'object' && 'toArray' in item && typeof (item as { toArray: () => unknown[] }).toArray === 'function') {
+            return (item as { toArray: () => unknown[] }).toArray().map(v => this._yMapToObject(v));
+        }
+        // 普通数组
+        if (Array.isArray(item)) {
+            return item.map(v => this._yMapToObject(v));
+        }
+        // 普通对象递归处理
+        if (item && typeof item === 'object' && !Array.isArray(item)) {
+            const result: Record<string, unknown> = {};
+            for (const [k, v] of Object.entries(item)) {
+                result[k] = this._yMapToObject(v);
+            }
+            return result;
+        }
+        return item;
+    }
+
+    /**
+     * 从 Y.Array 获取所有元素
+     * 兼容 Y.Map 和普通对象两种格式
+     */
+    getElements(): ExcalidrawElement[] {
+        if (!this._elementsArray) return [];
+
+        return this._elementsArray.toArray().map(item => {
+            try {
+                // 使用 toJSON 进行深度转换
+                const converted = this._yMapToObject(item);
+                return converted as ExcalidrawElement;
+            } catch (e) {
+                console.warn('[YjsManager] 元素转换失败:', e, item);
+                return null as unknown as ExcalidrawElement;
+            }
+        }).filter(Boolean);
+    }
+
+    /**
+     * 根据 ID 查找元素在数组中的索引
+     */
+    private _findElementIndex(id: string): number {
+        if (!this._elementsArray) return -1;
+
+        for (let i = 0; i < this._elementsArray.length; i++) {
+            const yMap = this._elementsArray.get(i);
+            if (yMap.get('id') === id) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * 将 ExcalidrawElement 转换为 Y.Map
+     */
+    private _elementToYMap(element: ExcalidrawElement): Y.Map<unknown> {
+        const yMap = new Y.Map<unknown>();
+        Object.entries(element).forEach(([key, value]) => {
+            // 对于嵌套对象和数组，直接存储（Yjs 会自动处理）
+            yMap.set(key, value);
+        });
+        return yMap;
+    }
+
+    /**
+     * 同步 Excalidraw 元素到 Yjs
+     * 使用增量更新策略：比较本地和远程状态，只更新变化的部分
+     */
+    syncElements(elements: readonly ExcalidrawElement[]): void {
+        if (!this._ydoc || !this._elementsArray) return;
+
+        this._ydoc.transact(() => {
+            const existingIds = new Set<string>();
+
+            // 1. 收集现有元素的 ID
+            this._elementsArray!.forEach((yMap) => {
+                const id = yMap.get('id') as string;
+                if (id) existingIds.add(id);
+            });
+
+            // 2. 更新或添加元素
+            const newIds = new Set<string>();
+            elements.forEach((element) => {
+                newIds.add(element.id);
+                const index = this._findElementIndex(element.id);
+
+                if (index >= 0) {
+                    // 更新现有元素
+                    const yMap = this._elementsArray!.get(index);
+                    Object.entries(element).forEach(([key, value]) => {
+                        const currentValue = yMap.get(key);
+                        // 只更新变化的属性（简单比较）
+                        if (JSON.stringify(currentValue) !== JSON.stringify(value)) {
+                            yMap.set(key, value);
+                        }
+                    });
+                } else {
+                    // 添加新元素
+                    const yMap = this._elementToYMap(element);
+                    this._elementsArray!.push([yMap]);
+                }
+            });
+
+            // 3. 删除不再存在的元素
+            for (let i = this._elementsArray!.length - 1; i >= 0; i--) {
+                const yMap = this._elementsArray!.get(i);
+                const id = yMap.get('id') as string;
+                if (id && !newIds.has(id)) {
+                    this._elementsArray!.delete(i, 1);
+                }
+            }
+        }, 'excalidraw-sync');
+    }
+
+    /**
+     * 获取所有文件
+     */
+    getFiles(): BinaryFiles {
+        if (!this._filesMap) return {};
+
+        const files: BinaryFiles = {};
+        this._filesMap.forEach((jsonStr, key) => {
+            try {
+                files[key] = JSON.parse(jsonStr);
+            } catch (e) {
+                console.error('Failed to parse file data', e);
+            }
+        });
+        return files;
+    }
+
+    /**
+     * 同步文件到 Yjs
+     */
+    syncFiles(files: BinaryFiles): void {
+        if (!this._ydoc || !this._filesMap) return;
+
+        this._ydoc.transact(() => {
+            Object.entries(files).forEach(([id, fileData]) => {
+                if (!this._filesMap!.has(id)) {
+                    // 只添加不存在的文件，文件内容通常不可变
+                    this._filesMap!.set(id, JSON.stringify(fileData));
+                }
+            });
+        }, 'excalidraw-files-sync');
+    }
+
+    /**
+     * 添加单个元素
+     */
+    addElement(element: ExcalidrawElement): void {
+        if (!this._ydoc || !this._elementsArray) return;
+
+        this._ydoc.transact(() => {
+            const yMap = this._elementToYMap(element);
+            this._elementsArray!.push([yMap]);
+        }, 'excalidraw-add');
+    }
+
+    /**
+     * 更新单个元素
+     */
+    updateElement(id: string, updates: Partial<ExcalidrawElement>): void {
+        if (!this._ydoc || !this._elementsArray) return;
+
+        const index = this._findElementIndex(id);
+        if (index < 0) return;
+
+        this._ydoc.transact(() => {
+            const yMap = this._elementsArray!.get(index);
+            Object.entries(updates).forEach(([key, value]) => {
+                yMap.set(key, value);
+            });
+        }, 'excalidraw-update');
+    }
+
+    /**
+     * 删除元素
+     */
+    deleteElements(ids: string[]): void {
+        if (!this._ydoc || !this._elementsArray) return;
+
+        const idSet = new Set(ids);
+
+        this._ydoc.transact(() => {
+            for (let i = this._elementsArray!.length - 1; i >= 0; i--) {
+                const yMap = this._elementsArray!.get(i);
+                const id = yMap.get('id') as string;
+                if (id && idSet.has(id)) {
+                    this._elementsArray!.delete(i, 1);
+                }
+            }
+        }, 'excalidraw-delete');
+    }
+
+    /**
+     * 清空所有元素
+     */
+    clearElements(): void {
+        if (!this._ydoc || !this._elementsArray) return;
+
+        this._ydoc.transact(() => {
+            this._elementsArray!.delete(0, this._elementsArray!.length);
+        }, 'excalidraw-clear');
+    }
+
+    /**
+     * 预览历史数据
+     */
+    previewData(data: ArrayBuffer): void {
+        if (!this._roomId) return;
+        const roomId = this._roomId;
+
+        this._cleanup();
+        this._roomId = roomId;
+
+        this._ydoc = new Y.Doc();
+        Y.applyUpdate(this._ydoc, new Uint8Array(data));
+
+        this._elementsArray = this._ydoc.getArray('elements');
+        this._filesMap = this._ydoc.getMap('files');
+        this._undoManager = new Y.UndoManager(this._elementsArray);
+
+        this._notify();
+    }
+
+    /**
+     * 退出预览模式
+     */
+    exitPreview(): void {
+        if (!this._roomId) return;
+        const roomId = this._roomId;
+
+        this.connect(roomId);
+        this._notify();
+    }
+
+    /**
+     * 清理资源
+     */
+    private _cleanup(): void {
+        if (this._provider) {
+            this._provider.disconnect();
+            this._provider.destroy();
+            this._provider = null;
+        }
+        if (this._ydoc) {
+            this._ydoc.destroy();
+            this._ydoc = null;
+        }
+        this._elementsArray = null;
+        this._filesMap = null;
+        this._undoManager = null;
+        this._roomId = null;
+    }
+}
+
+export const yjsManager = new ExcalidrawYjsManager();
