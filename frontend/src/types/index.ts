@@ -86,6 +86,21 @@ export interface WSMessage {
   timestamp?: number
 }
 
+/** 协作事件类型 */
+export type CollabEventType = 'add' | 'delete' | 'update'
+
+/** 协作事件 */
+export interface CollabEvent {
+  id: string
+  ts: number
+  actorId: string
+  actorName: string
+  type: CollabEventType
+  elementType: string
+  summary: string
+  isMe: boolean
+}
+
 /**
  * 白板基类元素
  */

@@ -32,7 +32,9 @@ import {
     Loader2,
     Sparkles,
     Settings,
+    List,
 } from 'lucide-react';
+import { CollabEventsPanel } from './CollabEventsPanel';
 
 interface CanvasProps {
     roomId?: string;
@@ -64,6 +66,7 @@ const scrollToNewElements = (
 */
 
 const HISTORY_SIDEBAR_NAME = 'history-panel';
+const EVENTS_SIDEBAR_NAME = 'collab-events';
 
 /**
  * 改进的移动端检测 Hook
@@ -216,6 +219,10 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
 
     const toggleHistorySidebar = useCallback(() => {
         excalidrawAPI?.toggleSidebar({ name: HISTORY_SIDEBAR_NAME });
+    }, [excalidrawAPI]);
+
+    const toggleEventsSidebar = useCallback(() => {
+        excalidrawAPI?.toggleSidebar({ name: EVENTS_SIDEBAR_NAME });
     }, [excalidrawAPI]);
 
     const toggleSettings = useCallback(() => {
@@ -383,6 +390,27 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
                 </div>
             )}
 
+            {/* ==================== 协作事件侧栏切换按钮（PC） ==================== */}
+            {!isMobile && !isGuest && roomId && (
+                <button
+                    type="button"
+                    onClick={toggleEventsSidebar}
+                    className={cn(
+                        'fixed z-[35] bottom-3 left-1/2 -translate-x-1/2',
+                        'bg-white/90 dark:bg-zinc-900/90 shadow-lg border border-zinc-200 dark:border-zinc-800',
+                        'rounded-full px-3 py-2 flex items-center gap-2 text-sm font-medium',
+                        'text-zinc-700 dark:text-zinc-100',
+                        'hover:translate-y-[-1px] hover:shadow-xl transition-all duration-200'
+                    )}
+                    style={{
+                        backdropFilter: 'blur(8px)',
+                    }}
+                >
+                    <List size={16} />
+                    <span>协作事件</span>
+                </button>
+            )}
+
             {/* ==================== AI 侧边栏 ==================== */}
             {/* 侧边栏自带边缘标签用于展开 */}
             {!isGuest && roomId && !isMobile && (
@@ -445,6 +473,11 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
                                 历史版本
                             </MainMenu.Item>
                         )}
+                        {!isGuest && roomId && (
+                            <MainMenu.Item onSelect={toggleEventsSidebar} icon={<List size={16} />}>
+                                协作事件
+                            </MainMenu.Item>
+                        )}
                         {!isGuest && (
                             <MainMenu.Item onSelect={toggleSettings} icon={<Settings size={16} />}>
                                 模型设置
@@ -467,6 +500,20 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
                         </ExcalidrawSidebar.Header>
                         <div className="h-[calc(100%-50px)] overflow-auto p-2">
                             <HistoryPanel roomId={roomId} />
+                        </div>
+                    </ExcalidrawSidebar>
+                )}
+
+                {!isGuest && roomId && (
+                    <ExcalidrawSidebar name={EVENTS_SIDEBAR_NAME}>
+                        <ExcalidrawSidebar.Header>
+                            <div className="flex items-center gap-2 px-2">
+                                <List size={18} />
+                                <span className="font-semibold">协作事件</span>
+                            </div>
+                        </ExcalidrawSidebar.Header>
+                        <div className="h-[calc(100%-50px)] overflow-auto">
+                            <CollabEventsPanel />
                         </div>
                     </ExcalidrawSidebar>
                 )}
