@@ -52,21 +52,30 @@ export const Welcome: React.FC = () => {
     // 用来判断鼠标是否悬停在“按钮区域”，从而控制背景圆的缩放
     const [isHoveringButtons, setIsHoveringButtons] = React.useState(false)
 
+    // 2. [新增] 扩散状态 (控制变大盖满全屏)
+    const [isExpanding, setIsExpanding] = React.useState(false)
+
+    const [redirectPath, setRedirectPath] = React.useState<string | null>(null) // 新增：记录要去哪里
+
+    const handleTransition = (path: string) => {
+        setRedirectPath(path) // 先记住要去哪
+        setIsExpanding(true)  // 再启动动画
+        // 定时器删掉了，我们交给动画的回调函数去跳转
+    }
+
+    // 修改原有的点击函数，改为调用 handleTransition
     const handleGetStarted = () => {
         const token = localStorage.getItem('token')
         const isGuest = localStorage.getItem('isGuest')
-        if (token || isGuest) {
-            navigate('/rooms')
-        } else {
-            navigate('/login')
-        }
+        const targetPath = (token || isGuest) ? '/rooms' : '/login'
+        handleTransition(targetPath)
     }
 
     const handleQuickStart = () => {
         localStorage.removeItem('token')
         localStorage.removeItem('username')
         localStorage.setItem('isGuest', 'true')
-        navigate('/rooms')
+        handleTransition('/rooms')
     }
 
     const isDark = theme === 'dark'
@@ -102,21 +111,42 @@ export const Welcome: React.FC = () => {
             {/* 背景装饰 */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 
-                {/* 1. 右上角：四分之一圆 */}
+                {/* 1. 右上角：四分之一圆 (最终完美版：变色+柔和) */}
                 <motion.div 
-                    // 初始大小
-                    initial={{ scale: 1 }}
-                    // 如果鼠标在按钮上(isHoveringButtons为真)，就放大到 1.6 倍；否则保持原样
+                    initial={{ scale: 1, opacity: 0.3 }}
                     animate={{ 
-                        scale: isHoveringButtons ? 1.6 : 1,
+                        // 1. 大小：扩散时变大，平时根据鼠标悬停变动
+                        scale: isExpanding ? 40 : (isHoveringButtons ? 1.6 : 1),
+                        
+                        // 2. 透明度：扩散时变成实心(1)，平时保持通透(0.3)
+                        opacity: isExpanding ? 1 : 0.3,
+                        
+                        // 3. 【核心修改】背景颜色动态变化：
+                        // 这里使用 Hex 颜色代码以确保平滑过渡
+                        backgroundColor: isDark 
+                            ? (isExpanding ? '#172554' : '#2563EB') // 深色模式：从 亮蓝(Blue-600) -> 变为 深邃午夜蓝(Blue-950)
+                            : (isExpanding ? '#BFDBFE' : '#60A5FA'), // 浅色模式：从 蓝(Blue-400) -> 变为 极淡冰蓝(Blue-200)
                     }}
-                    // 动画参数：顺滑的缓出效果
-                    transition={{ duration: 0.6, ease: "easeOut" }}
+                    transition={{ 
+                        duration: isExpanding ? 0.5 : 0.6,
+                        // 贝塞尔曲线：前慢后快，极速冲击
+                        ease: isExpanding ? [0.7, 0, 0.84, 0] : "easeInOut"
+                    }}
+                    // 动画结束跳转
+                    onAnimationComplete={() => {
+                        if (isExpanding && redirectPath) {
+                            navigate(redirectPath)
+                        }
+                    }}
                     className={cn(
-                        // 位置：右上角
-                        'absolute -top-[200px] -right-[200px] w-[600px] h-[600px] rounded-full blur-[80px] opacity-30',
-                        // 颜色保持不变
-                        isDark ? 'bg-blue-600' : 'bg-blue-400'
+                        'absolute -top-[200px] -right-[200px] w-[600px] h-[600px] rounded-full blur-[80px]',
+                        'pointer-events-auto',
+                        // 扩散时层级最高
+                        isExpanding ? 'z-50' : 'z-0',
+                        
+                        // 【注意】：这里删除了 'bg-blue-xxx' 类
+                        // 因为颜色现在完全由上面的 animate 里的 backgroundColor 控制
+                        // 这样可以避免 CSS 类冲突，保证变色丝滑
                     )} 
                 />
 
