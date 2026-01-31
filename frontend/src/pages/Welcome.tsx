@@ -49,6 +49,9 @@ export const Welcome: React.FC = () => {
     const navigate = useNavigate()
     const { theme, toggleTheme } = useThemeStore()
 
+    // 用来判断鼠标是否悬停在“按钮区域”，从而控制背景圆的缩放
+    const [isHoveringButtons, setIsHoveringButtons] = React.useState(false)
+
     const handleGetStarted = () => {
         const token = localStorage.getItem('token')
         const isGuest = localStorage.getItem('isGuest')
@@ -98,17 +101,32 @@ export const Welcome: React.FC = () => {
         )}>
             {/* 背景装饰 */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                {/* 渐变光晕 */}
-                <div className={cn(
-                    'absolute -top-40 -right-40 w-96 h-96 rounded-full blur-3xl opacity-30',
-                    isDark ? 'bg-blue-600' : 'bg-blue-400'
-                )} />
+                
+                {/* 1. 右上角：四分之一圆 */}
+                <motion.div 
+                    // 初始大小
+                    initial={{ scale: 1 }}
+                    // 如果鼠标在按钮上(isHoveringButtons为真)，就放大到 1.6 倍；否则保持原样
+                    animate={{ 
+                        scale: isHoveringButtons ? 1.6 : 1,
+                    }}
+                    // 动画参数：顺滑的缓出效果
+                    transition={{ duration: 0.6, ease: "easeOut" }}
+                    className={cn(
+                        // 位置：右上角
+                        'absolute -top-[200px] -right-[200px] w-[600px] h-[600px] rounded-full blur-[80px] opacity-30',
+                        // 颜色保持不变
+                        isDark ? 'bg-blue-600' : 'bg-blue-400'
+                    )} 
+                />
+
+                {/* 2. 左下角：保持原样 (静态) */}
                 <div className={cn(
                     'absolute -bottom-40 -left-40 w-96 h-96 rounded-full blur-3xl opacity-30',
                     isDark ? 'bg-violet-600' : 'bg-violet-400'
                 )} />
 
-                {/* 网格背景 */}
+                {/* 3. 网格背景：保持原样 (SVG) */}
                 <div
                     className={cn(
                         'absolute inset-0 opacity-[0.02]',
@@ -163,7 +181,7 @@ export const Welcome: React.FC = () => {
             </motion.header>
 
             {/* 主内容区域 */}
-            <main className="relative z-10 flex-1 flex items-center px-6 pt-20 pb-12">
+            <main className="relative z-10 flex-1 flex items-center px-6 pt-20 pb-12 pointer-events-none">
 
                 <div className="w-full max-w-screen-2xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
                     
@@ -172,7 +190,7 @@ export const Welcome: React.FC = () => {
                         variants={staggerContainer}
                         initial="initial"
                         animate="animate"
-                        className="lg:col-span-7 text-left space-y-8 -mt-12 lg:-mt-32" 
+                        className="lg:col-span-7 text-left space-y-8 -mt-12 lg:-mt-32 pointer-events-auto" 
                     >
                         <motion.div variants={fadeInUp}>
                             <span className={cn(
@@ -224,7 +242,7 @@ export const Welcome: React.FC = () => {
                         animate="animate"
                         className={cn(
                             "lg:col-span-5 flex flex-col items-center lg:items-start justify-center",
-                            "lg:-ml-12",
+                            "lg:-ml-12 pointer-events-auto",
                             "gap-16",
                             "mt-12 lg:mt-32"
                         )}
@@ -232,6 +250,13 @@ export const Welcome: React.FC = () => {
                         {/* 1. 按钮组 */}
                         <motion.div
                             variants={fadeInUp}
+
+                            // 鼠标监听
+                            // 当鼠标进入按钮区域 -> 背景圆变大
+                            onMouseEnter={() => setIsHoveringButtons(true)}
+                            // 当鼠标离开按钮区域 -> 背景圆缩回
+                            onMouseLeave={() => setIsHoveringButtons(false)}
+
                             className="flex flex-col gap-4 w-80 mx-auto" 
                         >
                             <motion.button
