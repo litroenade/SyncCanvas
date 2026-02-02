@@ -54,9 +54,7 @@ export const Login: React.FC = () => {
     return (
         <div className={cn(
             "min-h-screen flex items-center justify-center transition-all duration-500 relative overflow-hidden",
-            theme === 'dark'
-                ? "bg-slate-900"
-                : "bg-gray-50"
+             (theme === 'dark' ? "bg-slate-900" : "bg-gray-50")
         )}>
             {/* Background Gradients with better animation */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">

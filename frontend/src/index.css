@@ -93,6 +93,7 @@
     /* 禁止 iOS 橡皮筋效果 */
     overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
+    transition: color 3s ease-in-out;
   }
 
   #root {
@@ -102,6 +103,27 @@
     margin: 0;
     padding: 0;
   }
+
+  /* 全局过渡：让所有颜色变化平滑进行，避免突兀的瞬间切换 */
+  /* 使用较长的过渡时间 (1s) 来配合海浪动画，虽然不能完全同步，但能提供更自然的视觉体验 */
+  *, *::before, *::after {
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 1000ms;
+  }
+  
+  /* 在拖拽或调整大小时禁用过渡，提高性能 */
+  .resizing *, .dragging * {
+    transition: none !important;
+  }
+}
+
+/* ==================== 过渡状态下的特定样式 ==================== */
+/* 当正在进行海浪动画时，强制主要页面容器背景透明，露出底层的 Canvas 海浪 */
+.theme-transitioning .page-container,
+.theme-transitioning .min-h-screen {
+    background-color: transparent !important;
+    background-image: none !important;
 }
 
 /* ==================== 画布容器 ==================== */

@@ -7,6 +7,7 @@
 
 import React, { useEffect, ReactNode } from 'react';
 import { useThemeStore } from '../../stores/useThemeStore';
+import { ThemeWaveTransition } from './ThemeWaveTransition';
 
 interface ThemeProviderProps {
     /** 子组件 */
@@ -20,6 +21,7 @@ interface ThemeProviderProps {
  * - 监听主题状态变化
  * - 自动为 document.documentElement 添加/移除 dark class
  * - Excalidraw 会自动根据 theme prop 管理画布颜色
+ * - 提供主题切换动画 (ThemeWaveTransition)
  * 
  * @example
  * ```tsx
@@ -41,7 +43,12 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
         }
     }, [theme]);
 
-    return <>{children}</>;
+    return (
+        <>
+            <ThemeWaveTransition />
+            {children}
+        </>
+    );
 };
 
 export default ThemeProvider;

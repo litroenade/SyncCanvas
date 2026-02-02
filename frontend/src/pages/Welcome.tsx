@@ -92,9 +92,9 @@ export const Welcome: React.FC = () => {
     return (
         <div className={cn(
             'min-h-screen flex flex-col overflow-hidden relative',
-            isDark
+            (isDark
                 ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950'
-                : 'bg-gradient-to-br from-slate-50 via-white to-blue-50'
+                : 'bg-gradient-to-br from-slate-50 via-white to-blue-50')
         )}>
             {/* 背景装饰 */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
