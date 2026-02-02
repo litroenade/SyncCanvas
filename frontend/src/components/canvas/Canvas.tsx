@@ -25,8 +25,26 @@ import { SettingsPanel } from './SettingsPanel';
 
 import { HistoryPanel } from './HistoryPanel';
 import { ModelSettingsDialog } from '../common/ModelSettingsDialog';
+<<<<<<< HEAD
 
 import { Home, History, Boxes, Bot, Settings } from 'lucide-react';
+=======
+import { cn } from '../../lib/utils';
+import {
+    Home,
+    History,
+    Users,
+    Wifi,
+    WifiOff,
+    Loader2,
+    Sparkles,
+    Settings,
+    List,
+    Moon,
+    Sun,
+} from 'lucide-react';
+import { CollabEventsPanel } from './CollabEventsPanel';
+>>>>>>> 9b685f0 (深浅背景色切换优化)
 
 interface CanvasProps {
   roomId?: string;
@@ -432,9 +450,50 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId }) => {
               onSelect={toggleHistorySidebar}
               icon={<History size={16} />}
             >
+<<<<<<< HEAD
               历史版本
             </MainMenu.Item>
           )}
+=======
+                {/* PC 端主菜单 */}
+                {!isMobile && (
+                    <MainMenu>
+                        <MainMenu.DefaultItems.LoadScene />
+                        <MainMenu.DefaultItems.SaveToActiveFile />
+                        <MainMenu.DefaultItems.Export />
+                        <MainMenu.DefaultItems.SaveAsImage />
+                        <MainMenu.Separator />
+                        <MainMenu.DefaultItems.ClearCanvas />
+                        <MainMenu.Separator />
+                        <MainMenu.Item onSelect={handleBackToRooms} icon={<Home size={16} />}>
+                            返回房间列表
+                        </MainMenu.Item>
+                        {!isGuest && roomId && (
+                            <MainMenu.Item onSelect={toggleHistorySidebar} icon={<History size={16} />}>
+                                历史版本
+                            </MainMenu.Item>
+                        )}
+                        {!isGuest && roomId && (
+                            <MainMenu.Item onSelect={toggleEventsSidebar} icon={<List size={16} />}>
+                                协作事件
+                            </MainMenu.Item>
+                        )}
+                        {!isGuest && (
+                            <MainMenu.Item onSelect={toggleSettings} icon={<Settings size={16} />}>
+                                模型设置
+                            </MainMenu.Item>
+                        )}
+                        <MainMenu.Separator />
+                        <MainMenu.Item 
+                            onSelect={() => toggleTheme()} 
+                            icon={theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+                        >
+                            {theme === 'dark' ? '浅色模式' : '深色模式'}
+                        </MainMenu.Item>
+                        <MainMenu.DefaultItems.ChangeCanvasBackground />
+                    </MainMenu>
+                )}
+>>>>>>> 9b685f0 (深浅背景色切换优化)
 
           {roomId && !isMobile && (
             <MainMenu.Item

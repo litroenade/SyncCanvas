@@ -16,9 +16,21 @@ export const useThemeStore = create<ThemeState>()(
     persist(
         (set) => ({
             theme: 'light',
-            toggleTheme: () => set((state) => ({
-                theme: state.theme === 'light' ? 'dark' : 'light'
-            })),
+            toggleTheme: () => {
+                // @ts-ignore - View Transition API is not yet in all TS definitions
+                if (document.startViewTransition) {
+                    // @ts-ignore
+                    document.startViewTransition(() => {
+                        set((state) => ({
+                            theme: state.theme === 'light' ? 'dark' : 'light'
+                        }));
+                    });
+                } else {
+                    set((state) => ({
+                        theme: state.theme === 'light' ? 'dark' : 'light'
+                    }));
+                }
+            },
             setTheme: (theme) => set({ theme }),
         }),
         {
