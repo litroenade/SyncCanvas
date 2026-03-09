@@ -86,7 +86,7 @@ export const Welcome: React.FC = () => {
             title: '多人协作',
             desc: '实时同步，光标可见',
             gradient: 'from-blue-500 to-cyan-500',
-            layout: 'self-start w-48 h-48 md:w-52 md:h-52 lg:left-[-1rem] lg:bottom-[0.5rem] lg:w-52 lg:h-52 lg:-rotate-[3deg]',
+            layout: 'self-start w-48 h-48 md:w-52 md:h-52 lg:left-[-23rem] lg:bottom-[-1.5rem] lg:w-52 lg:h-52 lg:-rotate-[3deg]',
             iconWrapper: 'w-14 h-14 lg:w-16 lg:h-16',
             iconSize: 26
         },
@@ -95,7 +95,7 @@ export const Welcome: React.FC = () => {
             title: 'AI 绘图',
             desc: '自然语言生成图表',
             gradient: 'from-violet-500 to-purple-500',
-            layout: 'self-center -mt-5 w-56 h-56 md:w-60 md:h-60 lg:left-[8.75rem] lg:bottom-[4.75rem] lg:w-60 lg:h-60 lg:rotate-[1.5deg]',
+            layout: 'self-center -mt-5 w-56 h-56 md:w-60 md:h-60 lg:left-[-10rem] lg:bottom-[6rem] lg:w-60 lg:h-60 lg:rotate-[1.5deg]',
             iconWrapper: 'w-16 h-16 lg:w-[4.5rem] lg:h-[4.5rem]',
             iconSize: 30
         },
@@ -104,7 +104,7 @@ export const Welcome: React.FC = () => {
             title: '版本控制',
             desc: 'Git 风格，随时回滚',
             gradient: 'from-orange-500 to-rose-500',
-            layout: 'self-end -mt-5 w-64 h-64 md:w-72 md:h-72 lg:left-[21.5rem] lg:bottom-[8.75rem] lg:w-72 lg:h-72 lg:rotate-[4deg]',
+            layout: 'self-end -mt-5 w-64 h-64 md:w-72 md:h-72 lg:left-[5rem] lg:bottom-[13rem] lg:w-72 lg:h-72 lg:rotate-[4deg]',
             iconWrapper: 'w-[4.5rem] h-[4.5rem] lg:w-20 lg:h-20',
             iconSize: 34
         },
@@ -116,7 +116,7 @@ export const Welcome: React.FC = () => {
             label: '游客体验',
             icon: <Zap size={22} className="text-yellow-500" />,
             onClick: handleQuickStart,
-            layout: 'self-end mt-3 w-full max-w-[22rem] md:max-w-[24rem] lg:right-[3.75rem] lg:top-[8.25rem] lg:w-[18.5rem] lg:h-[5.75rem] lg:-rotate-[2deg]',
+            layout: 'self-end mt-3 w-full max-w-[22rem] md:max-w-[24rem] lg:left-[10.75rem] lg:top-[16.75rem] lg:w-[18.5rem] lg:h-[5.75rem] lg:-rotate-[2deg]',
             className: isDark
                 ? 'border-slate-700 text-slate-300 hover:bg-slate-800'
                 : 'border-slate-200 text-slate-700 hover:bg-white hover:shadow-lg'
@@ -126,7 +126,7 @@ export const Welcome: React.FC = () => {
             label: '开始使用',
             icon: <ArrowRight size={22} />,
             onClick: handleGetStarted,
-            layout: 'self-end -mt-1 w-full max-w-[24rem] md:max-w-[26rem] lg:right-[1rem] lg:top-[2.5rem] lg:w-[21rem] lg:h-[6.25rem] lg:rotate-[2deg]',
+            layout: 'self-end -mt-1 w-full max-w-[24rem] md:max-w-[26rem] lg:left-[9.5rem] lg:top-[9.75rem] lg:w-[21rem] lg:h-[6.25rem] lg:rotate-[2deg]',
             className: 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xl shadow-blue-600/20 hover:shadow-blue-600/40'
         }
     ]
@@ -406,5 +406,9 @@ export const Welcome: React.FC = () => {
         </div>
     )
 }
+
+
+
+
 
 
