@@ -305,10 +305,16 @@ export const Welcome: React.FC = () => {
                                 'lg:block lg:w-[45rem] lg:max-w-none lg:h-[44rem] lg:pb-0'
                             )}
                         >
-                            {actionButtons.map((button) => (
+                            {actionButtons.map((button, index) => (
                                 <motion.div
                                     key={button.key}
-                                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                                    animate={{ y: [0, -8, 0] }}
+                                    transition={{
+                                        duration: 3.2,
+                                        repeat: Infinity,
+                                        ease: 'easeInOut',
+                                        delay: index * 0.4
+                                    }}
                                     whileHover={{ scale: 1.03, y: -4 }}
                                     whileTap={{ scale: 0.97 }}
                                     className={cn(
@@ -406,6 +412,7 @@ export const Welcome: React.FC = () => {
         </div>
     )
 }
+
 
 
 
