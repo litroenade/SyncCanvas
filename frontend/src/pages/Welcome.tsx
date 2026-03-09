@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 欢迎页面 - Landing Page
  *
  * 应用启动的第一个页面，现代化设计，视觉冲击力强
@@ -40,7 +40,7 @@ const floatAnimation = {
         transition: {
             duration: 3,
             repeat: Infinity,
-            ease: "easeInOut" as const
+            ease: 'easeInOut' as const
         }
     }
 }
@@ -59,7 +59,7 @@ export const Welcome: React.FC = () => {
 
     const handleTransition = (path: string) => {
         setRedirectPath(path) // 先记住要去哪
-        setIsExpanding(true)  // 再启动动画
+        setIsExpanding(true) // 再启动动画
         // 定时器删掉了，我们交给动画的回调函数去跳转
     }
 
@@ -85,20 +85,50 @@ export const Welcome: React.FC = () => {
             icon: Users,
             title: '多人协作',
             desc: '实时同步，光标可见',
-            gradient: 'from-blue-500 to-cyan-500'
+            gradient: 'from-blue-500 to-cyan-500',
+            layout: 'self-start w-48 h-48 md:w-52 md:h-52 lg:left-[-1rem] lg:bottom-[0.5rem] lg:w-52 lg:h-52 lg:-rotate-[3deg]',
+            iconWrapper: 'w-14 h-14 lg:w-16 lg:h-16',
+            iconSize: 26
         },
         {
             icon: Sparkles,
             title: 'AI 绘图',
             desc: '自然语言生成图表',
-            gradient: 'from-violet-500 to-purple-500'
+            gradient: 'from-violet-500 to-purple-500',
+            layout: 'self-center -mt-5 w-56 h-56 md:w-60 md:h-60 lg:left-[8.75rem] lg:bottom-[4.75rem] lg:w-60 lg:h-60 lg:rotate-[1.5deg]',
+            iconWrapper: 'w-16 h-16 lg:w-[4.5rem] lg:h-[4.5rem]',
+            iconSize: 30
         },
         {
             icon: GitBranch,
             title: '版本控制',
             desc: 'Git 风格，随时回滚',
-            gradient: 'from-orange-500 to-rose-500'
+            gradient: 'from-orange-500 to-rose-500',
+            layout: 'self-end -mt-5 w-64 h-64 md:w-72 md:h-72 lg:left-[21.5rem] lg:bottom-[8.75rem] lg:w-72 lg:h-72 lg:rotate-[4deg]',
+            iconWrapper: 'w-[4.5rem] h-[4.5rem] lg:w-20 lg:h-20',
+            iconSize: 34
         },
+    ]
+
+    const actionButtons = [
+        {
+            key: 'quick-start',
+            label: '游客体验',
+            icon: <Zap size={22} className="text-yellow-500" />,
+            onClick: handleQuickStart,
+            layout: 'self-end mt-3 w-full max-w-[22rem] md:max-w-[24rem] lg:right-[3.75rem] lg:top-[8.25rem] lg:w-[18.5rem] lg:h-[5.75rem] lg:-rotate-[2deg]',
+            className: isDark
+                ? 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                : 'border-slate-200 text-slate-700 hover:bg-white hover:shadow-lg'
+        },
+        {
+            key: 'get-started',
+            label: '开始使用',
+            icon: <ArrowRight size={22} />,
+            onClick: handleGetStarted,
+            layout: 'self-end -mt-1 w-full max-w-[24rem] md:max-w-[26rem] lg:right-[1rem] lg:top-[2.5rem] lg:w-[21rem] lg:h-[6.25rem] lg:rotate-[2deg]',
+            className: 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xl shadow-blue-600/20 hover:shadow-blue-600/40'
+        }
     ]
 
     return (
@@ -110,27 +140,26 @@ export const Welcome: React.FC = () => {
         )}>
             {/* 背景装饰 */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                
                 {/* 1. 右上角：四分之一圆 (最终完美版：变色+柔和) */}
-                <motion.div 
+                <motion.div
                     initial={{ scale: 1, opacity: 0.3 }}
-                    animate={{ 
+                    animate={{
                         // 1. 大小：扩散时变大，平时根据鼠标悬停变动
                         scale: isExpanding ? 40 : (isHoveringButtons ? 1.6 : 1),
-                        
+
                         // 2. 透明度：扩散时变成实心(1)，平时保持通透(0.3)
                         opacity: isExpanding ? 1 : 0.3,
-                        
+
                         // 3. 【核心修改】背景颜色动态变化：
                         // 这里使用 Hex 颜色代码以确保平滑过渡
-                        backgroundColor: isDark 
-                            ? (isExpanding ? '#172554' : '#2563EB') // 深色模式：从 亮蓝(Blue-600) -> 变为 深邃午夜蓝(Blue-950)
-                            : (isExpanding ? '#BFDBFE' : '#60A5FA'), // 浅色模式：从 蓝(Blue-400) -> 变为 极淡冰蓝(Blue-200)
+                        backgroundColor: isDark
+                            ? (isExpanding ? '#172554' : '#2563EB')
+                            : (isExpanding ? '#BFDBFE' : '#60A5FA'),
                     }}
-                    transition={{ 
+                    transition={{
                         duration: isExpanding ? 0.5 : 0.6,
                         // 贝塞尔曲线：前慢后快，极速冲击
-                        ease: isExpanding ? [0.7, 0, 0.84, 0] : "easeInOut"
+                        ease: isExpanding ? [0.7, 0, 0.84, 0] : 'easeInOut'
                     }}
                     // 动画结束跳转
                     onAnimationComplete={() => {
@@ -141,13 +170,8 @@ export const Welcome: React.FC = () => {
                     className={cn(
                         'absolute -top-[200px] -right-[200px] w-[600px] h-[600px] rounded-full blur-[80px]',
                         'pointer-events-auto',
-                        // 扩散时层级最高
                         isExpanding ? 'z-50' : 'z-0',
-                        
-                        // 【注意】：这里删除了 'bg-blue-xxx' 类
-                        // 因为颜色现在完全由上面的 animate 里的 backgroundColor 控制
-                        // 这样可以避免 CSS 类冲突，保证变色丝滑
-                    )} 
+                    )}
                 />
 
                 {/* 2. 左下角：保持原样 (静态) */}
@@ -211,16 +235,14 @@ export const Welcome: React.FC = () => {
             </motion.header>
 
             {/* 主内容区域 */}
-            <main className="relative z-10 flex-1 flex items-center px-6 pt-20 pb-12 pointer-events-none">
-
+            <main className="relative z-10 flex-1 flex items-center px-6 pt-12 pb-8 lg:pt-6 lg:pb-4 pointer-events-none">
                 <div className="w-full max-w-screen-2xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-                    
                     {/* ==================== 左侧 ==================== */}
                     <motion.div
                         variants={staggerContainer}
                         initial="initial"
                         animate="animate"
-                        className="lg:col-span-7 text-left space-y-8 -mt-12 lg:-mt-32 pointer-events-auto" 
+                        className="lg:col-span-7 text-left space-y-8 -mt-12 lg:-mt-32 pointer-events-auto"
                     >
                         <motion.div variants={fadeInUp}>
                             <span className={cn(
@@ -264,104 +286,86 @@ export const Welcome: React.FC = () => {
                         </motion.p>
                     </motion.div>
 
-
                     {/* ==================== 右侧 ==================== */}
                     <motion.div
                         variants={staggerContainer}
                         initial="initial"
                         animate="animate"
                         className={cn(
-                            "lg:col-span-5 flex flex-col items-center lg:items-start justify-center",
-                            "lg:-ml-12 pointer-events-auto",
-                            "gap-16",
-                            "mt-12 lg:mt-32"
+                            'lg:col-span-5 flex justify-center pointer-events-auto',
+                            'mt-8 lg:-mt-4 lg:-ml-10'
                         )}
                     >
-                        {/* 1. 按钮组 */}
                         <motion.div
                             variants={fadeInUp}
-
-                            // 鼠标监听
-                            // 当鼠标进入按钮区域 -> 背景圆变大
                             onMouseEnter={() => setIsHoveringButtons(true)}
-                            // 当鼠标离开按钮区域 -> 背景圆缩回
                             onMouseLeave={() => setIsHoveringButtons(false)}
-
-                            className="flex flex-col gap-4 w-80 mx-auto" 
+                            className={cn(
+                                'relative flex w-full max-w-[28rem] flex-col items-stretch pb-2',
+                                'lg:block lg:w-[45rem] lg:max-w-none lg:h-[44rem] lg:pb-0'
+                            )}
                         >
-                            <motion.button
-                                transition={{ duration: 0.2, ease: "easeOut" }}
-                                whileHover={{ scale: 1.05, translateY: -2 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={handleGetStarted}
-                                className={cn(
-                                    'flex items-center justify-center gap-3 px-8 py-5 rounded-2xl',
-                                    'bg-gradient-to-r from-blue-600 to-indigo-600',
-                                    'text-white font-bold text-lg',
-                                    'shadow-xl shadow-blue-600/20 hover:shadow-blue-600/40',
-                                    'transition-shadow duration-200'
-                                )}
-                            >
-                                开始使用
-                                <ArrowRight size={20} />
-                            </motion.button>
+                            {actionButtons.map((button) => (
+                                <motion.div
+                                    key={button.key}
+                                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                                    whileHover={{ scale: 1.03, y: -4 }}
+                                    whileTap={{ scale: 0.97 }}
+                                    className={cn(
+                                        'relative z-20 lg:absolute',
+                                        button.layout
+                                    )}
+                                >
+                                    <button
+                                        onClick={button.onClick}
+                                        className={cn(
+                                            'flex h-full w-full items-center justify-center gap-3 rounded-[1.9rem] px-8 py-5 text-lg font-bold transition-all duration-200',
+                                            'border-2 backdrop-blur-sm',
+                                            button.key === 'get-started' ? 'border-transparent' : '',
+                                            button.className
+                                        )}
+                                    >
+                                        {button.key === 'quick-start' && button.icon}
+                                        {button.label}
+                                        {button.key === 'get-started' && button.icon}
+                                    </button>
+                                </motion.div>
+                            ))}
 
-                            <motion.button
-                                transition={{ duration: 0.2, ease: "easeOut" }}
-                                whileHover={{ scale: 1.05, translateY: -2 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={handleQuickStart}
-                                className={cn(
-                                    'flex items-center justify-center gap-3 px-8 py-5 rounded-2xl',
-                                    'font-bold text-lg border-2',
-                                    'transition-colors duration-200',
-                                    isDark
-                                        ? 'border-slate-700 text-slate-300 hover:bg-slate-800'
-                                        : 'border-slate-200 text-slate-700 hover:bg-white hover:shadow-lg'
-                                )}
-                            >
-                                <Zap size={20} className="text-yellow-500" />
-                                游客体验
-                            </motion.button>
-                        </motion.div>
-
-                        {/* 2. 特性卡片组 */}
-                        <motion.div
-                            variants={fadeInUp}
-                            className="grid grid-cols-3 gap-4 w-full"
-                        >
                             {features.map((feature, index) => (
                                 <motion.div
                                     key={index}
                                     variants={floatAnimation}
                                     style={{ animationDelay: `${index * 0.5}s` }}
-                                    transition={{ duration: 0.2, ease: "easeOut" }}
-                                    whileHover={{ scale: 1.05, y: -5 }} 
+                                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                                    whileHover={{ scale: 1.04, y: -5 }}
                                     className={cn(
-                                        'aspect-square p-4 rounded-2xl backdrop-blur-sm flex flex-col items-center justify-center text-center gap-3 cursor-default',
-                                        'transition-colors duration-300',
+                                        'relative flex flex-col items-center justify-center gap-4 rounded-[2rem] p-6 text-center cursor-default',
+                                        'backdrop-blur-sm transition-colors duration-300',
+                                        'lg:absolute',
+                                        feature.layout,
                                         isDark
                                             ? 'bg-slate-800/40 border border-slate-700/50 hover:bg-slate-800/60'
-                                            : 'bg-white/60 border border-slate-200/50 hover:bg-white/90 hover:shadow-xl'
+                                            : 'bg-white/60 border border-slate-200/60 hover:bg-white/90 hover:shadow-xl'
                                     )}
                                 >
                                     <div className={cn(
-                                        'w-12 h-12 rounded-xl flex items-center justify-center shrink-0',
-                                        `bg-gradient-to-br ${feature.gradient}`,
-                                        'text-white shadow-md'
+                                        'rounded-[1.4rem] flex items-center justify-center shrink-0 text-white shadow-md',
+                                        feature.iconWrapper,
+                                        `bg-gradient-to-br ${feature.gradient}`
                                     )}>
-                                        <feature.icon size={22} />
+                                        <feature.icon size={feature.iconSize} />
                                     </div>
-                                    
-                                    <div className="flex flex-col gap-1 w-full overflow-hidden">
+
+                                    <div className="flex flex-col gap-2 w-full overflow-hidden">
                                         <h3 className={cn(
-                                            'font-bold text-sm truncate',
+                                            'font-bold text-[1.85rem] leading-none',
                                             isDark ? 'text-white' : 'text-slate-900'
                                         )}>
                                             {feature.title}
                                         </h3>
                                         <p className={cn(
-                                            'text-[12px] leading-tight opacity-80',
+                                            'text-sm leading-relaxed opacity-80',
                                             isDark ? 'text-slate-400' : 'text-slate-500'
                                         )}>
                                             {feature.desc}
@@ -371,7 +375,6 @@ export const Welcome: React.FC = () => {
                             ))}
                         </motion.div>
                     </motion.div>
-
                 </div>
             </main>
 
@@ -388,12 +391,12 @@ export const Welcome: React.FC = () => {
                 <span className="inline-flex items-center gap-2">
                     基于 Excalidraw + Yjs 构建
                     <motion.span
-                        className="text-red-400 inline-block cursor-default" // inline-block 才能进行 transform 变换
-                        animate={{ scale: [1, 1.2, 1] }} // 关键帧：原始大小 -> 放大1.2倍 -> 回到原始大小
+                        className="text-red-400 inline-block cursor-default"
+                        animate={{ scale: [1, 1.2, 1] }}
                         transition={{
-                            duration: 2.5, // 2.5秒完成一次循环
-                            repeat: Infinity, // 无限循环
-                            ease: "easeInOut" // 缓入缓出
+                            duration: 2.5,
+                            repeat: Infinity,
+                            ease: 'easeInOut'
                         }}
                     >
                         ♥
@@ -403,3 +406,5 @@ export const Welcome: React.FC = () => {
         </div>
     )
 }
+
+
