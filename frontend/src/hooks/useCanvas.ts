@@ -6,6 +6,8 @@
  */
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { yjsManager, ExcalidrawElement, BinaryFiles } from '../lib/yjs';
+import { useCollabEventStore } from '../stores/collab_event_store';
+import type { CollabEvent, CollabEventType } from '../types';
 
 // AppState 简化类型定义
 type AppState = Record<string, unknown>;
@@ -47,6 +49,85 @@ const getUserInfo = () => {
     return cachedUserInfo;
 };
 
+const MAX_EVENTS_PER_BATCH = 10;
+
+const makeEventSummary = (element: ExcalidrawElement, fallbackType: string) => {
+    const text = typeof (element as { text?: string }).text === 'string'
+        ? (element as { text: string }).text
+        : '';
+    const trimmed = text ? `${text.slice(0, 12)}${text.length > 12 ? '…' : ''}` : '';
+    return trimmed ? `${fallbackType}${trimmed ? ` · ${trimmed}` : ''}` : fallbackType;
+};
+
+const buildEvents = (
+    prevMap: Map<string, ExcalidrawElement>,
+    nextElements: readonly ExcalidrawElement[],
+    actorName: string,
+    actorId: string,
+    isMe: boolean,
+): { events: CollabEvent[]; nextMap: Map<string, ExcalidrawElement> } => {
+    const nextMap = new Map<string, ExcalidrawElement>();
+    nextElements.forEach(el => nextMap.set(el.id, el));
+
+    const added: ExcalidrawElement[] = [];
+    const deleted: ExcalidrawElement[] = [];
+    const updated: ExcalidrawElement[] = [];
+
+    nextMap.forEach((el, id) => {
+        if (!prevMap.has(id)) {
+            added.push(el);
+            return;
+        }
+        const prev = prevMap.get(id)!;
+        if (JSON.stringify(prev) !== JSON.stringify(el)) {
+            updated.push(el);
+        }
+    });
+
+    prevMap.forEach((el, id) => {
+        if (!nextMap.has(id)) {
+            deleted.push(el);
+        }
+    });
+
+    const events: CollabEvent[] = [];
+    const ts = Date.now();
+    const typeLabels: Record<CollabEventType, string> = { add: '新增', delete: '删除', update: '更新' };
+
+    const pushList = (items: ExcalidrawElement[], type: CollabEventType) => {
+        items.slice(0, MAX_EVENTS_PER_BATCH).forEach((el) => {
+            events.push({
+                id: `${ts}-${type}-${el.id}`,
+                ts,
+                actorId,
+                actorName,
+                type,
+                elementType: el.type,
+                summary: makeEventSummary(el, el.type),
+                isMe,
+            });
+        });
+        if (items.length > MAX_EVENTS_PER_BATCH) {
+            events.push({
+                id: `${ts}-${type}-bulk`,
+                ts,
+                actorId,
+                actorName,
+                type,
+                elementType: 'multiple',
+                summary: `批量${typeLabels[type]} ${items.length} 项`,
+                isMe,
+            });
+        }
+    };
+
+    pushList(added, 'add');
+    pushList(deleted, 'delete');
+    pushList(updated, 'update');
+
+    return { events, nextMap };
+};
+
 /**
  * Excalidraw 协作者光标接口
  */
@@ -71,6 +152,8 @@ export const useCanvas = (roomId?: string) => {
 
     const userInfoRef = useRef(getUserInfo());
     const lastSyncedElementsRef = useRef<string>('');
+    const lastElementsMapRef = useRef<Map<string, ExcalidrawElement>>(new Map());
+    const addEvents = useCollabEventStore(state => state.addEvents);
 
     // 监听 Yjs 文档变化
     useEffect(() => {
@@ -135,6 +218,19 @@ export const useCanvas = (roomId?: string) => {
 
             const newElements = yjsManager.getElements();
             const newElementsStr = JSON.stringify(newElements);
+
+            const isInitial = origin === 'initial';
+            const { events, nextMap } = buildEvents(
+                lastElementsMapRef.current,
+                newElements,
+                '远端用户',
+                'remote',
+                false,
+            );
+            if (!isInitial && events.length) {
+                addEvents(events);
+            }
+            lastElementsMapRef.current = nextMap;
 
             console.log('[useCanvas] 获取元素数量:', newElements.length);
             // 打印前 2 个元素的 id 和 type
@@ -226,7 +322,7 @@ export const useCanvas = (roomId?: string) => {
                 provider.off('sync', handleSync);
             }
         };
-    }, [roomId]);
+    }, [roomId, addEvents]);
 
     /**
      * 处理 Excalidraw onChange 事件
@@ -237,6 +333,18 @@ export const useCanvas = (roomId?: string) => {
         _appState: AppState,
         newFiles: BinaryFiles
     ) => {
+        const { events, nextMap } = buildEvents(
+            lastElementsMapRef.current,
+            newElements,
+            userInfoRef.current.name,
+            userInfoRef.current.name,
+            true,
+        );
+        if (events.length) {
+            addEvents(events);
+        }
+        lastElementsMapRef.current = nextMap;
+
         const newElementsStr = JSON.stringify(newElements);
 
         // 避免循环更新
@@ -254,7 +362,7 @@ export const useCanvas = (roomId?: string) => {
         if (newFiles && Object.keys(newFiles).length > 0) {
             yjsManager.syncFiles(newFiles);
         }
-    }, []);
+    }, [addEvents]);
 
     /**
      * 更新协作者光标位置
