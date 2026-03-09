@@ -56,6 +56,40 @@ export const Welcome: React.FC = () => {
     const [isExpanding, setIsExpanding] = React.useState(false)
 
     const [redirectPath, setRedirectPath] = React.useState<string | null>(null) // 新增：记录要去哪里
+    const [introProgress, setIntroProgress] = React.useState(0)
+    const [isIntroVisible, setIsIntroVisible] = React.useState(true)
+    const [isIntroFading, setIsIntroFading] = React.useState(false)
+
+    React.useEffect(() => {
+        if (!isIntroVisible) {
+            return
+        }
+
+        let progress = 0
+        let fadeTimer: number | undefined
+        let hideTimer: number | undefined
+
+        const interval = window.setInterval(() => {
+            progress = Math.min(100, progress + (progress < 68 ? 5 : progress < 90 ? 3 : 1))
+            setIntroProgress(progress)
+
+            if (progress >= 100) {
+                window.clearInterval(interval)
+                fadeTimer = window.setTimeout(() => setIsIntroFading(true), 240)
+                hideTimer = window.setTimeout(() => setIsIntroVisible(false), 920)
+            }
+        }, 78)
+
+        return () => {
+            window.clearInterval(interval)
+            if (fadeTimer) {
+                window.clearTimeout(fadeTimer)
+            }
+            if (hideTimer) {
+                window.clearTimeout(hideTimer)
+            }
+        }
+    }, [isIntroVisible])
 
     const handleTransition = (path: string) => {
         setRedirectPath(path) // 先记住要去哪
@@ -138,7 +172,48 @@ export const Welcome: React.FC = () => {
                 ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950'
                 : 'bg-gradient-to-br from-slate-50 via-white to-blue-50'
         )}>
-            {/* 背景装饰 */}
+            {isIntroVisible && (
+                <motion.div
+                    initial={{ opacity: 1 }}
+                    animate={{ opacity: isIntroFading ? 0 : 1 }}
+                    transition={{ duration: 0.58, ease: 'easeOut' }}
+                    className={cn(
+                        'absolute inset-0 z-[100] overflow-hidden',
+                        isDark ? 'bg-slate-950' : 'bg-slate-50'
+                    )}
+                >
+                    <div className="absolute inset-x-0 top-1/2 -translate-y-1/2">
+                        <div className="relative h-14 w-screen">
+                            <motion.div
+                                className={cn(
+                                    'absolute top-0 w-[5.4rem] -translate-x-1/2 text-center text-[1.08rem] font-semibold font-mono tabular-nums tracking-[0.03em] will-change-transform',
+                                    isDark ? 'text-slate-200' : 'text-slate-700'
+                                )}
+                                animate={{
+                                    left: `clamp(2.6rem, ${introProgress}%, calc(100% - 2.6rem))`
+                                }}
+                                transition={{ duration: 0.18, ease: 'easeOut' }}
+                            >
+                                {introProgress}%
+                            </motion.div>
+                            <div className={cn(
+                                'absolute inset-x-0 top-8 h-[5px] overflow-hidden',
+                                isDark ? 'bg-slate-800' : 'bg-slate-200'
+                            )}>
+                                <motion.div
+                                    className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 shadow-[0_0_28px_rgba(79,70,229,0.45)]"
+                                    animate={{ width: `${introProgress}%` }}
+                                    transition={{ duration: 0.18, ease: 'easeOut' }}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </motion.div>
+            )}
+
+            {!isIntroVisible && (
+                <>
+                    {/* 背景装饰 */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 {/* 1. 右上角：四分之一圆 (最终完美版：变色+柔和) */}
                 <motion.div
@@ -409,9 +484,20 @@ export const Welcome: React.FC = () => {
                     </motion.span>
                 </span>
             </motion.footer>
+                </>
+            )}
         </div>
     )
 }
+
+
+
+
+
+
+
+
+
 
 
 
