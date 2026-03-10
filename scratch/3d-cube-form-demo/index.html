@@ -1,0 +1,844 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Cube Form Demo</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg-1: #08111f;
+      --bg-2: #0d1b33;
+      --bg-3: #10294d;
+      --line: rgba(148, 163, 184, 0.22);
+      --text: #f7fafc;
+      --muted: #a7b7d6;
+      --accent: #7dd3fc;
+      --accent-2: #38bdf8;
+      --success: #86efac;
+      --shadow: 0 24px 80px rgba(2, 8, 23, 0.48);
+      --cube-size: min(56vw, 340px);
+      --transition: 220ms ease;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      font-family: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(56, 189, 248, 0.18), transparent 34%),
+        radial-gradient(circle at 85% 18%, rgba(99, 102, 241, 0.18), transparent 26%),
+        linear-gradient(135deg, var(--bg-1), var(--bg-2) 48%, var(--bg-3));
+      color: var(--text);
+    }
+
+    body {
+      overflow-x: hidden;
+    }
+
+    body::before,
+    body::after {
+      content: "";
+      position: fixed;
+      pointer-events: none;
+      filter: blur(14px);
+    }
+
+    body::before {
+      top: 8%;
+      left: 6%;
+      width: 24rem;
+      height: 24rem;
+      border-radius: 999px;
+      background: rgba(34, 211, 238, 0.14);
+    }
+
+    body::after {
+      right: 4%;
+      bottom: 8%;
+      width: 22rem;
+      height: 22rem;
+      border-radius: 999px;
+      background: rgba(96, 165, 250, 0.14);
+    }
+
+    .shell {
+      position: relative;
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: minmax(280px, 430px) minmax(320px, 1fr);
+      gap: clamp(1.5rem, 4vw, 4rem);
+      align-items: center;
+      padding: clamp(1.25rem, 4vw, 3rem);
+    }
+
+    .intro {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      gap: 1.1rem;
+      padding: clamp(1.3rem, 2.2vw, 1.8rem);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.82), rgba(8, 15, 28, 0.58));
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      gap: 0.55rem;
+      padding: 0.45rem 0.8rem;
+      border-radius: 999px;
+      background: rgba(125, 211, 252, 0.12);
+      border: 1px solid rgba(125, 211, 252, 0.26);
+      color: var(--accent);
+      font-size: 0.86rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 0.55rem;
+      height: 0.55rem;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #7dd3fc, #38bdf8);
+      box-shadow: 0 0 0.9rem rgba(56, 189, 248, 0.75);
+    }
+
+    h1 {
+      margin: 0;
+      font-family: "Bahnschrift", "Segoe UI Variable Display", sans-serif;
+      font-size: clamp(2.4rem, 5vw, 4.8rem);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+    }
+
+    .intro p {
+      margin: 0;
+      max-width: 32rem;
+      color: var(--muted);
+      font-size: 1.02rem;
+      line-height: 1.75;
+    }
+
+    .tips {
+      display: grid;
+      gap: 0.75rem;
+      margin-top: 0.45rem;
+    }
+
+    .tip {
+      display: flex;
+      gap: 0.8rem;
+      align-items: flex-start;
+      padding: 0.9rem 1rem;
+      border-radius: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      background: rgba(15, 23, 42, 0.46);
+    }
+
+    .tip strong {
+      display: block;
+      margin-bottom: 0.2rem;
+      color: var(--text);
+      font-size: 0.96rem;
+    }
+
+    .tip span {
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.6;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.9rem;
+      margin-top: 0.25rem;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    .action-btn {
+      min-height: 46px;
+      padding: 0.86rem 1.15rem;
+      border-radius: 16px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: transform var(--transition), border-color var(--transition), background var(--transition), box-shadow var(--transition);
+    }
+
+    .action-btn.primary {
+      color: #03111e;
+      background: linear-gradient(135deg, #7dd3fc, #38bdf8);
+      box-shadow: 0 16px 36px rgba(56, 189, 248, 0.28);
+    }
+
+    .action-btn.secondary {
+      color: var(--text);
+      background: rgba(15, 23, 42, 0.64);
+      border-color: rgba(148, 163, 184, 0.18);
+    }
+
+    .action-btn:hover,
+    .action-btn:focus-visible {
+      transform: translateY(-2px);
+    }
+
+    .action-btn:focus-visible,
+    input:focus-visible,
+    .chip:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .stage-wrap {
+      position: relative;
+      min-height: 72vh;
+      display: grid;
+      place-items: center;
+      border-radius: 36px;
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      background:
+        linear-gradient(180deg, rgba(8, 15, 28, 0.74), rgba(15, 23, 42, 0.56)),
+        radial-gradient(circle at 50% 36%, rgba(125, 211, 252, 0.1), transparent 48%);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      isolation: isolate;
+    }
+
+    .grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(125, 211, 252, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(125, 211, 252, 0.06) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(circle at center, black 34%, transparent 82%);
+      transform: perspective(900px) rotateX(74deg) translateY(28%);
+      transform-origin: center;
+      opacity: 0.75;
+    }
+
+    .stage-caption {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      padding: 0.7rem 0.9rem;
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 0.88rem;
+      background: rgba(8, 15, 28, 0.72);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      backdrop-filter: blur(16px);
+    }
+
+    .stage-caption::before {
+      content: "";
+      width: 0.5rem;
+      height: 0.5rem;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 0.85rem rgba(134, 239, 172, 0.72);
+    }
+
+    .hint {
+      position: absolute;
+      left: 1rem;
+      bottom: 1rem;
+      padding: 0.9rem 1rem;
+      max-width: 20rem;
+      border-radius: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      background: rgba(8, 15, 28, 0.74);
+      backdrop-filter: blur(14px);
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.65;
+    }
+
+    .scene {
+      width: min(92%, 700px);
+      height: min(72vh, 720px);
+      display: grid;
+      place-items: center;
+      perspective: 1800px;
+      perspective-origin: 50% 45%;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .cube {
+      position: relative;
+      width: var(--cube-size);
+      height: var(--cube-size);
+      transform-style: preserve-3d;
+      cursor: grab;
+      transition: transform 600ms cubic-bezier(.2, .7, .2, 1), filter 300ms ease;
+      filter: drop-shadow(0 28px 45px rgba(8, 15, 28, 0.52));
+    }
+
+    .cube.dragging {
+      cursor: grabbing;
+      transition: none;
+      filter: drop-shadow(0 18px 32px rgba(8, 15, 28, 0.6));
+    }
+
+    .face {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      overflow: hidden;
+      border-radius: 26px;
+      border: 1px solid rgba(125, 211, 252, 0.18);
+      background:
+        linear-gradient(145deg, rgba(16, 28, 50, 0.96), rgba(8, 15, 28, 0.88)),
+        radial-gradient(circle at top, rgba(125, 211, 252, 0.12), transparent 40%);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+      backface-visibility: hidden;
+    }
+
+    .face::before {
+      content: "";
+      position: absolute;
+      inset: 18px;
+      border-radius: 22px;
+      border: 1px solid rgba(125, 211, 252, 0.12);
+      pointer-events: none;
+    }
+
+    .face.front { transform: translateZ(calc(var(--cube-size) / 2)); }
+    .face.back { transform: rotateY(180deg) translateZ(calc(var(--cube-size) / 2)); }
+    .face.right { transform: rotateY(90deg) translateZ(calc(var(--cube-size) / 2)); }
+    .face.left { transform: rotateY(-90deg) translateZ(calc(var(--cube-size) / 2)); }
+    .face.top { transform: rotateX(90deg) translateZ(calc(var(--cube-size) / 2)); }
+    .face.bottom { transform: rotateX(-90deg) translateZ(calc(var(--cube-size) / 2)); }
+
+    .front-card {
+      position: relative;
+      display: grid;
+      gap: 1rem;
+      padding: clamp(1.2rem, 3vw, 1.5rem);
+      align-content: start;
+      height: 100%;
+    }
+
+    .panel-tag {
+      justify-self: start;
+      padding: 0.42rem 0.72rem;
+      border-radius: 999px;
+      border: 1px solid rgba(125, 211, 252, 0.18);
+      background: rgba(8, 15, 28, 0.42);
+      color: var(--accent);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .front-card h2,
+    .face-panel h3 {
+      margin: 0;
+      font-family: "Bahnschrift", "Segoe UI Variable Display", sans-serif;
+      letter-spacing: -0.03em;
+    }
+
+    .front-card p,
+    .face-panel p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .form-grid {
+      display: grid;
+      gap: 0.9rem;
+      margin-top: 0.2rem;
+    }
+
+    label {
+      display: grid;
+      gap: 0.45rem;
+      color: var(--text);
+      font-size: 0.92rem;
+    }
+
+    .field {
+      width: 100%;
+      min-height: 48px;
+      padding: 0.85rem 0.95rem;
+      border-radius: 14px;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      background: rgba(8, 15, 28, 0.74);
+      color: var(--text);
+      transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
+    }
+
+    .field::placeholder {
+      color: #7c8aa6;
+    }
+
+    .field:hover,
+    .field:focus-visible {
+      border-color: rgba(125, 211, 252, 0.56);
+      box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.12);
+      background: rgba(8, 15, 28, 0.9);
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem;
+    }
+
+    .chip {
+      min-height: 40px;
+      padding: 0.55rem 0.8rem;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      background: rgba(8, 15, 28, 0.58);
+      color: var(--text);
+      cursor: pointer;
+      transition: border-color var(--transition), transform var(--transition), background var(--transition);
+    }
+
+    .chip:hover,
+    .chip:focus-visible {
+      border-color: rgba(125, 211, 252, 0.48);
+      background: rgba(14, 26, 48, 0.9);
+      transform: translateY(-1px);
+    }
+
+    .submit {
+      min-height: 50px;
+      margin-top: 0.2rem;
+      border: 0;
+      border-radius: 16px;
+      color: #03111e;
+      background: linear-gradient(135deg, #7dd3fc, #38bdf8);
+      box-shadow: 0 18px 28px rgba(56, 189, 248, 0.28);
+      cursor: pointer;
+      transition: transform var(--transition), box-shadow var(--transition);
+    }
+
+    .submit:hover,
+    .submit:focus-visible {
+      transform: translateY(-2px);
+      box-shadow: 0 22px 34px rgba(56, 189, 248, 0.34);
+    }
+
+    .face-panel {
+      display: grid;
+      align-content: space-between;
+      height: 100%;
+      padding: 1.4rem;
+    }
+
+    .face-stat {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 0.8rem;
+      padding-top: 1rem;
+      border-top: 1px solid rgba(148, 163, 184, 0.14);
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .face-stat strong {
+      font-size: 1.55rem;
+      color: var(--text);
+      line-height: 1;
+    }
+
+    .wire {
+      position: absolute;
+      inset: auto 10% -18%;
+      height: 22%;
+      border-radius: 999px;
+      background: radial-gradient(circle at center, rgba(56, 189, 248, 0.22), transparent 66%);
+      filter: blur(14px);
+      transform: translateZ(-140px);
+      pointer-events: none;
+    }
+
+    .status {
+      color: var(--muted);
+      font-size: 0.9rem;
+      min-height: 1.4rem;
+    }
+
+    .status strong {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    @media (max-width: 980px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+
+      .stage-wrap {
+        min-height: 60vh;
+      }
+
+      .scene {
+        height: 60vh;
+      }
+    }
+
+    @media (max-width: 640px) {
+      :root {
+        --cube-size: min(74vw, 300px);
+      }
+
+      .shell {
+        padding: 1rem;
+      }
+
+      .intro,
+      .stage-wrap {
+        border-radius: 24px;
+      }
+
+      .hint,
+      .stage-caption {
+        position: static;
+        margin: 0.9rem;
+      }
+
+      .stage-wrap {
+        padding-bottom: 1rem;
+      }
+
+      h1 {
+        font-size: clamp(2.2rem, 11vw, 3.6rem);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="intro" aria-label="设计说明">
+      <span class="eyebrow">Interactive Surface Demo</span>
+      <h1>把表单放到 3D 正方体正面</h1>
+      <p>这是一版纯页面原型，用来验证“正面放真实按钮和表单”的交互是否成立。你可以拖拽旋转立方体，也可以让它自动回到正面，然后直接在面板上输入和点击。</p>
+      <div class="tips">
+        <article class="tip">
+          <div>
+            <strong>交互重点</strong>
+            <span>拖拽旋转，双击舞台回到正面，表单聚焦时锁定当前视角，避免输入时误转动。</span>
+          </div>
+        </article>
+        <article class="tip">
+          <div>
+            <strong>适合正式版的方式</strong>
+            <span>视觉上它像 3D 模型，正式接入项目时可用 three.js 或 React Three Fiber，把真实 DOM 贴到立方体正面。</span>
+          </div>
+        </article>
+      </div>
+      <div class="actions">
+        <button class="action-btn primary" type="button" id="frontBtn">回到正面</button>
+        <button class="action-btn secondary" type="button" id="spinBtn">随机旋转</button>
+      </div>
+      <p class="status" id="status">当前状态：<strong>正面可交互</strong></p>
+    </section>
+
+    <section class="stage-wrap" aria-label="3D 立方体演示">
+      <div class="grid" aria-hidden="true"></div>
+      <div class="stage-caption">Page-only concept preview</div>
+      <div class="scene" id="scene">
+        <div class="cube" id="cube" aria-live="polite">
+          <div class="wire" aria-hidden="true"></div>
+
+          <section class="face front">
+            <div class="front-card">
+              <span class="panel-tag">Front face</span>
+              <h2>Launch Console</h2>
+              <p>这里放的是真实表单，不是贴图，所以后续改成登录面板、搜索框、控制台命令入口都没有问题。</p>
+
+              <form class="form-grid" id="demoForm">
+                <label for="workspace">
+                  Workspace
+                  <input class="field" id="workspace" name="workspace" type="text" placeholder="例如：SyncCanvas Alpha" value="SyncCanvas Alpha">
+                </label>
+
+                <label for="command">
+                  Quick Action
+                  <input class="field" id="command" name="command" type="text" placeholder="例如：Open room dashboard" value="Open room dashboard">
+                </label>
+
+                <div class="row">
+                  <span>快捷标签</span>
+                  <span>Tab 可访问</span>
+                </div>
+
+                <div class="chip-row" aria-label="快捷选项">
+                  <button class="chip" type="button" data-fill="Create a new room">Create room</button>
+                  <button class="chip" type="button" data-fill="Continue last session">Resume session</button>
+                  <button class="chip" type="button" data-fill="Open collaborative canvas">Open canvas</button>
+                </div>
+
+                <button class="submit" type="submit">进入 3D 控制面板</button>
+              </form>
+            </div>
+          </section>
+
+          <section class="face right">
+            <div class="face-panel">
+              <div>
+                <span class="panel-tag">Right face</span>
+                <h3>快捷入口</h3>
+                <p>这个面适合放二级操作，比如进入不同工作区、最近房间列表、AI 助手入口。</p>
+              </div>
+              <div class="face-stat">
+                <div>
+                  <strong>03</strong>
+                  <div>Quick modules</div>
+                </div>
+                <div>Hover-friendly</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="face left">
+            <div class="face-panel">
+              <div>
+                <span class="panel-tag">Left face</span>
+                <h3>状态信息</h3>
+                <p>也可以把这里做成状态总览，比如连接状态、最近协作成员、待处理提醒。</p>
+              </div>
+              <div class="face-stat">
+                <div>
+                  <strong>24ms</strong>
+                  <div>Sync latency</div>
+                </div>
+                <div>Stable session</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="face back">
+            <div class="face-panel">
+              <div>
+                <span class="panel-tag">Back face</span>
+                <h3>内容扩展面</h3>
+                <p>如果你后面想做“翻到背面看详情”，这个面可以承载更深一级的信息卡片或任务概览。</p>
+              </div>
+              <div class="face-stat">
+                <div>
+                  <strong>6</strong>
+                  <div>Panels available</div>
+                </div>
+                <div>Story-driven UI</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="face top">
+            <div class="face-panel">
+              <div>
+                <span class="panel-tag">Top face</span>
+                <h3>头部信息</h3>
+                <p>很适合挂品牌标识、场景标题，或者作为悬浮投影视觉层。</p>
+              </div>
+              <div class="face-stat">
+                <div>
+                  <strong>HDR</strong>
+                  <div>Lighting concept</div>
+                </div>
+                <div>Polished look</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="face bottom">
+            <div class="face-panel">
+              <div>
+                <span class="panel-tag">Bottom face</span>
+                <h3>基础支撑面</h3>
+                <p>通常不放主交互，但可以放环境光、投影、装饰线条或辅助导航信息。</p>
+              </div>
+              <div class="face-stat">
+                <div>
+                  <strong>360°</strong>
+                  <div>Rotation ready</div>
+                </div>
+                <div>Mouse and touch</div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+      <aside class="hint">拖拽空白区域可旋转立方体。点击输入框后，拖拽会暂时让位给表单操作。双击舞台可快速回到正面。</aside>
+    </section>
+  </main>
+
+  <script>
+    const cube = document.getElementById("cube");
+    const scene = document.getElementById("scene");
+    const frontBtn = document.getElementById("frontBtn");
+    const spinBtn = document.getElementById("spinBtn");
+    const form = document.getElementById("demoForm");
+    const status = document.getElementById("status");
+    const commandInput = document.getElementById("command");
+    const chipButtons = document.querySelectorAll("[data-fill]");
+    const interactiveSelector = "input, button, textarea, select, label";
+
+    const state = {
+      rotateX: -18,
+      rotateY: 28,
+      dragging: false,
+      pointerId: null,
+      startX: 0,
+      startY: 0,
+      lastX: 0,
+      lastY: 0,
+      interactiveFocus: false
+    };
+
+    function clamp(value, min, max) {
+      return Math.min(Math.max(value, min), max);
+    }
+
+    function renderCube(animated = true) {
+      cube.classList.toggle("dragging", !animated);
+      cube.style.transform = `rotateX(${state.rotateX}deg) rotateY(${state.rotateY}deg)`;
+    }
+
+    function updateStatus(message) {
+      status.innerHTML = `当前状态：<strong>${message}</strong>`;
+    }
+
+    function goFront() {
+      state.rotateX = 0;
+      state.rotateY = 0;
+      renderCube(true);
+      updateStatus("正面可交互");
+    }
+
+    function randomSpin() {
+      state.rotateX = -12 + Math.round(Math.random() * 28);
+      state.rotateY = -150 + Math.round(Math.random() * 300);
+      renderCube(true);
+      updateStatus("立方体已切换到观察模式");
+    }
+
+    function startDrag(event) {
+      if (state.interactiveFocus) {
+        return;
+      }
+
+      if (event.target.closest(interactiveSelector)) {
+        return;
+      }
+
+      state.dragging = true;
+      state.pointerId = event.pointerId;
+      state.startX = event.clientX;
+      state.startY = event.clientY;
+      state.lastX = state.rotateX;
+      state.lastY = state.rotateY;
+      cube.classList.add("dragging");
+      scene.setPointerCapture(event.pointerId);
+      updateStatus("拖拽旋转中");
+    }
+
+    function moveDrag(event) {
+      if (!state.dragging || event.pointerId !== state.pointerId) {
+        return;
+      }
+
+      const deltaX = event.clientX - state.startX;
+      const deltaY = event.clientY - state.startY;
+
+      state.rotateY = state.lastY + deltaX * 0.36;
+      state.rotateX = clamp(state.lastX - deltaY * 0.28, -75, 75);
+      renderCube(false);
+    }
+
+    function endDrag(event) {
+      if (!state.dragging || event.pointerId !== state.pointerId) {
+        return;
+      }
+
+      state.dragging = false;
+      cube.classList.remove("dragging");
+      scene.releasePointerCapture(event.pointerId);
+      renderCube(true);
+      updateStatus("已停留在当前视角");
+    }
+
+    scene.addEventListener("pointerdown", startDrag);
+    scene.addEventListener("pointermove", moveDrag);
+    scene.addEventListener("pointerup", endDrag);
+    scene.addEventListener("pointercancel", endDrag);
+    scene.addEventListener("dblclick", goFront);
+
+    frontBtn.addEventListener("click", goFront);
+    spinBtn.addEventListener("click", randomSpin);
+
+    form.addEventListener("focusin", () => {
+      state.interactiveFocus = true;
+      updateStatus("表单已激活，可直接输入");
+    });
+
+    form.addEventListener("focusout", () => {
+      requestAnimationFrame(() => {
+        state.interactiveFocus = form.contains(document.activeElement);
+        if (!state.interactiveFocus) {
+          updateStatus("正面可交互");
+        }
+      });
+    });
+
+    chipButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        commandInput.value = button.dataset.fill;
+        commandInput.focus();
+        updateStatus("已将快捷动作填入表单");
+      });
+    });
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      updateStatus("概念已验证：3D 正面可以承载真实表单");
+    });
+
+    renderCube(true);
+  </script>
+</body>
+</html>
