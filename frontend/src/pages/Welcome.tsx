@@ -34,17 +34,6 @@ const staggerContainer = {
     }
 }
 
-const floatAnimation = {
-    animate: {
-        y: [0, -10, 0],
-        transition: {
-            duration: 3,
-            repeat: Infinity,
-            ease: 'easeInOut' as const
-        }
-    }
-}
-
 export const Welcome: React.FC = () => {
     const navigate = useNavigate()
     const { theme, toggleTheme } = useThemeStore()
@@ -53,12 +42,13 @@ export const Welcome: React.FC = () => {
     const [isHoveringButtons, setIsHoveringButtons] = React.useState(false)
 
     // 2. [新增] 扩散状态 (控制变大盖满全屏)
-    const [isExpanding, setIsExpanding] = React.useState(false)
+    const isExpanding = false
 
     const [redirectPath, setRedirectPath] = React.useState<string | null>(null) // 新增：记录要去哪里
     const [introProgress, setIntroProgress] = React.useState(0)
     const [isIntroVisible, setIsIntroVisible] = React.useState(true)
     const [isIntroOpening, setIsIntroOpening] = React.useState(false)
+    const [isOutroVisible, setIsOutroVisible] = React.useState(false)
 
     React.useEffect(() => {
         if (!isIntroVisible) {
@@ -91,18 +81,30 @@ export const Welcome: React.FC = () => {
         }
     }, [isIntroVisible])
 
+    React.useEffect(() => {
+        if (!isOutroVisible || !redirectPath) {
+            return
+        }
+
+        const timer = window.setTimeout(() => {
+            navigate(redirectPath)
+        }, 1320)
+
+        return () => window.clearTimeout(timer)
+    }, [isOutroVisible, navigate, redirectPath])
+
     const handleTransition = (path: string) => {
-        setRedirectPath(path) // 先记住要去哪
-        setIsExpanding(true) // 再启动动画
-        // 定时器删掉了，我们交给动画的回调函数去跳转
+        if (isOutroVisible) {
+            return
+        }
+
+        setRedirectPath(path)
+        setIsOutroVisible(true)
     }
 
     // 修改原有的点击函数，改为调用 handleTransition
     const handleGetStarted = () => {
-        const token = localStorage.getItem('token')
-        const isGuest = localStorage.getItem('isGuest')
-        const targetPath = (token || isGuest) ? '/rooms' : '/login'
-        handleTransition(targetPath)
+        handleTransition('/login')
     }
 
     const handleQuickStart = () => {
@@ -248,6 +250,44 @@ export const Welcome: React.FC = () => {
                 </div>
             )}
 
+            {isOutroVisible && (
+                <div className="absolute inset-0 z-[140] overflow-hidden pointer-events-auto">
+                    <motion.div
+                        initial={{ y: '-100%' }}
+                        animate={{ y: '0%' }}
+                        transition={{ duration: 0.78, ease: [0.16, 1, 0.3, 1] }}
+                        className={cn(
+                            'absolute inset-x-0 top-0 h-1/2',
+                            isDark ? 'bg-slate-950' : 'bg-slate-50'
+                        )}
+                    >
+                        <motion.div
+                            initial={{ scaleX: 1 }}
+                            animate={{ scaleX: 0 }}
+                            transition={{ duration: 0.46, delay: 0.78, ease: [0.32, 0, 0.2, 1] }}
+                            style={{ transformOrigin: 'center center' }}
+                            className="absolute bottom-0 left-0 h-[5px] w-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 shadow-[0_0_28px_rgba(79,70,229,0.45)]"
+                        />
+                    </motion.div>
+                    <motion.div
+                        initial={{ y: '100%' }}
+                        animate={{ y: '0%' }}
+                        transition={{ duration: 0.78, ease: [0.16, 1, 0.3, 1] }}
+                        className={cn(
+                            'absolute inset-x-0 bottom-0 h-1/2',
+                            isDark ? 'bg-slate-950' : 'bg-slate-50'
+                        )}
+                    >
+                        <motion.div
+                            initial={{ scaleX: 1 }}
+                            animate={{ scaleX: 0 }}
+                            transition={{ duration: 0.46, delay: 0.78, ease: [0.32, 0, 0.2, 1] }}
+                            style={{ transformOrigin: 'center center' }}
+                            className="absolute top-0 left-0 h-[5px] w-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 shadow-[0_0_28px_rgba(79,70,229,0.45)]"
+                        />
+                    </motion.div>
+                </div>
+            )}
             {/* 背景装饰 */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 {/* 1. 右上角：四分之一圆 (最终完美版：变色+柔和) */}
@@ -560,6 +600,13 @@ export const Welcome: React.FC = () => {
         </div>
     )
 }
+
+
+
+
+
+
+
 
 
 
