@@ -13,7 +13,7 @@ from src.infra.logging import get_logger
 from .vendor_nextgen.architecture_engine import build_architecture_flow
 from .vendor_nextgen.blueprint_engine import build_blueprint
 from .vendor_nextgen.component_engine import build_component_cluster
-from .vendor_nextgen.constraint_solver import solve_rails
+from .vendor_nextgen.constraint_solver import group_bounds, solve_rails
 from .vendor_nextgen.istar_engine import build_istar
 from .vendor_nextgen.layered_engine import build_layered_architecture
 from .vendor_nextgen.rag_engine import build_rag_pipeline
@@ -41,6 +41,29 @@ _FAMILY_ENGINES: dict[str, FamilyEngine] = {
     "rag_pipeline": build_rag_pipeline,
     "technical_blueprint": build_blueprint,
     "istar": build_istar,
+}
+
+_FIXED_ID_FAMILY_REQUIREMENTS: dict[str, dict[str, set[str]]] = {
+    "workflow": {
+        "nodes": {"start", "validate", "stock", "reserve", "charge", "done", "notify"},
+        "edges": {"e0", "e1", "e2", "e3", "e4", "e5", "e6"},
+    },
+    "component_cluster": {
+        "nodes": {"web", "api", "auth", "order", "pay", "db"},
+        "edges": {"e0", "e1", "e2", "e3", "e4", "e5", "e6"},
+    },
+    "architecture_flow": {
+        "nodes": {"local", "build", "cache", "network", "maven", "ivy"},
+        "edges": {"e0", "e1", "e2", "e3", "e4", "e5"},
+    },
+    "technical_blueprint": {
+        "nodes": {"plc", "servo", "io", "hmi", "motor", "sensor", "tb"},
+        "edges": {"e0", "e1", "e2", "e3", "e4"},
+    },
+    "istar": {
+        "nodes": {"actor", "goal1", "task1", "res1", "soft1", "goal2"},
+        "edges": {"e0", "e1", "e2", "e3"},
+    },
 }
 
 _SHAPE_BY_KIND: dict[str, str] = {
@@ -89,7 +112,7 @@ def build_vendor_layout(
 
     diagram = _spec_to_semantic_diagram(normalized_spec)
     locked_positions = _locked_positions(normalized_spec, relayout_scope)
-    node_lookup, route_lookup = _layout_diagram(
+    node_lookup, route_lookup, explicit_group_rects = _layout_diagram(
         diagram,
         use_family_engine=_use_family_engine(normalized_spec, relayout_scope),
         locked_positions=locked_positions,
@@ -100,7 +123,7 @@ def build_vendor_layout(
         spec=normalized_spec,
         nodes=_engine_nodes(normalized_spec, node_lookup),
         routes=_engine_routes(normalized_spec, diagram, route_lookup, reroute_scope),
-        groups=_group_frames(normalized_spec, node_lookup),
+        groups=_group_frames(normalized_spec, node_lookup, explicit_group_rects),
     )
 
 
@@ -195,21 +218,30 @@ def _layout_diagram(
     *,
     use_family_engine: bool,
     locked_positions: dict[str, tuple[float, float]] | None,
-) -> tuple[dict[str, GeomNode], dict[str, Route]]:
+) -> tuple[dict[str, GeomNode], dict[str, Route], dict[str, RectTuple]]:
     fitted_nodes = fit_diagram(diagram)
     fitted_lookup = {node.id: node for node in fitted_nodes}
     if use_family_engine:
         builder = _FAMILY_ENGINES.get(diagram.family)
         if builder is not None:
-            try:
-                nodes, routes, _ = builder(diagram, fitted_lookup)
-                return nodes, routes
-            except Exception as exc:  # pylint: disable=broad-except
-                logger.warning(
-                    "Vendored family engine failed; falling back to generic solver: diagram_id=%s family=%s error=%s",
+            compatible, reason = _specialized_engine_compatibility(diagram)
+            if compatible:
+                try:
+                    nodes, routes, group_rects = builder(diagram, fitted_lookup)
+                    return nodes, routes, group_rects
+                except Exception as exc:  # pylint: disable=broad-except
+                    logger.warning(
+                        "Vendored family engine failed; falling back to generic solver: diagram_id=%s family=%s error=%s",
+                        diagram.id,
+                        diagram.family,
+                        exc,
+                    )
+            else:
+                logger.info(
+                    "Skipping vendored family engine for diagram_id=%s family=%s reason=%s",
                     diagram.id,
                     diagram.family,
-                    exc,
+                    reason,
                 )
     rail_meta = solve_rails(diagram, fitted_nodes, patch_locked=locked_positions)
     routes = route_edges(
@@ -218,7 +250,18 @@ def _layout_diagram(
         list(diagram.keepouts),
         rail_meta["y_centers"],
     )
-    return {node.id: node for node in fitted_nodes}, routes
+    return {node.id: node for node in fitted_nodes}, routes, group_bounds(fitted_nodes)
+
+
+def _specialized_engine_compatibility(diagram: SemanticDiagram) -> tuple[bool, str]:
+    requirements = _FIXED_ID_FAMILY_REQUIREMENTS.get(diagram.family)
+    if requirements is None:
+        return True, "dynamic"
+    node_ids = {node.id for node in diagram.nodes}
+    edge_ids = {edge.id for edge in diagram.edges}
+    if requirements["nodes"].issubset(node_ids) and requirements["edges"].issubset(edge_ids):
+        return True, "fixed-id"
+    return False, "missing_required_ids"
 
 
 def _update_component_geometry(spec: DiagramSpec, node_lookup: dict[str, GeomNode]) -> None:
@@ -294,16 +337,40 @@ def _engine_routes(
     return routes
 
 
-def _group_frames(spec: DiagramSpec, node_lookup: dict[str, GeomNode]) -> list[EngineGroupFrame]:
+def _group_frames(
+    spec: DiagramSpec,
+    node_lookup: dict[str, GeomNode],
+    explicit_rects: dict[str, RectTuple] | None = None,
+) -> list[EngineGroupFrame]:
     groups: list[EngineGroupFrame] = []
+    remaining_rects = dict(explicit_rects or {})
     for group in spec.groups:
-        members = [node_lookup[component_id] for component_id in group.component_ids if component_id in node_lookup]
-        if not members:
-            continue
-        left = min(member.x for member in members) - 40.0
-        top = min(member.y for member in members) - 44.0
-        right = max(member.x + member.w for member in members) + 40.0
-        bottom = max(member.y + member.h for member in members) + 44.0
+        rect = remaining_rects.pop(group.id, None)
+        if rect is None:
+            matching_key = next(
+                (
+                    key
+                    for key in remaining_rects
+                    if key.casefold() == (group.label or group.id).casefold()
+                ),
+                None,
+            )
+            if matching_key is not None:
+                rect = remaining_rects.pop(matching_key)
+        if rect is None:
+            members = [
+                node_lookup[component_id]
+                for component_id in group.component_ids
+                if component_id in node_lookup
+            ]
+            if not members:
+                continue
+            left = min(member.x for member in members) - 40.0
+            top = min(member.y for member in members) - 44.0
+            right = max(member.x + member.w for member in members) + 40.0
+            bottom = max(member.y + member.h for member in members) + 44.0
+        else:
+            left, top, right, bottom = rect
         groups.append(
             EngineGroupFrame(
                 id=group.id,
@@ -314,6 +381,20 @@ def _group_frames(spec: DiagramSpec, node_lookup: dict[str, GeomNode]) -> list[E
                 width=float(right - left),
                 height=float(bottom - top),
                 style=dict(group.style),
+            )
+        )
+    for group_id, rect in remaining_rects.items():
+        left, top, right, bottom = rect
+        groups.append(
+            EngineGroupFrame(
+                id=group_id,
+                label=group_id,
+                family=canonical_family(spec.family),
+                x=float(left),
+                y=float(top),
+                width=float(right - left),
+                height=float(bottom - top),
+                style={},
             )
         )
     return groups

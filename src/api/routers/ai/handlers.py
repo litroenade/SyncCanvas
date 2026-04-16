@@ -341,6 +341,8 @@ def _build_complete_payload(
         "managed_scope": result.get("managed_scope", []),
         "patch_summary": result.get("patch_summary"),
         "unmanaged_warnings": result.get("unmanaged_warnings", []),
+        "action": result.get("action"),
+        "target_diagram_id": result.get("target_diagram_id"),
         "request_id": request_id,
         "idempotency_key": idempotency_key,
         "sources": result.get("sources"),

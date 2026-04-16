@@ -37,6 +37,8 @@ export interface AIStreamState {
   diagramBundle: DiagramBundle | null;
   diagramFamily: string | null;
   generationMode: DiagramGenerationMode | null;
+  action?: 'create' | 'update';
+  targetDiagramId?: string;
   managedScope: string[];
   patchSummary: string | null;
   unmanagedWarnings: string[];
@@ -90,6 +92,8 @@ export function useAIStream({
     diagramBundle: null,
     diagramFamily: null,
     generationMode: null,
+    action: undefined,
+    targetDiagramId: undefined,
     managedScope: [],
     patchSummary: null,
     unmanagedWarnings: [],
@@ -163,6 +167,8 @@ export function useAIStream({
       diagramBundle: result.diagram_bundle || null,
       diagramFamily: result.diagram_family || null,
       generationMode: result.generation_mode || null,
+      action: result.action,
+      targetDiagramId: result.target_diagram_id,
       managedScope: result.managed_scope || [],
       patchSummary: result.patch_summary || null,
       unmanagedWarnings: result.unmanaged_warnings || [],
@@ -217,6 +223,8 @@ export function useAIStream({
       diagramBundle: null,
       diagramFamily: null,
       generationMode: null,
+      action: undefined,
+      targetDiagramId: undefined,
       managedScope: [],
       patchSummary: null,
       unmanagedWarnings: [],
@@ -391,6 +399,8 @@ export function useAIStream({
       diagramBundle: null,
       diagramFamily: null,
       generationMode: null,
+      action: undefined,
+      targetDiagramId: undefined,
       managedScope: [],
       patchSummary: null,
       unmanagedWarnings: [],

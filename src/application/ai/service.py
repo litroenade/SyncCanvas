@@ -537,6 +537,7 @@ class AIService:
 
         duration_ms = (time.time() - start_time) * 1000
         action = "Updated" if target_diagram_id else "Created"
+        action_code = "update" if target_diagram_id else "create"
         message = (
             f"{action} a managed {bundle.summary.family} diagram with "
             f"{bundle.summary.component_count} components."
@@ -577,6 +578,8 @@ class AIService:
             "managed_scope": bundle.state.managed_scope,
             "patch_summary": bundle.state.last_patch_summary,
             "unmanaged_warnings": bundle.state.warnings,
+            "action": action_code,
+            "target_diagram_id": target_diagram_id,
         }
 
     async def cancel_request(self, run_id: int) -> Dict[str, Any]:

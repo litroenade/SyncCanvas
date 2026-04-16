@@ -211,7 +211,35 @@ def _generic_route(src: GeomNode, dst: GeomNode, nodes: Dict[str, GeomNode], kee
                 best_cost = cost
                 best_path = full_path
     if best_path is None:
-        best_path = [boundary_point(src, (dst.cx, dst.cy)), boundary_point(dst, (src.cx, src.cy))]
+        best_path = _orthogonal_fallback(src, dst, base_obstacles)
+    return best_path
+
+
+def _orthogonal_fallback(src: GeomNode, dst: GeomNode, obstacles: List[Rect]) -> List[Point]:
+    start = boundary_point(src, (dst.cx, dst.cy))
+    end = boundary_point(dst, (src.cx, src.cy))
+    mid_x = (src.cx + dst.cx) / 2
+    mid_y = (src.cy + dst.cy) / 2
+    candidates = [
+        [start, (end[0], start[1]), end],
+        [start, (start[0], end[1]), end],
+        [start, (mid_x, start[1]), (mid_x, end[1]), end],
+        [start, (start[0], mid_y), (end[0], mid_y), end],
+    ]
+    best_path = [start, end]
+    best_penalty = 1e18
+    for candidate in candidates:
+        path = compress(candidate)
+        penalty = 0.0
+        for a, b in zip(path, path[1:]):
+            for obstacle in obstacles:
+                if segment_hits_rect(a, b, obstacle):
+                    penalty += 1200.0
+        length, bends = _segment_cost(path)
+        score = penalty + length + 40.0 * bends
+        if score < best_penalty:
+            best_penalty = score
+            best_path = path
     return best_path
 
 

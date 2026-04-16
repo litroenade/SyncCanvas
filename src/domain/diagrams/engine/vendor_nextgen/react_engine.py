@@ -1,42 +1,63 @@
-
 from typing import Dict
 
-from .geometry import boundary_point
-from .semantic_ir import GeomNode, LabelBox, Route, SemanticDiagram
-from .text_fit import text_size
+from .constraint_solver import solve_rails
+from .router import route_edges
+from .semantic_ir import GeomNode, Route, SemanticDiagram
+
+_REACT_GRID: dict[str, tuple[int, int]] = {
+    "query": (0, 0),
+    "reason": (-1, 1),
+    "tool": (-1, 2),
+    "observe": (1, 2),
+    "memory": (1, 1),
+    "answer": (0, 3),
+}
 
 
-def _set_center(node: GeomNode, cx: float, cy: float) -> None:
-    node.x = cx - node.w / 2
-    node.y = cy - node.h / 2
+def _has_meaningful_grid(nodes: Dict[str, GeomNode]) -> bool:
+    return len({node.row for node in nodes.values()}) > 1 or len(
+        {node.col for node in nodes.values()}
+    ) > 1
 
 
-def _label(text: str, x: float, y: float, edge_id: str) -> LabelBox:
-    tw, th = text_size(text)
-    return LabelBox(text, x, y, tw + 14, th + 10, edge_id)
+def _canonical_role(node: GeomNode) -> str | None:
+    role = str(node.meta.get("role") or "").casefold()
+    label = node.label.casefold()
+    node_id = node.id.casefold()
+    text = " ".join(part for part in (role, label, node_id) if part)
+    if "query" in text or "user request" in text:
+        return "query"
+    if "reason" in text or "think" in text or "planner" in text:
+        return "reason"
+    if "tool" in text or "act" in text or "action" in text:
+        return "tool"
+    if "observe" in text or "observation" in text or "environment" in text:
+        return "observe"
+    if "memory" in text or "context" in text:
+        return "memory"
+    if "answer" in text or "response" in text or "final" in text:
+        return "answer"
+    return None
 
 
 def build_react_loop(diagram: SemanticDiagram, nodes: Dict[str, GeomNode]):
-    q = nodes['query']
-    reason = nodes['reason']
-    tool = nodes['tool']
-    obs = nodes['observe']
-    memory = nodes['memory']
-    final = nodes['answer']
+    if not _has_meaningful_grid(nodes):
+        next_col = max(col for _row, col in _REACT_GRID.values()) + 1
+        for node in sorted(nodes.values(), key=lambda item: item.label.casefold()):
+            role = _canonical_role(node)
+            if role is None:
+                node.row = 0
+                node.col = next_col
+                next_col += 1
+                continue
+            node.row, node.col = _REACT_GRID[role]
 
-    _set_center(q, 120.0, 220.0)
-    _set_center(reason, 380.0, 120.0)
-    _set_center(tool, 680.0, 140.0)
-    _set_center(obs, 820.0, 320.0)
-    _set_center(memory, 470.0, 420.0)
-    _set_center(final, 1050.0, 220.0)
-
-    routes: Dict[str, Route] = {}
-    routes['e0'] = Route('e0', [boundary_point(q, (reason.cx, reason.cy)), boundary_point(reason, (q.cx, q.cy))])
-    routes['e1'] = Route('e1', [boundary_point(reason, (tool.cx, tool.cy)), boundary_point(tool, (reason.cx, reason.cy))], _label('thought', 520.0, 108.0, 'e1'))
-    routes['e2'] = Route('e2', [boundary_point(tool, (obs.cx, obs.cy)), boundary_point(obs, (tool.cx, tool.cy))], _label('tool action', 742.0, 196.0, 'e2'))
-    routes['e3'] = Route('e3', [boundary_point(obs, (memory.cx, memory.cy)), boundary_point(memory, (obs.cx, obs.cy))], _label('observation', 620.0, 374.0, 'e3'))
-    routes['e4'] = Route('e4', [boundary_point(memory, (reason.cx, reason.cy)), (430.0, 330.0), (330.0, 330.0), boundary_point(reason, (memory.cx, memory.cy))], _label('memory update', 300.0, 296.0, 'e4'))
-    routes['e5'] = Route('e5', [boundary_point(reason, (final.cx, final.cy)), (880.0, reason.cy), (880.0, final.cy), boundary_point(final, (reason.cx, reason.cy))], _label('final answer', 900.0, 176.0, 'e5'))
-
-    return nodes, routes, {}
+    node_list = list(nodes.values())
+    rail_meta = solve_rails(diagram, node_list)
+    routes: Dict[str, Route] = route_edges(
+        {node.id: node for node in node_list},
+        diagram.edges,
+        list(diagram.keepouts),
+        rail_meta["y_centers"],
+    )
+    return {node.id: node for node in node_list}, routes, {}

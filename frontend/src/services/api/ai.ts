@@ -201,6 +201,8 @@ export interface AIStreamComplete extends AIStreamEnvelope {
     managed_scope?: string[];
     patch_summary?: string;
     unmanaged_warnings?: string[];
+    action?: 'create' | 'update';
+    target_diagram_id?: string;
     sources?: Array<{
         type: string;
         provider?: string;

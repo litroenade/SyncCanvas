@@ -226,13 +226,13 @@ def llm_layered_architecture_patch_guardrail_rewire() -> SemanticDiagram:
 
 def transformer_architecture_example() -> SemanticDiagram:
     nodes = [
-        SemanticNode('input', 'Input Tokens', 'process', 'transformer_stack', meta={'role': 'input'}),
-        SemanticNode('embed', 'Embedding', 'process', 'transformer_stack', meta={'role': 'embed'}),
-        SemanticNode('attn', 'Multi-Head\nSelf-Attention', 'process', 'transformer_stack', meta={'role': 'attn'}),
-        SemanticNode('ffn', 'FFN', 'process', 'transformer_stack', meta={'role': 'ffn'}),
-        SemanticNode('cross', 'Cross Attention', 'process', 'transformer_stack', meta={'role': 'cross'}),
-        SemanticNode('decoder', 'Decoder Stack', 'process', 'transformer_stack', meta={'role': 'decoder'}),
-        SemanticNode('output', 'Output Tokens', 'process', 'transformer_stack', meta={'role': 'output'}),
+        SemanticNode('input', 'Input Tokens', 'process', 'transformer_stack', row_hint=0, col_hint=0, meta={'role': 'input'}),
+        SemanticNode('embed', 'Embedding', 'process', 'transformer_stack', row_hint=0, col_hint=1, meta={'role': 'embed'}),
+        SemanticNode('attn', 'Multi-Head\nSelf-Attention', 'process', 'transformer_stack', row_hint=-1, col_hint=2, meta={'role': 'attn'}),
+        SemanticNode('ffn', 'FFN', 'process', 'transformer_stack', row_hint=1, col_hint=2, meta={'role': 'ffn'}),
+        SemanticNode('cross', 'Cross Attention', 'process', 'transformer_stack', row_hint=0, col_hint=3, meta={'role': 'cross'}),
+        SemanticNode('decoder', 'Decoder Stack', 'process', 'transformer_stack', row_hint=0, col_hint=4, meta={'role': 'decoder'}),
+        SemanticNode('output', 'Output Tokens', 'process', 'transformer_stack', row_hint=0, col_hint=5, meta={'role': 'output'}),
     ]
     edges = [
         SemanticEdge('e0', 'input', 'embed'),
@@ -247,12 +247,12 @@ def transformer_architecture_example() -> SemanticDiagram:
 
 def react_loop_example() -> SemanticDiagram:
     nodes = [
-        SemanticNode('query', 'User Query', 'process', 'react_loop'),
-        SemanticNode('reason', 'Reasoning', 'process', 'react_loop'),
-        SemanticNode('tool', 'Tool Action', 'process', 'react_loop'),
-        SemanticNode('observe', 'Environment\nObservation', 'process', 'react_loop'),
-        SemanticNode('memory', 'Memory Update', 'process', 'react_loop'),
-        SemanticNode('answer', 'Final Answer', 'terminator', 'react_loop'),
+        SemanticNode('query', 'User Query', 'process', 'react_loop', row_hint=0, col_hint=0, meta={'role': 'query'}),
+        SemanticNode('reason', 'Reasoning', 'process', 'react_loop', row_hint=-1, col_hint=1, meta={'role': 'reason'}),
+        SemanticNode('tool', 'Tool Action', 'process', 'react_loop', row_hint=-1, col_hint=2, meta={'role': 'tool'}),
+        SemanticNode('observe', 'Environment\nObservation', 'process', 'react_loop', row_hint=1, col_hint=2, meta={'role': 'observe'}),
+        SemanticNode('memory', 'Memory Update', 'process', 'react_loop', row_hint=1, col_hint=1, meta={'role': 'memory'}),
+        SemanticNode('answer', 'Final Answer', 'terminator', 'react_loop', row_hint=0, col_hint=3, meta={'role': 'answer'}),
     ]
     edges = [
         SemanticEdge('e0', 'query', 'reason'),

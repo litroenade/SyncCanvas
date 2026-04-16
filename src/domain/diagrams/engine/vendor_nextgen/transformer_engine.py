@@ -1,48 +1,98 @@
-
 from typing import Dict
 
-from .geometry import boundary_point
-from .semantic_ir import GeomNode, LabelBox, Route, SemanticDiagram
-from .text_fit import text_size
+from .constraint_solver import solve_rails
+from .router import route_edges
+from .semantic_ir import GeomNode, Route, SemanticDiagram
+
+RectTuple = tuple[float, float, float, float]
+
+_TRANSFORMER_GRID: dict[str, tuple[int, int]] = {
+    "input": (0, 0),
+    "embed": (0, 1),
+    "attn": (-1, 2),
+    "ffn": (1, 2),
+    "cross": (0, 3),
+    "decoder": (0, 4),
+    "output": (0, 5),
+}
 
 
-def _set_center(node: GeomNode, cx: float, cy: float) -> None:
-    node.x = cx - node.w / 2
-    node.y = cy - node.h / 2
+def _has_meaningful_grid(nodes: Dict[str, GeomNode]) -> bool:
+    return len({node.row for node in nodes.values()}) > 1 or len(
+        {node.col for node in nodes.values()}
+    ) > 1
 
 
-def _label(text: str, x: float, y: float, edge_id: str) -> LabelBox:
-    tw, th = text_size(text)
-    return LabelBox(text, x, y, tw + 14, th + 10, edge_id)
+def _canonical_role(node: GeomNode) -> str | None:
+    role = str(node.meta.get("role") or "").casefold()
+    label = node.label.casefold()
+    node_id = node.id.casefold()
+    text = " ".join(part for part in (role, label, node_id) if part)
+    if "input" in text:
+        return "input"
+    if "embed" in text:
+        return "embed"
+    if "self-attention" in text or "self attention" in text or "multi-head" in text or "attn" in text:
+        return "attn"
+    if "ffn" in text or "feed-forward" in text or "feed forward" in text:
+        return "ffn"
+    if "cross" in text:
+        return "cross"
+    if "decoder" in text:
+        return "decoder"
+    if "output" in text:
+        return "output"
+    return None
+
+
+def _assign_transformer_hints(nodes: Dict[str, GeomNode]) -> dict[str, list[GeomNode]]:
+    buckets: dict[str, list[GeomNode]] = {role: [] for role in _TRANSFORMER_GRID}
+    extras: list[GeomNode] = []
+    should_reassign = not _has_meaningful_grid(nodes)
+    for node in nodes.values():
+        role = _canonical_role(node)
+        if role is None:
+            extras.append(node)
+            continue
+        if should_reassign:
+            row, col = _TRANSFORMER_GRID[role]
+            node.row = row
+            node.col = col
+        buckets[role].append(node)
+
+    if should_reassign:
+        next_col = max(col for _row, col in _TRANSFORMER_GRID.values()) + 1
+        for node in sorted(extras, key=lambda item: item.label.casefold()):
+            node.row = 0
+            node.col = next_col
+            next_col += 1
+    return buckets
+
+
+def _rect_for(nodes: list[GeomNode], pad_x: float = 70.0, pad_y: float = 55.0) -> RectTuple:
+    left = min(node.x for node in nodes) - pad_x
+    top = min(node.y for node in nodes) - pad_y
+    right = max(node.x + node.w for node in nodes) + pad_x
+    bottom = max(node.y + node.h for node in nodes) + pad_y
+    return (left, top, right, bottom)
 
 
 def build_transformer_stack(diagram: SemanticDiagram, nodes: Dict[str, GeomNode]):
-    input_t = nodes['input']
-    emb = nodes['embed']
-    attn = nodes['attn']
-    ffn = nodes['ffn']
-    cross = nodes['cross']
-    dec = nodes['decoder']
-    out = nodes['output']
+    buckets = _assign_transformer_hints(nodes)
+    node_list = list(nodes.values())
+    rail_meta = solve_rails(diagram, node_list)
+    routes: Dict[str, Route] = route_edges(
+        {node.id: node for node in node_list},
+        diagram.edges,
+        list(diagram.keepouts),
+        rail_meta["y_centers"],
+    )
 
-    _set_center(input_t, 120.0, 230.0)
-    _set_center(emb, 330.0, 230.0)
-    _set_center(attn, 560.0, 150.0)
-    _set_center(ffn, 560.0, 300.0)
-    _set_center(cross, 820.0, 230.0)
-    _set_center(dec, 1050.0, 230.0)
-    _set_center(out, 1290.0, 230.0)
-
-    routes: Dict[str, Route] = {}
-    routes['e0'] = Route('e0', [boundary_point(input_t, (emb.cx, emb.cy)), boundary_point(emb, (input_t.cx, input_t.cy))])
-    routes['e1'] = Route('e1', [boundary_point(emb, (attn.cx, attn.cy)), boundary_point(attn, (emb.cx, emb.cy))], None)
-    routes['e2'] = Route('e2', [boundary_point(attn, (ffn.cx, ffn.cy)), boundary_point(ffn, (attn.cx, attn.cy))], None)
-    routes['e3'] = Route('e3', [boundary_point(ffn, (cross.cx, cross.cy)), (680.0, ffn.cy), (680.0, cross.cy), boundary_point(cross, (ffn.cx, ffn.cy))], None)
-    routes['e4'] = Route('e4', [boundary_point(cross, (dec.cx, dec.cy)), boundary_point(dec, (cross.cx, cross.cy))], None)
-    routes['e5'] = Route('e5', [boundary_point(dec, (out.cx, out.cy)), boundary_point(out, (dec.cx, dec.cy))])
-
-    group_rects = {
-        'Encoder Stack': (attn.x - 90.0, attn.y - 55.0, ffn.x + ffn.w + 90.0, ffn.y + ffn.h + 55.0),
-        'Decoder Stack': (cross.x - 70.0, cross.y - 55.0, dec.x + dec.w + 70.0, dec.y + dec.h + 55.0),
-    }
-    return nodes, routes, group_rects
+    groups: dict[str, RectTuple] = {}
+    encoder_nodes = buckets["attn"] + buckets["ffn"]
+    decoder_nodes = buckets["cross"] + buckets["decoder"]
+    if encoder_nodes:
+        groups["Encoder Stack"] = _rect_for(encoder_nodes, pad_x=90.0, pad_y=55.0)
+    if decoder_nodes:
+        groups["Decoder Stack"] = _rect_for(decoder_nodes, pad_x=70.0, pad_y=55.0)
+    return {node.id: node for node in node_list}, routes, groups
