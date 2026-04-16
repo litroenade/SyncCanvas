@@ -4,7 +4,10 @@ import json
 import re
 import uuid
 from copy import deepcopy
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, get_args
+
+from json_repair import repair_json
+from pydantic import ValidationError
 
 from src.application.ai.prompts.manager import prompt_manager
 from src.domain.diagrams.engine.vendor_nextgen.fallbacks import (
@@ -12,7 +15,12 @@ from src.domain.diagrams.engine.vendor_nextgen.fallbacks import (
     build_seed_spec,
 )
 from src.domain.diagrams.families import canonical_family, route_family, supports_prompt
-from src.domain.diagrams.models import DiagramPatch, DiagramSpec
+from src.domain.diagrams.models import (
+    ComponentType,
+    ConnectorType,
+    DiagramPatch,
+    DiagramSpec,
+)
 from src.infra.ai.llm import LLMClient
 from src.infra.logging import get_logger
 
@@ -39,6 +47,76 @@ def _preview_text(text: str, limit: int = 240) -> str:
     return f"{compact[:limit]}..."
 
 
+def _preview_json(value: Any, limit: int = 480) -> str:
+    try:
+        rendered = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    except TypeError:
+        rendered = str(value)
+    return _preview_text(rendered, limit)
+
+
+_VALID_COMPONENT_TYPE_BY_REF = {
+    re.sub(r"[\W_]+", "", str(value).casefold()): str(value)
+    for value in get_args(ComponentType)
+}
+_VALID_CONNECTOR_TYPE_BY_REF = {
+    re.sub(r"[\W_]+", "", str(value).casefold()): str(value)
+    for value in get_args(ConnectorType)
+}
+_COMPONENT_TYPE_ALIASES = {
+    "service": "component",
+    "microservice": "component",
+    "module": "component",
+    "agent": "component",
+    "tool": "component",
+    "gateway": "component",
+    "api": "component",
+    "application": "component",
+    "app": "device",
+    "client": "device",
+    "actor": "device",
+    "user": "device",
+    "group": "container",
+    "cluster": "container",
+    "swimlane": "container",
+    "section": "container",
+    "layer": "container",
+    "tier": "container",
+    "stage": "process",
+    "step": "process",
+    "action": "process",
+    "workflow": "process",
+    "pipeline": "process",
+    "processor": "process",
+    "operation": "process",
+    "datastore": "database",
+    "storage": "database",
+    "db": "database",
+    "memory": "database",
+    "index": "database",
+    "vectorstore": "database",
+    "vectordatabase": "database",
+    "note": "callout",
+    "annotation": "callout",
+    "comment": "callout",
+}
+_CONNECTOR_TYPE_ALIASES = {
+    "flow": "arrow",
+    "dependency": "arrow",
+    "relation": "arrow",
+    "association": "arrow",
+    "edge": "arrow",
+    "link": "arrow",
+    "connection": "arrow",
+    "sequence": "arrow",
+    "dashed": "dashed-arrow",
+    "dashedline": "dashed-arrow",
+    "dashedarrow": "dashed-arrow",
+    "async": "dashed-arrow",
+    "weakdependency": "dashed-arrow",
+}
+
+
 def _string_or_none(value: Any) -> Optional[str]:
     return value.strip() if isinstance(value, str) and value.strip() else None
 
@@ -59,6 +137,17 @@ def _list_of_dicts(value: Any) -> list[Dict[str, Any]]:
     if not isinstance(value, list):
         return []
     return [dict(item) for item in value if isinstance(item, dict)]
+
+
+def _first_list_of_dicts(mapping: Dict[str, Any], *keys: str) -> list[Dict[str, Any]]:
+    selected: list[Dict[str, Any]] = []
+    for key in keys:
+        items = _list_of_dicts(mapping.get(key))
+        if items:
+            return items
+        if isinstance(mapping.get(key), list):
+            selected = items
+    return selected
 
 
 def _iter_string_list(value: Any) -> list[str]:
@@ -165,10 +254,92 @@ def _extract_json_object(text: str) -> Optional[Dict[str, Any]]:
         try:
             parsed = json.loads(candidate)
         except json.JSONDecodeError:
+            try:
+                repaired = repair_json(candidate, return_objects=True, skip_json_loads=True)
+            except Exception:  # pylint: disable=broad-except
+                continue
+            if isinstance(repaired, dict):
+                logger.debug(
+                    "Diagram JSON payload repaired before validation: preview=%s",
+                    _preview_text(candidate, 320),
+                )
+                return repaired
             continue
         if isinstance(parsed, dict):
             return parsed
     return None
+
+
+def _coerce_component_type(value: Any, *, component_id: str) -> str:
+    candidate = _string_or_none(value) or "block"
+    normalized = _normalize_ref(candidate)
+    resolved = _VALID_COMPONENT_TYPE_BY_REF.get(normalized)
+    if resolved is None:
+        resolved = _COMPONENT_TYPE_ALIASES.get(normalized)
+    if resolved is None:
+        if any(token in normalized for token in ("store", "cache", "queue", "warehouse")):
+            resolved = "database"
+        elif any(token in normalized for token in ("service", "module", "agent", "gateway", "tool")):
+            resolved = "component"
+        elif any(token in normalized for token in ("stage", "step", "flow", "process", "pipeline")):
+            resolved = "process"
+        elif any(token in normalized for token in ("group", "cluster", "layer", "tier", "lane")):
+            resolved = "container"
+        elif any(token in normalized for token in ("client", "user", "device", "app")):
+            resolved = "device"
+        elif any(token in normalized for token in ("note", "annotation", "comment")):
+            resolved = "callout"
+    if resolved is None:
+        resolved = "block"
+    if resolved != candidate:
+        logger.debug(
+            "Diagram componentType coerced: component_id=%s raw=%s resolved=%s",
+            component_id,
+            candidate,
+            resolved,
+        )
+    return resolved
+
+
+def _coerce_connector_type(value: Any, *, connector_id: str) -> str:
+    candidate = _string_or_none(value) or "arrow"
+    normalized = _normalize_ref(candidate)
+    resolved = _VALID_CONNECTOR_TYPE_BY_REF.get(normalized)
+    if resolved is None:
+        resolved = _CONNECTOR_TYPE_ALIASES.get(normalized)
+    if resolved is None:
+        if "dash" in normalized or "async" in normalized or "weak" in normalized:
+            resolved = "dashed-arrow"
+        elif "line" in normalized:
+            resolved = "line"
+        else:
+            resolved = "arrow"
+    if resolved != candidate:
+        logger.debug(
+            "Diagram connectorType coerced: connector_id=%s raw=%s resolved=%s",
+            connector_id,
+            candidate,
+            resolved,
+        )
+    return resolved
+
+
+def _log_validation_failure(
+    kind: str,
+    *,
+    payload: Dict[str, Any],
+    normalized: Dict[str, Any],
+    exc: ValidationError,
+    context: str,
+) -> None:
+    logger.warning(
+        "Diagram %s validation failed: %s errors=%s payload=%s normalized=%s",
+        kind,
+        context,
+        _preview_json(exc.errors(), 1600),
+        _preview_json(payload, 1600),
+        _preview_json(normalized, 1600),
+    )
 
 
 def _normalize_component_payload(
@@ -201,7 +372,10 @@ def _normalize_component_payload(
         "type",
         "kind",
     ) or "block"
-    normalized["componentType"] = component_type
+    normalized["componentType"] = _coerce_component_type(
+        component_type,
+        component_id=normalized["id"],
+    )
 
     for candidate in (
         payload.get("id"),
@@ -223,32 +397,51 @@ def _normalize_connector_payload(
     index: int,
     used_ids: set[str],
     component_aliases: Dict[str, str],
-) -> Dict[str, Any]:
+    component_ids: set[str],
+) -> Optional[Dict[str, Any]]:
     normalized = dict(payload)
+    raw_source = _first_string(
+        normalized,
+        "fromComponent",
+        "from_component",
+        "from",
+        "source",
+        "sourceComponent",
+        "source_component",
+    )
     source = _resolve_alias(
         component_aliases,
-        _first_string(
-            normalized,
-            "fromComponent",
-            "from_component",
-            "from",
-            "source",
-            "sourceComponent",
-            "source_component",
-        ),
+        raw_source,
+    )
+    raw_target = _first_string(
+        normalized,
+        "toComponent",
+        "to_component",
+        "to",
+        "target",
+        "targetComponent",
+        "target_component",
     )
     target = _resolve_alias(
         component_aliases,
-        _first_string(
-            normalized,
-            "toComponent",
-            "to_component",
-            "to",
-            "target",
-            "targetComponent",
-            "target_component",
-        ),
+        raw_target,
     )
+    if not source or not target:
+        logger.debug(
+            "Dropping connector missing endpoints: payload=%s",
+            _preview_json(payload, 480),
+        )
+        return None
+    if source not in component_ids or target not in component_ids:
+        logger.debug(
+            "Dropping connector with unknown component refs: raw_from=%s raw_to=%s resolved_from=%s resolved_to=%s payload=%s",
+            raw_source,
+            raw_target,
+            source,
+            target,
+            _preview_json(payload, 480),
+        )
+        return None
     if source:
         normalized["fromComponent"] = source
     if target:
@@ -256,13 +449,17 @@ def _normalize_connector_payload(
     connector_id = _first_string(normalized, "id")
     connector_id = connector_id or f"edge.{_slug(source or 'source')}.{_slug(target or f'target_{index + 1}')}"
     normalized["id"] = _unique_id(connector_id, used_ids)
-    normalized["connectorType"] = _first_string(
-        normalized,
-        "connectorType",
-        "connector_type",
-        "type",
-        "kind",
-    ) or "arrow"
+    normalized["connectorType"] = _coerce_connector_type(
+        _first_string(
+            normalized,
+            "connectorType",
+            "connector_type",
+            "type",
+            "kind",
+        )
+        or "arrow",
+        connector_id=normalized["id"],
+    )
     if not _string_or_none(normalized.get("label")):
         normalized["label"] = _first_string(normalized, "text", "title") or ""
     return normalized
@@ -273,20 +470,30 @@ def _normalize_group_payload(
     *,
     index: int,
     component_aliases: Dict[str, str],
+    component_ids: set[str],
 ) -> Dict[str, Any]:
     normalized = dict(payload)
     label = _first_string(normalized, "label", "title", "name") or ""
     normalized["label"] = label
     normalized["id"] = _first_string(normalized, "id") or f"group.{_slug(label or f'group_{index + 1}')}"
-    component_ids = _iter_string_list(
+    component_ids_raw = _iter_string_list(
         normalized.get("componentIds")
         or normalized.get("component_ids")
         or normalized.get("components")
     )
-    normalized["componentIds"] = [
+    resolved_component_ids = [
         _resolve_alias(component_aliases, component_id) or component_id
-        for component_id in component_ids
+        for component_id in component_ids_raw
     ]
+    normalized["componentIds"] = [
+        component_id for component_id in resolved_component_ids if component_id in component_ids
+    ]
+    if len(normalized["componentIds"]) != len(resolved_component_ids):
+        logger.debug(
+            "Dropped unknown group component refs: group_id=%s payload=%s",
+            normalized["id"],
+            _preview_json(payload, 480),
+        )
     return normalized
 
 
@@ -350,18 +557,29 @@ def _normalize_component_update(changes: Dict[str, Any]) -> Dict[str, Any]:
         normalized["component_type"] = normalized.pop("componentType")
     elif "type" in normalized and "component_type" not in normalized:
         normalized["component_type"] = normalized.pop("type")
+    if "component_type" in normalized:
+        normalized["component_type"] = _coerce_component_type(
+            normalized["component_type"],
+            component_id="patch:update",
+        )
     return normalized
 
 
 def _normalize_connector_update(
     changes: Dict[str, Any],
     component_aliases: Dict[str, str],
+    component_ids: set[str],
 ) -> Dict[str, Any]:
     normalized = dict(changes)
     if "connectorType" in normalized and "connector_type" not in normalized:
         normalized["connector_type"] = normalized.pop("connectorType")
     elif "type" in normalized and "connector_type" not in normalized:
         normalized["connector_type"] = normalized.pop("type")
+    if "connector_type" in normalized:
+        normalized["connector_type"] = _coerce_connector_type(
+            normalized["connector_type"],
+            connector_id="patch:update",
+        )
 
     for raw_key, target_key in (
         ("fromComponent", "from_component"),
@@ -379,6 +597,15 @@ def _normalize_connector_update(
             component_aliases,
             _string_or_none(normalized.pop(raw_key)),
         )
+    for target_key in ("from_component", "to_component"):
+        if target_key in normalized and normalized[target_key] not in component_ids:
+            logger.debug(
+                "Dropping unresolved connector update endpoint: endpoint=%s value=%s changes=%s",
+                target_key,
+                normalized[target_key],
+                _preview_json(changes, 480),
+            )
+            normalized.pop(target_key, None)
     return normalized
 
 
@@ -416,44 +643,79 @@ def _normalize_spec_payload(payload: Dict[str, Any], family: str) -> Dict[str, A
         or normalized.get("constraints")
     )
     normalized["overrides"] = _dict_or_empty(normalized.get("overrides"))
+    raw_components = _first_list_of_dicts(
+        normalized,
+        "components",
+        "nodes",
+        "blocks",
+        "elements",
+        "items",
+    )
+    raw_connectors = _first_list_of_dicts(
+        normalized,
+        "connectors",
+        "edges",
+        "links",
+        "relations",
+    )
+    raw_groups = _first_list_of_dicts(
+        normalized,
+        "groups",
+        "clusters",
+        "containers",
+        "lanes",
+    )
+    raw_annotations = _first_list_of_dicts(
+        normalized,
+        "annotations",
+        "notes",
+        "captions",
+        "callouts",
+    )
+    raw_assets = _first_list_of_dicts(normalized, "assets", "images", "media")
 
     component_aliases: Dict[str, str] = {}
     used_component_ids: set[str] = set()
-    normalized["components"] = [
-        _normalize_component_payload(
-            item,
-            index=index,
-            used_ids=used_component_ids,
-            aliases=component_aliases,
+    normalized["components"] = []
+    for index, item in enumerate(raw_components):
+        normalized["components"].append(
+            _normalize_component_payload(
+                item,
+                index=index,
+                used_ids=used_component_ids,
+                aliases=component_aliases,
+            )
         )
-        for index, item in enumerate(_list_of_dicts(normalized.get("components")))
-    ]
 
     used_connector_ids: set[str] = set()
-    normalized["connectors"] = [
-        _normalize_connector_payload(
+    component_ids = {item["id"] for item in normalized["components"]}
+    normalized["connectors"] = []
+    for index, item in enumerate(raw_connectors):
+        connector = _normalize_connector_payload(
             item,
             index=index,
             used_ids=used_connector_ids,
             component_aliases=component_aliases,
+            component_ids=component_ids,
         )
-        for index, item in enumerate(_list_of_dicts(normalized.get("connectors")))
-    ]
+        if connector is not None:
+            normalized["connectors"].append(connector)
     normalized["groups"] = [
         _normalize_group_payload(
             item,
             index=index,
             component_aliases=component_aliases,
+            component_ids=component_ids,
         )
-        for index, item in enumerate(_list_of_dicts(normalized.get("groups")))
+        for index, item in enumerate(raw_groups)
     ]
     normalized["annotations"] = [
         _normalize_annotation_payload(item, index=index)
-        for index, item in enumerate(_list_of_dicts(normalized.get("annotations")))
+        for index, item in enumerate(raw_annotations)
     ]
     normalized["assets"] = [
         _normalize_asset_payload(item, index=index)
-        for index, item in enumerate(_list_of_dicts(normalized.get("assets")))
+        for index, item in enumerate(raw_assets)
     ]
     return normalized
 
@@ -485,22 +747,25 @@ def _normalize_patch_payload(payload: Dict[str, Any], spec: DiagramSpec) -> Dict
             )
         )
     ]
+    raw_connector_additions = _list_of_dicts(
+        normalized.get("connectorAdditions")
+        or normalized.get("connector_additions")
+    )
 
     used_connector_ids = {connector.id for connector in spec.connectors}
-    normalized["connectorAdditions"] = [
-        _normalize_connector_payload(
+    component_ids = {component.id for component in spec.components}
+    component_ids.update(item["id"] for item in normalized["componentAdditions"])
+    normalized["connectorAdditions"] = []
+    for index, item in enumerate(raw_connector_additions):
+        connector = _normalize_connector_payload(
             item,
             index=index,
             used_ids=used_connector_ids,
             component_aliases=component_aliases,
+            component_ids=component_ids,
         )
-        for index, item in enumerate(
-            _list_of_dicts(
-                normalized.get("connectorAdditions")
-                or normalized.get("connector_additions")
-            )
-        )
-    ]
+        if connector is not None:
+            normalized["connectorAdditions"].append(connector)
     normalized["annotationAdditions"] = [
         _normalize_annotation_payload(item, index=index)
         for index, item in enumerate(
@@ -529,6 +794,7 @@ def _normalize_patch_payload(payload: Dict[str, Any], spec: DiagramSpec) -> Dict
         _resolve_alias(connector_aliases, key) or key: _normalize_connector_update(
             value,
             component_aliases,
+            component_ids,
         )
         for key, value in raw_connector_updates.items()
         if isinstance(key, str) and isinstance(value, dict)
@@ -637,7 +903,17 @@ class DiagramPromptService:
                 len(normalized.get("connectors") or []),
                 len(normalized.get("annotations") or []),
             )
-            return DiagramSpec.model_validate(normalized)
+            try:
+                return DiagramSpec.model_validate(normalized)
+            except ValidationError as exc:
+                _log_validation_failure(
+                    "spec",
+                    payload=payload,
+                    normalized=normalized,
+                    exc=exc,
+                    context=f"family={canonical_family(family)}",
+                )
+                return None
         except Exception as exc:  # pylint: disable=broad-except
             logger.warning(
                 "Diagram LLM spec generation fell back to deterministic seed: family=%s prompt=%s error=%s",
@@ -706,17 +982,27 @@ class DiagramPromptService:
                 return None
             normalized = _normalize_patch_payload(payload, spec)
             logger.debug(
-                "Diagram patch normalized: diagram_id=%s summary=%s updates=%s removals=%s edge_updates=%s edge_removals=%s annotation_updates=%s annotation_removals=%s",
+                "Diagram patch normalized: diagram_id=%s summary=%s component_updates=%s component_removals=%s connector_updates=%s connector_removals=%s annotation_updates=%s annotation_removals=%s",
                 spec.diagram_id,
                 normalized.get("summary"),
-                len(normalized.get("componentUpdates") or []),
+                len(normalized.get("componentUpdates") or {}),
                 len(normalized.get("componentRemovals") or []),
-                len(normalized.get("edgeUpdates") or []),
-                len(normalized.get("edgeRemovals") or []),
-                len(normalized.get("annotationUpdates") or []),
+                len(normalized.get("connectorUpdates") or {}),
+                len(normalized.get("connectorRemovals") or []),
+                len(normalized.get("annotationUpdates") or {}),
                 len(normalized.get("annotationRemovals") or []),
             )
-            return DiagramPatch.model_validate(normalized)
+            try:
+                return DiagramPatch.model_validate(normalized)
+            except ValidationError as exc:
+                _log_validation_failure(
+                    "patch",
+                    payload=payload,
+                    normalized=normalized,
+                    exc=exc,
+                    context=f"diagram_id={spec.diagram_id}",
+                )
+                return None
         except Exception as exc:  # pylint: disable=broad-except
             logger.warning(
                 "Diagram LLM patch generation fell back to heuristic path: diagram_id=%s target_semantic_id=%s edit_scope=%s prompt=%s error=%s",

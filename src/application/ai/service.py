@@ -19,7 +19,7 @@ from src.application.diagrams.service import diagram_service
 from src.infra.ai.llm import LLMClient, LLMRuntimeError
 from src.infra.metrics import inc_counter, observe_ms
 from src.infra.logging import get_logger
-from src.persistence.db.engine import engine
+from src.persistence.db.engine import engine, sqlite_write_transaction
 from src.persistence.db.models.ai import AgentRequest
 from src.persistence.db.repositories import ai_runs as request_repo
 
@@ -138,32 +138,34 @@ class AIService:
         session = run_service.session
 
         try:
-            run = run_service.create_run(
-                room_id=session_id,
-                prompt=user_input,
-                model=self.llm_client.current_config.model,
-                auto_commit=False,
-            )
-            run_id = run.id
-            if run_id is None:
-                raise RuntimeError("run id should exist after creation")
-            request_record = request_repo.create_agent_request(
-                session,
-                request_id=active_request_id,
-                room_id=session_id,
-                user_id=None if user_id is None else _safe_int(user_id),
-                idempotency_key=idempotency_key,
-                source=source,
-                status="processing",
-                explain_requested=explain,
-                timeout_ms=timeout_ms,
-                auto_commit=False,
-            )
-            request_record.run_id = run_id
-            session.add(request_record)
-            request_record.updated_at = int(time.time() * 1000)
-            session.flush()
-            run_id = int(request_record.run_id or run_id)
+            with sqlite_write_transaction():
+                run = run_service.create_run(
+                    room_id=session_id,
+                    prompt=user_input,
+                    model=self.llm_client.current_config.model,
+                    auto_commit=False,
+                )
+                run_id = run.id
+                if run_id is None:
+                    raise RuntimeError("run id should exist after creation")
+                request_record = request_repo.create_agent_request(
+                    session,
+                    request_id=active_request_id,
+                    room_id=session_id,
+                    user_id=None if user_id is None else _safe_int(user_id),
+                    idempotency_key=idempotency_key,
+                    source=source,
+                    status="processing",
+                    explain_requested=explain,
+                    timeout_ms=timeout_ms,
+                    auto_commit=False,
+                )
+                request_record.run_id = run_id
+                session.add(request_record)
+                request_record.updated_at = int(time.time() * 1000)
+                session.flush()
+                run_id = int(request_record.run_id or run_id)
+                session.commit()
             self._active_runs[run_id] = session_id
 
             try:
@@ -222,7 +224,8 @@ class AIService:
                 request_record.status = "success"
                 session.add(request_record)
 
-                session.commit()
+                with sqlite_write_transaction():
+                    session.commit()
                 await self._persist_conversation_turn(
                     conversation_id=conversation_id,
                     room_id=session_id,
@@ -834,8 +837,8 @@ class AIService:
                     # Keep request error log even if run record diverges.
                     pass
 
-            owner_session.flush()
-            owner_session.commit()
+            with sqlite_write_transaction():
+                owner_session.commit()
             logger.error(
                 "AI request failed",
                 extra={

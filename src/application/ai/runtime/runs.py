@@ -85,7 +85,9 @@ class AgentRunService:
         self.session.add(run)
         if auto_commit:
             self.session.commit()
-        self.session.refresh(run)
+            self.session.refresh(run)
+        else:
+            self.session.flush()
         logger.info("Agent run completed", extra={"run_id": run_id})
         return run
 
@@ -105,7 +107,9 @@ class AgentRunService:
         self.session.add(run)
         if auto_commit:
             self.session.commit()
-        self.session.refresh(run)
+            self.session.refresh(run)
+        else:
+            self.session.flush()
         logger.error("Agent run failed", extra={"run_id": run_id, "error": error})
         return run
 
@@ -154,4 +158,3 @@ class AgentRunService:
             .limit(limit)
         )
         return list(self.session.exec(statement).all())
-
