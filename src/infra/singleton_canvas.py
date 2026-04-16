@@ -2,7 +2,7 @@
 
 from sqlmodel import Session, select
 
-from src.persistence.db.engine import get_sync_session
+from src.persistence.db.engine import get_sync_session, sqlite_write_transaction
 from src.persistence.db.models.rooms import Room, RoomMember
 from src.persistence.db.models.users import User
 
@@ -108,7 +108,8 @@ def ensure_singleton_room(session: Session, owner: User) -> Room:
 
 
 def bootstrap_singleton_canvas() -> tuple[User, Room]:
-    with get_sync_session() as session:
-        user = ensure_singleton_user(session)
-        room = ensure_singleton_room(session, user)
-        return user, room
+    with sqlite_write_transaction():
+        with get_sync_session() as session:
+            user = ensure_singleton_user(session)
+            room = ensure_singleton_room(session, user)
+            return user, room

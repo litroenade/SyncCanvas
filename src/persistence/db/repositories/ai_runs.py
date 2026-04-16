@@ -5,13 +5,14 @@ from typing import List, Optional
 
 from sqlmodel import Session, select
 
+from src.persistence.db.engine import commit_session
 from src.persistence.db.models.ai import AgentAction, AgentRequest, AgentRun
 
 
 def create_agent_run(session: Session, run: AgentRun, auto_commit: bool = True) -> AgentRun:
     session.add(run)
     if auto_commit:
-        session.commit()
+        commit_session(session)
     else:
         session.flush()
     session.refresh(run)
@@ -51,7 +52,7 @@ def create_agent_request(
     request.updated_at = int(time.time() * 1000)
     session.add(request)
     if auto_commit:
-        session.commit()
+        commit_session(session)
     else:
         session.flush()
     session.refresh(request)
@@ -83,7 +84,7 @@ def update_agent_request(
     req.updated_at = int(time.time() * 1000)
     session.add(req)
     if auto_commit:
-        session.commit()
+        commit_session(session)
     else:
         session.flush()
     return req
@@ -97,7 +98,7 @@ def finish_agent_run(session: Session, run_id: int, status: str, message: str = 
     run.message = message
     run.finished_at = int(time.time() * 1000)
     session.add(run)
-    session.commit()
+    commit_session(session)
     session.refresh(run)
     return run
 
@@ -105,7 +106,7 @@ def finish_agent_run(session: Session, run_id: int, status: str, message: str = 
 def create_agent_action(session: Session, action: AgentAction, auto_commit: bool = True) -> AgentAction:
     session.add(action)
     if auto_commit:
-        session.commit()
+        commit_session(session)
     else:
         session.flush()
     session.refresh(action)
@@ -119,4 +120,3 @@ def list_agent_actions(session: Session, run_id: int) -> List[AgentAction]:
         .order_by(AgentAction.created_at)  # type: ignore[arg-type]
     )
     return list(session.exec(statement))
-

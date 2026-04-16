@@ -96,6 +96,21 @@ _COMPONENT_TYPE_ALIASES = {
     "index": "database",
     "vectorstore": "database",
     "vectordatabase": "database",
+    "plc": "device",
+    "controller": "device",
+    "io": "device",
+    "remoteio": "device",
+    "servo": "device",
+    "drive": "device",
+    "motor": "device",
+    "camera": "device",
+    "sensor": "device",
+    "relay": "device",
+    "panel": "panel",
+    "bus": "network",
+    "trunk": "network",
+    "keepout": "container",
+    "keepoutarea": "container",
     "note": "callout",
     "annotation": "callout",
     "comment": "callout",
@@ -107,8 +122,11 @@ _CONNECTOR_TYPE_ALIASES = {
     "association": "arrow",
     "edge": "arrow",
     "link": "arrow",
-    "connection": "arrow",
+    "connection": "line",
     "sequence": "arrow",
+    "bus": "line",
+    "power": "line",
+    "trunk": "line",
     "dashed": "dashed-arrow",
     "dashedline": "dashed-arrow",
     "dashedarrow": "dashed-arrow",
@@ -119,6 +137,48 @@ _CONNECTOR_TYPE_ALIASES = {
 
 def _string_or_none(value: Any) -> Optional[str]:
     return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def _dict_or_style(value: Any) -> Dict[str, Any]:
+    if isinstance(value, dict):
+        return dict(value)
+    candidate = _string_or_none(value)
+    if not candidate:
+        return {}
+    normalized = _normalize_ref(candidate)
+    if normalized in {"solid", "dashed", "dotted"}:
+        stroke_style = "dashed" if normalized == "dashed" else "solid"
+        return {"strokeStyle": stroke_style}
+    if normalized in {"blueprint", "academic", "paper", "handdrawnpaper", "handdrawn"}:
+        return {"preset": "handdrawn-paper"}
+    return {}
+
+
+def _dict_or_layout(value: Any) -> Dict[str, Any]:
+    if isinstance(value, dict):
+        return dict(value)
+    candidate = _string_or_none(value)
+    if not candidate:
+        return {}
+    return {"mode": candidate}
+
+
+def _normalize_shape(value: Any, *, component_type: str) -> str:
+    candidate = _string_or_none(value) or "rectangle"
+    normalized = _normalize_ref(candidate)
+    if normalized in {"box", "rect", "rectangle", "roundrect", "roundedrectangle"}:
+        return "rectangle"
+    if normalized in {"circle", "ellipse", "oval"}:
+        return "ellipse"
+    if normalized in {"diamond", "decision"}:
+        return "diamond"
+    if normalized in {"cylinder", "database", "drum"}:
+        return "rectangle"
+    if normalized in {"panel", "device", "rack", "cabinet", "line"}:
+        return "rectangle"
+    if component_type in {"database", "device", "panel", "container", "component", "process", "network"}:
+        return "rectangle"
+    return candidate
 
 
 def _first_string(mapping: Dict[str, Any], *keys: str) -> Optional[str]:
@@ -376,6 +436,12 @@ def _normalize_component_payload(
         component_type,
         component_id=normalized["id"],
     )
+    normalized["shape"] = _normalize_shape(
+        normalized.get("shape"),
+        component_type=normalized["componentType"],
+    )
+    normalized["style"] = _dict_or_style(normalized.get("style"))
+    normalized["data"] = _dict_or_empty(normalized.get("data"))
 
     for candidate in (
         payload.get("id"),
@@ -460,6 +526,8 @@ def _normalize_connector_payload(
         or "arrow",
         connector_id=normalized["id"],
     )
+    normalized["style"] = _dict_or_style(normalized.get("style"))
+    normalized["data"] = _dict_or_empty(normalized.get("data"))
     if not _string_or_none(normalized.get("label")):
         normalized["label"] = _first_string(normalized, "text", "title") or ""
     return normalized
@@ -494,6 +562,7 @@ def _normalize_group_payload(
             normalized["id"],
             _preview_json(payload, 480),
         )
+    normalized["style"] = _dict_or_style(normalized.get("style"))
     return normalized
 
 
@@ -509,6 +578,7 @@ def _normalize_annotation_payload(payload: Dict[str, Any], *, index: int) -> Dic
         "type",
         "kind",
     ) or "caption"
+    normalized["style"] = _dict_or_style(normalized.get("style"))
     return normalized
 
 
@@ -562,6 +632,13 @@ def _normalize_component_update(changes: Dict[str, Any]) -> Dict[str, Any]:
             normalized["component_type"],
             component_id="patch:update",
         )
+    if "shape" in normalized:
+        normalized["shape"] = _normalize_shape(
+            normalized.get("shape"),
+            component_type=str(normalized.get("component_type") or "block"),
+        )
+    if "style" in normalized:
+        normalized["style"] = _dict_or_style(normalized.get("style"))
     return normalized
 
 
@@ -606,6 +683,8 @@ def _normalize_connector_update(
                 _preview_json(changes, 480),
             )
             normalized.pop(target_key, None)
+    if "style" in normalized:
+        normalized["style"] = _dict_or_style(normalized.get("style"))
     return normalized
 
 
@@ -615,6 +694,8 @@ def _normalize_annotation_update(changes: Dict[str, Any]) -> Dict[str, Any]:
         normalized["annotation_type"] = normalized.pop("annotationType")
     elif "type" in normalized and "annotation_type" not in normalized:
         normalized["annotation_type"] = normalized.pop("type")
+    if "style" in normalized:
+        normalized["style"] = _dict_or_style(normalized.get("style"))
     return normalized
 
 
@@ -635,8 +716,11 @@ def _normalize_spec_payload(payload: Dict[str, Any], family: str) -> Dict[str, A
     ) or _diagram_id()
     normalized["diagramType"] = canonical_family(raw_diagram_type or resolved_family)
     normalized["family"] = resolved_family
-    normalized["style"] = _dict_or_empty(normalized.get("style")) or deepcopy(MANAGED_DIAGRAM_STYLE)
-    normalized["layout"] = _dict_or_empty(normalized.get("layout"))
+    normalized["style"] = {
+        **deepcopy(MANAGED_DIAGRAM_STYLE),
+        **_dict_or_style(normalized.get("style")),
+    }
+    normalized["layout"] = _dict_or_layout(normalized.get("layout"))
     normalized["layoutConstraints"] = _dict_or_empty(
         normalized.get("layoutConstraints")
         or normalized.get("layout_constraints")

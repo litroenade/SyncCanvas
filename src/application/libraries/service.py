@@ -13,7 +13,7 @@ from sqlmodel import Session, asc, select
 
 from src.infra.config import config
 from src.infra.logging import get_logger
-from src.persistence.db.engine import engine
+from src.persistence.db.engine import commit_session, engine
 from src.persistence.db.models.library_records import Library, LibraryItem
 
 if TYPE_CHECKING:
@@ -155,7 +155,7 @@ class LibraryService:
                 source=source,
             )
             session.add(library)
-            session.commit()
+            commit_session(session)
 
             for item_data in items:
                 item_id = item_data.get("id", "")
@@ -174,7 +174,7 @@ class LibraryService:
                 )
                 session.add(db_item)
 
-            session.commit()
+            commit_session(session)
             session.refresh(library)
             self._save_library_to_file(
                 library_id=library_id,
@@ -237,7 +237,7 @@ class LibraryService:
                 item.tags = tags
                 item.embedding = embedding_bytes
 
-            session.commit()
+            commit_session(session)
 
         self._sync_uploaded_assets_library_file()
         self._reload_index_if_ready()
@@ -267,7 +267,7 @@ class LibraryService:
                 if library is not None:
                     session.delete(library)
 
-            session.commit()
+            commit_session(session)
 
         self._sync_uploaded_assets_library_file()
         self._reload_index_if_ready()

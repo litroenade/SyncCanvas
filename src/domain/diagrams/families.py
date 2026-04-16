@@ -166,8 +166,15 @@ _ROUTING_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
             "system design",
             "system diagram",
             "platform diagram",
+            "platform topology",
+            "system topology",
+            "topology",
+            "system overview",
+            "overview figure",
             "layered",
             "llm stack",
+            "\u62d3\u6251",
+            "\u603b\u89c8\u56fe",
             "\u5206\u5c42",
             "\u67b6\u6784",
             "\u7cfb\u7edf\u56fe",
@@ -225,9 +232,32 @@ def supports_prompt(prompt: str, mode: str = "agent") -> bool:
 def route_family(prompt: str) -> str:
     lowered = prompt.casefold()
     for family, keywords in _ROUTING_RULES:
+        if family == "workflow" and _workflow_negated(lowered):
+            continue
         if _contains_any(lowered, keywords):
             return family
     return DEFAULT_FAMILY
+
+
+def _workflow_negated(text: str) -> bool:
+    return any(
+        phrase in text
+        for phrase in (
+            "not workflow",
+            "not a workflow",
+            "not flowchart",
+            "not a flowchart",
+            "not process flow",
+            "don't use workflow",
+            "don't use a workflow",
+            "不是流程图",
+            "不要流程图",
+            "非流程图",
+            "不是工作流",
+            "不要工作流",
+            "非工作流",
+        )
+    )
 
 
 def _contains_any(text: str, keywords: Iterable[str]) -> bool:

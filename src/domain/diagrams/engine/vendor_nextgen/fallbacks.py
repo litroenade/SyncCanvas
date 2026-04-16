@@ -118,30 +118,58 @@ def _layered_example(prompt: str) -> SemanticDiagram:
     return llm_layered_architecture_example()
 
 
+def _technical_blueprint_example(prompt: str) -> SemanticDiagram:
+    if _contains_any(
+        prompt,
+        (
+            "plc",
+            "remote io",
+            "servo",
+            "axis motor",
+            "motor",
+            "camera",
+            "hmi",
+            "safety relay",
+            "quality bus",
+            "fieldbus",
+            "power trunk",
+            "title block",
+            "keepout",
+            "\u8bbe\u5907",
+            "\u5e03\u7f6e\u56fe",
+            "\u7535\u673a",
+            "\u76f8\u673a",
+            "\u5b89\u5168\u7ee7\u7535\u5668",
+        ),
+    ):
+        return technical_blueprint_example(False)
+    if _contains_any(
+        prompt,
+        (
+            "llm",
+            "large model",
+            "model serving",
+            "inference runtime",
+            "retrieval node",
+            "gateway rack",
+            "orchestrator node",
+            "storage array",
+            "gpu cluster",
+            "rag",
+            "\u5927\u6a21\u578b",
+            "\u63a8\u7406\u8282\u70b9",
+            "\u68c0\u7d22\u8282\u70b9",
+        ),
+    ):
+        return technical_blueprint_llm_example()
+    return technical_blueprint_example(False)
+
+
 _FAMILY_BUILDERS: dict[str, Callable[[str], SemanticDiagram]] = {
     "workflow": lambda _prompt: workflow_example(),
     "static_structure": lambda _prompt: static_structure_example(),
     "component_cluster": lambda _prompt: component_cluster_example(),
-    "technical_blueprint": lambda prompt: (
-        technical_blueprint_llm_example()
-        if _contains_any(
-            prompt,
-            (
-                "llm",
-                "model",
-                "inference",
-                "runtime",
-                "retrieval",
-                "gateway",
-                "safety",
-                "rag",
-                "\u5927\u6a21\u578b",
-                "\u63a8\u7406",
-                "\u68c0\u7d22",
-            ),
-        )
-        else technical_blueprint_example(False)
-    ),
+    "technical_blueprint": _technical_blueprint_example,
     "istar": lambda _prompt: istar_example(),
     "architecture_flow": lambda _prompt: architecture_flow_example(),
     "layered_architecture": _layered_example,

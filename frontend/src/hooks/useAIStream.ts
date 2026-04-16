@@ -137,6 +137,20 @@ export function useAIStream({
     if (typeof result.room_version === 'number') {
       roomVersionRef.current = result.room_version;
     }
+    if (result.status !== 'success') {
+      const errorMessage = result.message || result.response || 'AI request failed';
+      setState((prev) => ({
+        ...prev,
+        isLoading: false,
+        response: null,
+        error: errorMessage,
+        transportError: null,
+        requestId: result.request_id ?? prev.requestId,
+        closeInterruptedRequest: false,
+        roomVersion: typeof result.room_version === 'number' ? result.room_version : prev.roomVersion,
+      }));
+      return;
+    }
     setState((prev) => ({
       ...prev,
       isLoading: false,

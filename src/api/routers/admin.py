@@ -10,7 +10,7 @@ from src.auth.utils import get_current_user
 from src.infra.config import config
 from src.infra.logging import get_logger
 from src.infra.metrics import inc_counter, snapshot as get_metrics_snapshot
-from src.persistence.db.engine import get_session
+from src.persistence.db.engine import commit_session, get_session
 from src.persistence.db.models import Commit, Room, Update
 from src.persistence.db.models.users import User
 from src.realtime.yjs.server import websocket_server
@@ -168,7 +168,7 @@ async def admin_cleanup_run(
             session.delete(stale_update)
             deleted_updates += 1
 
-    session.commit()
+    commit_session(session)
     inc_counter(
         "admin_cleanup_runs_total",
         labels={
@@ -206,5 +206,4 @@ async def admin_healthz(current_user: User = Depends(get_current_user)):
         "status": "ok",
         "version": config.version,
     }
-
 

@@ -189,6 +189,7 @@ export interface AIStreamComplete extends AIStreamEnvelope {
     type: 'complete';
     status: string;
     code?: string | null;
+    message?: string;
     response: string;
     run_id: number;
     elements_created: string[];

@@ -5,13 +5,14 @@ from typing import List, Optional
 from sqlalchemy import desc
 from sqlmodel import Session, select
 
+from src.persistence.db.engine import commit_session
 from src.persistence.db.models.rooms import Commit, Room, RoomMember, Update
 
 
 def create_room(session: Session, room: Room, auto_commit: bool = True) -> Room:
     session.add(room)
     if auto_commit:
-        session.commit()
+        commit_session(session)
     else:
         session.flush()
     session.refresh(room)
@@ -43,7 +44,7 @@ def delete_room(session: Session, room_id: str, auto_commit: bool = True) -> boo
     if room:
         session.delete(room)
         if auto_commit:
-            session.commit()
+            commit_session(session)
         return True
     return False
 
@@ -51,7 +52,7 @@ def delete_room(session: Session, room_id: str, auto_commit: bool = True) -> boo
 def add_room_member(session: Session, member: RoomMember, auto_commit: bool = True) -> RoomMember:
     session.add(member)
     if auto_commit:
-        session.commit()
+        commit_session(session)
     else:
         session.flush()
     session.refresh(member)
@@ -103,7 +104,7 @@ def remove_room_member(
     if member:
         session.delete(member)
         if auto_commit:
-            session.commit()
+            commit_session(session)
         return True
     return False
 
@@ -111,7 +112,7 @@ def remove_room_member(
 def create_commit(session: Session, commit: Commit, auto_commit: bool = True) -> Commit:
     session.add(commit)
     if auto_commit:
-        session.commit()
+        commit_session(session)
     else:
         session.flush()
     session.refresh(commit)
@@ -145,7 +146,7 @@ def get_commits_by_room(session: Session, room_id: str, limit: int = 50) -> List
 def create_update(session: Session, update: Update, auto_commit: bool = True) -> Update:
     session.add(update)
     if auto_commit:
-        session.commit()
+        commit_session(session)
     else:
         session.flush()
     session.refresh(update)
@@ -191,6 +192,5 @@ def delete_updates_before(
         session.delete(update)
         deleted += 1
     if auto_commit:
-        session.commit()
+        commit_session(session)
     return deleted
-

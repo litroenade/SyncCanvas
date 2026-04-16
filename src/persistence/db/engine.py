@@ -100,12 +100,17 @@ def get_session():
         yield session
 
 
+def commit_session(session: Session) -> None:
+    with sqlite_write_transaction():
+        session.commit()
+
+
 @contextmanager
 def get_sync_session():
     session = Session(engine)
     try:
         yield session
-        session.commit()
+        commit_session(session)
     except Exception:
         session.rollback()
         raise

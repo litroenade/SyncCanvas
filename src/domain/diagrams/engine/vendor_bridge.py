@@ -8,6 +8,7 @@ from typing import Callable
 from src.domain.diagrams.engine.ir import EngineGroupFrame, EngineLabel, EngineNode, EngineRoute
 from src.domain.diagrams.families import canonical_family
 from src.domain.diagrams.models import DiagramSpec
+from src.infra.logging import get_logger
 
 from .vendor_nextgen.architecture_engine import build_architecture_flow
 from .vendor_nextgen.blueprint_engine import build_blueprint
@@ -24,6 +25,7 @@ from .vendor_nextgen.transformer_engine import build_transformer_stack
 from .vendor_nextgen.workflow_engine import build_workflow
 
 RectTuple = tuple[float, float, float, float]
+logger = get_logger(__name__)
 FamilyEngine = Callable[
     [SemanticDiagram, dict[str, GeomNode]],
     tuple[dict[str, GeomNode], dict[str, Route], dict[str, RectTuple]],
@@ -199,8 +201,16 @@ def _layout_diagram(
     if use_family_engine:
         builder = _FAMILY_ENGINES.get(diagram.family)
         if builder is not None:
-            nodes, routes, _ = builder(diagram, fitted_lookup)
-            return nodes, routes
+            try:
+                nodes, routes, _ = builder(diagram, fitted_lookup)
+                return nodes, routes
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.warning(
+                    "Vendored family engine failed; falling back to generic solver: diagram_id=%s family=%s error=%s",
+                    diagram.id,
+                    diagram.family,
+                    exc,
+                )
     rail_meta = solve_rails(diagram, fitted_nodes, patch_locked=locked_positions)
     routes = route_edges(
         {node.id: node for node in fitted_nodes},

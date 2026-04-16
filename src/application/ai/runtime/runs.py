@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from sqlmodel import Session, select
 
 from src.infra.logging import get_logger
+from src.persistence.db.engine import commit_session
 from src.persistence.db.models.ai import AgentAction, AgentRun
 
 logger = get_logger(__name__)
@@ -36,7 +37,7 @@ class AgentRunService:
         )
         self.session.add(run)
         if auto_commit:
-            self.session.commit()
+            commit_session(self.session)
         else:
             self.session.flush()
         self.session.refresh(run)
@@ -64,7 +65,7 @@ class AgentRunService:
         )
         self.session.add(action)
         if auto_commit:
-            self.session.commit()
+            commit_session(self.session)
             self.session.refresh(action)
         return action
 
@@ -84,7 +85,7 @@ class AgentRunService:
         run.finished_at = int(time.time() * 1000)
         self.session.add(run)
         if auto_commit:
-            self.session.commit()
+            commit_session(self.session)
             self.session.refresh(run)
         else:
             self.session.flush()
@@ -106,7 +107,7 @@ class AgentRunService:
         run.finished_at = int(time.time() * 1000)
         self.session.add(run)
         if auto_commit:
-            self.session.commit()
+            commit_session(self.session)
             self.session.refresh(run)
         else:
             self.session.flush()

@@ -328,6 +328,7 @@ def _build_complete_payload(
         "type": "complete",
         "status": result.get("status", "success"),
         "code": result.get("code") if result.get("status") != "success" else "SUCCESS",
+        "message": result.get("message"),
         "response": result.get("response", ""),
         "run_id": result.get("run_id", 0),
         "elements_created": result.get("elements_created", []),

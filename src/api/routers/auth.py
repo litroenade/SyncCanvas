@@ -11,7 +11,7 @@ from src.auth.utils import (
     get_current_user,
 )
 from src.infra.config import config
-from src.persistence.db.engine import get_session
+from src.persistence.db.engine import commit_session, get_session
 from src.persistence.db.models.users import User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -57,7 +57,7 @@ async def login_for_access_token(
         # 自动创建用户，密码哈希用占位符（实际不用于验证）
         user = User(username=username, password_hash="key_auth_user")
         session.add(user)
-        session.commit()
+        commit_session(session)
         session.refresh(user)
 
     # 生成 Token

@@ -252,6 +252,62 @@ describe('useAIStream', () => {
     expect(latestSnapshot().closeInterruptedRequest).toBe(false);
   });
 
+  it('treats complete messages with error status as request failures', async () => {
+    let snapshot: UseAIStreamReturn | null = null;
+    const latestSnapshot = (): UseAIStreamReturn => {
+      expect(snapshot).not.toBeNull();
+      return snapshot as UseAIStreamReturn;
+    };
+
+    await act(async () => {
+      root.render(<HookHarness onSnapshot={(value) => { snapshot = value; }} />);
+    });
+
+    const socket = MockWebSocket.instances[0];
+    const clientSessionId = getClientSessionId(socket);
+
+    await act(async () => {
+      socket.open();
+    });
+
+    await act(async () => {
+      await latestSnapshot().sendRequest('Create blueprint', {
+        mode: 'planning',
+        request_id: 'req-error',
+      });
+    });
+
+    await act(async () => {
+      socket.emitMessage({
+        type: 'started',
+        room_id: 'room-1',
+        room_version: 5,
+        prompt: 'Create blueprint',
+        request_id: 'req-error',
+        client_session_id: clientSessionId,
+      });
+    });
+
+    await act(async () => {
+      socket.emitMessage({
+        type: 'complete',
+        status: 'error',
+        code: 'TXN_ROLLBACK',
+        message: "'plc'",
+        response: '',
+        run_id: 1,
+        elements_created: [],
+        tools_used: [],
+        request_id: 'req-error',
+        client_session_id: clientSessionId,
+      });
+    });
+
+    expect(latestSnapshot().isLoading).toBe(false);
+    expect(latestSnapshot().error).toBe("'plc'");
+    expect(latestSnapshot().response).toBeNull();
+  });
+
   it('does not surface a transport error for clean 1005 closes when idle', async () => {
     let snapshot: UseAIStreamReturn | null = null;
     const latestSnapshot = (): UseAIStreamReturn => {

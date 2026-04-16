@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 from sqlmodel import Session, desc, select
 
 from src.infra.logging import get_logger
-from src.persistence.db.engine import engine
+from src.persistence.db.engine import commit_session, engine
 from src.persistence.db.models.ai import AgentMessage, Conversation
 from src.utils.time import timestamp_ms
 
@@ -47,7 +47,7 @@ class MemoryService:
                 is_active=True,
             )
             session.add(conversation)
-            session.commit()
+            commit_session(session)
             session.refresh(conversation)
 
         logger.info(
@@ -97,7 +97,7 @@ class MemoryService:
             if conversation:
                 conversation.title = title
                 conversation.updated_at = timestamp_ms()
-                session.commit()
+                commit_session(session)
 
     async def activate_conversation(
         self,
@@ -117,7 +117,7 @@ class MemoryService:
                     conversation.updated_at = updated_at
                     activated = conversation
 
-            session.commit()
+            commit_session(session)
             if activated:
                 session.refresh(activated)
             return activated
@@ -136,7 +136,7 @@ class MemoryService:
             if conversation:
                 session.delete(conversation)
 
-            session.commit()
+            commit_session(session)
 
         logger.info(
             "Deleted conversation %s with %s message(s)",
@@ -183,7 +183,7 @@ class MemoryService:
                 conversation.message_count += total_chunks
                 conversation.updated_at = base_time
 
-            session.commit()
+            commit_session(session)
 
         logger.debug(
             "Saved message: conversation=%s role=%s length=%s",

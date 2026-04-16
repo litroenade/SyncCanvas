@@ -19,6 +19,7 @@ from src.domain.versioning.utils import (
     summarize_diagrams,
 )
 from src.infra.logging import get_logger
+from src.persistence.db.engine import sqlite_write_transaction
 from src.persistence.db.models.rooms import Commit, Update
 from src.persistence.db.repositories import rooms as crud
 
@@ -111,44 +112,45 @@ class IGitService:
             if not db_updates and base_commit:
                 raise ValueError("no_new_changes_to_commit")
 
-            # 鍒涘缓鎻愪氦
-            current_time = int(time.time() * 1000)
-            commit = Commit(
-                room_id=room_id,
-                parent_id=base_commit.id if base_commit else None,
-                author_id=author_id,
-                author_name=author_name,
-                message=message,
-                data=doc_data,
-                timestamp=current_time,
-            )
-            self.session.add(commit)
-            self.session.flush()  # 鑾峰彇 commit.id
-            assert commit.id is not None
+            with sqlite_write_transaction():
+                # 鍒涘缓鎻愪氦
+                current_time = int(time.time() * 1000)
+                commit = Commit(
+                    room_id=room_id,
+                    parent_id=base_commit.id if base_commit else None,
+                    author_id=author_id,
+                    author_name=author_name,
+                    message=message,
+                    data=doc_data,
+                    timestamp=current_time,
+                )
+                self.session.add(commit)
+                self.session.flush()  # 鑾峰彇 commit.id
+                assert commit.id is not None
 
-            # 鐢熸垚鍝堝笇
-            commit.hash = generate_commit_hash(commit.id, current_time)
+                # 鐢熸垚鍝堝笇
+                commit.hash = generate_commit_hash(commit.id, current_time)
 
-            # Update room metadata to point at the new head commit.
-            room.head_commit_id = commit.id
-            room.last_active_at = current_time
+                # Update room metadata to point at the new head commit.
+                room.head_commit_id = commit.id
+                room.last_active_at = current_time
 
-            # Recompute room element statistics from the committed document.
-            room.elements_count = _count_active_elements(doc_data)
+                # Recompute room element statistics from the committed document.
+                room.elements_count = _count_active_elements(doc_data)
 
-            # 鏇存柊璐＄尞鑰呮暟閲忥紙绠€鍖栭€昏緫锛氭瘡娆℃彁浜ゆ鏌ユ槸鍚︽槸鏂拌础鐚€咃級
-            if author_id and author_id not in contributor_ids:
-                room.total_contributors = (room.total_contributors or 0) + 1
+                # 鏇存柊璐＄尞鑰呮暟閲忥紙绠€鍖栭€昏緫锛氭瘡娆℃彁浜ゆ鏌ユ槸鍚︽槸鏂拌础鐚€咃級
+                if author_id and author_id not in contributor_ids:
+                    room.total_contributors = (room.total_contributors or 0) + 1
 
-            self.session.add(room)
+                self.session.add(room)
 
-            # 娓呯悊 Update 琛?(宸茬粡鍚堝苟鍒?Commit 涓簡)
-            # 娉ㄦ剰锛氬彧娓呯悊鏈鍚堝苟鍒?Commit 涓殑鏁版嵁锛岄伩鍏嶅垹鎺夊苟鍙戞柊鏇存敼
-            for update in db_updates:
-                self.session.delete(update)
+                # 娓呯悊 Update 琛?(宸茬粡鍚堝苟鍒?Commit 涓簡)
+                # 娉ㄦ剰锛氬彧娓呯悊鏈鍚堝苟鍒?Commit 涓殑鏁版嵁锛岄伩鍏嶅垹鎺夊苟鍙戞柊鏇存敼
+                for update in db_updates:
+                    self.session.delete(update)
 
-            self.session.commit()
-            self.session.refresh(commit)
+                self.session.commit()
+                self.session.refresh(commit)
 
             logger.info(
                 "鍒涘缓鎻愪氦: 鎴块棿 %s, 鍝堝笇 %s, 娑堟伅: %s", room_id, commit.hash, message
@@ -182,20 +184,21 @@ class IGitService:
             raise ValueError("commit_not_found")
 
         try:
-            # 娓呯悊鎵€鏈?Update (鏈彁浜ょ殑鏇存敼浼氫涪澶?
-            delete_update_stmt = delete(Update).where(Update.room_id == room_id)  # type: ignore[arg-type]
-            self.session.exec(delete_update_stmt)
+            with sqlite_write_transaction():
+                # 娓呯悊鎵€鏈?Update (鏈彁浜ょ殑鏇存敼浼氫涪澶?
+                delete_update_stmt = delete(Update).where(Update.room_id == room_id)  # type: ignore[arg-type]
+                self.session.exec(delete_update_stmt)
 
-            # 鏇存柊 HEAD
-            current_time = int(time.time() * 1000)
-            room.head_commit_id = commit_id
-            room.last_active_at = current_time
-            room.elements_count = _count_active_elements(commit.data)
-            self.session.add(room)
+                # 鏇存柊 HEAD
+                current_time = int(time.time() * 1000)
+                room.head_commit_id = commit_id
+                room.last_active_at = current_time
+                room.elements_count = _count_active_elements(commit.data)
+                self.session.add(room)
 
-            # Commit before evicting websocket state so readers see durable data.
-            self.session.commit()
-            self.session.refresh(commit)
+                # Commit before evicting websocket state so readers see durable data.
+                self.session.commit()
+                self.session.refresh(commit)
 
             logger.info(
                 "妫€鍑烘彁浜? 鎴块棿 %s, 鎻愪氦 %d (%s)", room_id, commit_id, commit.hash
@@ -247,38 +250,39 @@ class IGitService:
         contributor_ids = self._get_contributor_ids(room_id)
 
         try:
-            # 鍒涘缓鍥炴粴鎻愪氦
-            current_time = int(time.time() * 1000)
-            new_commit = Commit(
-                room_id=room_id,
-                parent_id=room.head_commit_id,
-                author_id=author_id,
-                author_name=author_name,
-                message=f"Revert to {target_commit.hash}: {target_commit.message}",
-                data=target_commit.data,
-                timestamp=current_time,
-            )
-            self.session.add(new_commit)
-            self.session.flush()
-            assert new_commit.id is not None
+            with sqlite_write_transaction():
+                # 鍒涘缓鍥炴粴鎻愪氦
+                current_time = int(time.time() * 1000)
+                new_commit = Commit(
+                    room_id=room_id,
+                    parent_id=room.head_commit_id,
+                    author_id=author_id,
+                    author_name=author_name,
+                    message=f"Revert to {target_commit.hash}: {target_commit.message}",
+                    data=target_commit.data,
+                    timestamp=current_time,
+                )
+                self.session.add(new_commit)
+                self.session.flush()
+                assert new_commit.id is not None
 
-            new_commit.hash = generate_commit_hash(new_commit.id, current_time)
+                new_commit.hash = generate_commit_hash(new_commit.id, current_time)
 
-            # Clear Update rows because the revert commit supersedes them.
-            delete_update_stmt = delete(Update).where(Update.room_id == room_id)  # type: ignore[arg-type]
-            self.session.exec(delete_update_stmt)
+                # Clear Update rows because the revert commit supersedes them.
+                delete_update_stmt = delete(Update).where(Update.room_id == room_id)  # type: ignore[arg-type]
+                self.session.exec(delete_update_stmt)
 
-            # 鏇存柊 HEAD
-            room.head_commit_id = new_commit.id
-            room.last_active_at = current_time
-            room.elements_count = _count_active_elements(target_commit.data)
-            if author_id and author_id not in contributor_ids:
-                room.total_contributors = (room.total_contributors or 0) + 1
-            self.session.add(room)
+                # 鏇存柊 HEAD
+                room.head_commit_id = new_commit.id
+                room.last_active_at = current_time
+                room.elements_count = _count_active_elements(target_commit.data)
+                if author_id and author_id not in contributor_ids:
+                    room.total_contributors = (room.total_contributors or 0) + 1
+                self.session.add(room)
 
-            # Commit before evicting websocket state so readers see durable data.
-            self.session.commit()
-            self.session.refresh(new_commit)
+                # Commit before evicting websocket state so readers see durable data.
+                self.session.commit()
+                self.session.refresh(new_commit)
 
             logger.info("鍥炴粴鎻愪氦: 鎴块棿 %s, 鍥炴粴鍒?%s", room_id, target_commit.hash)
             logger.info("鍥炴粴鏁版嵁澶у皬: %d bytes", len(target_commit.data))
