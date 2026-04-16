@@ -6,11 +6,13 @@ from .semantic_ir import GeomNode, Route, SemanticDiagram
 
 _REACT_GRID: dict[str, tuple[int, int]] = {
     "query": (0, 0),
-    "reason": (-1, 1),
-    "tool": (-1, 2),
-    "observe": (1, 2),
+    "lm": (0, 1),
     "memory": (1, 1),
-    "answer": (0, 3),
+    "reason": (-1, 2),
+    "observation": (1, 2),
+    "tool": (-1, 3),
+    "environment": (1, 3),
+    "answer": (0, 4),
 }
 
 
@@ -27,12 +29,16 @@ def _canonical_role(node: GeomNode) -> str | None:
     text = " ".join(part for part in (role, label, node_id) if part)
     if "query" in text or "user request" in text:
         return "query"
+    if text == "lm" or " llm" in f" {text}" or node_id == "lm":
+        return "lm"
     if "reason" in text or "think" in text or "planner" in text:
         return "reason"
     if "tool" in text or "act" in text or "action" in text:
         return "tool"
-    if "observe" in text or "observation" in text or "environment" in text:
-        return "observe"
+    if "environment" in text:
+        return "environment"
+    if "observe" in text or "observation" in text:
+        return "observation"
     if "memory" in text or "context" in text:
         return "memory"
     if "answer" in text or "response" in text or "final" in text:

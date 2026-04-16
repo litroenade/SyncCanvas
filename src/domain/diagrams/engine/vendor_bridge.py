@@ -1,6 +1,7 @@
 """Thin bridge from DiagramSpec to the vendored next-generation engine."""
 
 
+from collections import defaultdict, deque
 from collections.abc import Collection
 from dataclasses import dataclass
 from typing import Callable
@@ -109,12 +110,15 @@ def build_vendor_layout(
     normalized_spec = DiagramSpec.model_validate(spec.model_dump(by_alias=True))
     normalized_spec.family = canonical_family(normalized_spec.family)
     normalized_spec.diagram_type = canonical_family(normalized_spec.diagram_type)
+    use_family_engine = _use_family_engine(normalized_spec, relayout_scope)
+    if use_family_engine and "vendorUseFamilyEngine" not in normalized_spec.layout_constraints:
+        normalized_spec.layout_constraints["vendorUseFamilyEngine"] = True
 
     diagram = _spec_to_semantic_diagram(normalized_spec)
     locked_positions = _locked_positions(normalized_spec, relayout_scope)
     node_lookup, route_lookup, explicit_group_rects = _layout_diagram(
         diagram,
-        use_family_engine=_use_family_engine(normalized_spec, relayout_scope),
+        use_family_engine=use_family_engine,
         locked_positions=locked_positions,
     )
     _update_component_geometry(normalized_spec, node_lookup)
@@ -130,9 +134,12 @@ def build_vendor_layout(
 def _use_family_engine(spec: DiagramSpec, relayout_scope: Collection[str] | None) -> bool:
     if relayout_scope is not None:
         return False
-    return bool(spec.layout_constraints.get("vendorUseFamilyEngine")) and canonical_family(
-        spec.family
-    ) in _FAMILY_ENGINES
+    family = canonical_family(spec.family)
+    if family not in _FAMILY_ENGINES:
+        return False
+    if "vendorUseFamilyEngine" in spec.layout_constraints:
+        return bool(spec.layout_constraints.get("vendorUseFamilyEngine"))
+    return not _has_meaningful_component_grid(spec)
 
 
 def _locked_positions(
@@ -243,6 +250,8 @@ def _layout_diagram(
                     diagram.family,
                     reason,
                 )
+    if not _has_meaningful_geom_grid(fitted_lookup):
+        _infer_graph_hints(diagram, fitted_lookup)
     rail_meta = solve_rails(diagram, fitted_nodes, patch_locked=locked_positions)
     routes = route_edges(
         {node.id: node for node in fitted_nodes},
@@ -273,6 +282,11 @@ def _update_component_geometry(spec: DiagramSpec, node_lookup: dict[str, GeomNod
         component.y = float(node.y)
         component.width = float(node.w)
         component.height = float(node.h)
+        component.data = {
+            **component.data,
+            "rowHint": int(node.row),
+            "colHint": int(node.col),
+        }
         component.style = {**component.style, "fontSize": int(component.style.get("fontSize") or 18)}
 
 
@@ -485,6 +499,79 @@ def _component_kind(component_type: str, shape: str, data: dict) -> str:
     if shape == "ellipse":
         return "terminator"
     return "process"
+
+
+def _has_meaningful_component_grid(spec: DiagramSpec) -> bool:
+    explicit = False
+    rows: set[int] = set()
+    cols: set[int] = set()
+    for component in spec.components:
+        row_hint = component.data.get("rowHint")
+        col_hint = component.data.get("colHint")
+        if row_hint is None and col_hint is None:
+            continue
+        explicit = True
+        if row_hint is not None:
+            rows.add(_as_int(row_hint))
+        if col_hint is not None:
+            cols.add(_as_int(col_hint))
+    return explicit and (len(rows) > 1 or len(cols) > 1)
+
+
+def _has_meaningful_geom_grid(nodes: dict[str, GeomNode]) -> bool:
+    return len({node.row for node in nodes.values()}) > 1 or len(
+        {node.col for node in nodes.values()}
+    ) > 1
+
+
+def _node_sort_key(node: GeomNode) -> tuple[int, int, str, str]:
+    return (int(node.col), int(node.row), node.label.casefold(), node.id.casefold())
+
+
+def _infer_graph_hints(diagram: SemanticDiagram, nodes: dict[str, GeomNode]) -> None:
+    incoming: dict[str, int] = {node_id: 0 for node_id in nodes}
+    outgoing: dict[str, list[str]] = {node_id: [] for node_id in nodes}
+    for edge in diagram.edges:
+        if edge.src not in nodes or edge.dst not in nodes or edge.src == edge.dst:
+            continue
+        outgoing[edge.src].append(edge.dst)
+        incoming[edge.dst] += 1
+
+    queue = deque(
+        sorted(
+            (nodes[node_id] for node_id, degree in incoming.items() if degree == 0),
+            key=_node_sort_key,
+        )
+    )
+    layer_by_id: dict[str, int] = {node_id: 0 for node_id in nodes}
+    visited: set[str] = set()
+
+    while queue:
+        node = queue.popleft()
+        visited.add(node.id)
+        base_layer = layer_by_id[node.id]
+        for child_id in sorted(outgoing[node.id], key=lambda item: _node_sort_key(nodes[item])):
+            layer_by_id[child_id] = max(layer_by_id.get(child_id, 0), base_layer + 1)
+            incoming[child_id] -= 1
+            if incoming[child_id] == 0:
+                queue.append(nodes[child_id])
+
+    if len(visited) != len(nodes):
+        fallback_col = max(layer_by_id.values(), default=-1) + 1
+        for node in sorted(nodes.values(), key=_node_sort_key):
+            if node.id in visited:
+                continue
+            layer_by_id[node.id] = fallback_col
+            fallback_col += 1
+
+    buckets: dict[int, list[GeomNode]] = defaultdict(list)
+    for node in nodes.values():
+        buckets[layer_by_id.get(node.id, 0)].append(node)
+
+    for col, members in sorted(buckets.items()):
+        for row, node in enumerate(sorted(members, key=_node_sort_key)):
+            node.row = row
+            node.col = col
 
 
 def _as_int(value: object) -> int:
