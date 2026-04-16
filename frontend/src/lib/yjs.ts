@@ -404,7 +404,13 @@ export class ExcalidrawYjsManager {
         const index = this._findElementIndex(element.id);
         if (index >= 0) {
           const yMap = elementsArray.get(index);
-          Object.entries(element).forEach(([key, value]) => {
+          const nextEntries = new Map(Object.entries(element));
+          Array.from(yMap.keys()).forEach((key) => {
+            if (!nextEntries.has(String(key))) {
+              yMap.delete(key);
+            }
+          });
+          nextEntries.forEach((value, key) => {
             if (JSON.stringify(yMap.get(key)) !== JSON.stringify(value)) {
               yMap.set(key, value);
             }

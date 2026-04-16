@@ -111,7 +111,10 @@ class PersistentWebsocketServer(WebsocketServer):
             logger.info("created websocket room %s for room_id=%s", name, room_id)
             await self._load_room_data(room, room_id)
 
-        return self.rooms[name]
+        room = self.rooms[name]
+        # Keep parity with pycrdt-websocket: get_room() must return a started room.
+        await self.start_room(room)
+        return room
 
     async def _load_room_data(self, room: YRoom, room_id: str) -> None:
         """Replay the latest commit and newer updates into a fresh room."""
