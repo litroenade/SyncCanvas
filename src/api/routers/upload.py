@@ -6,7 +6,6 @@ from typing import Optional
 from fastapi import APIRouter, File, UploadFile, HTTPException, Header
 from fastapi.responses import FileResponse, JSONResponse
 from jose import JWTError, jwt
-from src.application.libraries.service import library_service
 from src.auth.utils import ALGORITHM
 from src.infra.config import config
 from src.infra.singleton_canvas import SINGLETON_USER_USERNAME
@@ -93,26 +92,19 @@ async def upload_image(
     try:
         with open(filepath, "wb") as f:
             f.write(content)
-        await library_service.index_uploaded_asset(
-            filename=filename,
-            original_name=file.filename or filename,
-            content_type=file.content_type or "application/octet-stream",
-            size=len(content),
-        )
+        # Library indexing is temporarily disabled.
+        # await library_service.index_uploaded_asset(
+        #     filename=filename,
+        #     original_name=file.filename or filename,
+        #     content_type=file.content_type or "application/octet-stream",
+        #     size=len(content),
+        # )
         logger.info(
             "鍥剧墖涓婁紶鎴愬姛: %s (%d bytes) by %s", filename, len(content), username
         )
     except OSError as e:
         logger.error("淇濆瓨鍥剧墖澶辫触: %s", e)
         raise HTTPException(status_code=500, detail="淇濆瓨鍥剧墖澶辫触") from e
-    except Exception as e:
-        if filepath.exists():
-            try:
-                filepath.unlink()
-            except OSError:
-                logger.warning("鍥剧墖绱㈠紩澶辫触鍚庢棤娉曞洖婊氬凡鍐欏叆鏂囦欢: %s", filepath)
-        logger.error("鍥剧墖绱㈠紩澶辫触: %s", e)
-        raise HTTPException(status_code=500, detail="鍥剧墖绱㈠紩澶辫触") from e
 
     # 杩斿洖鍙闂殑 URL
     return JSONResponse(
@@ -149,14 +141,12 @@ async def delete_image(filename: str, authorization: Optional[str] = Header(None
         raise HTTPException(status_code=404, detail="file_not_found")
 
     try:
-        library_service.remove_uploaded_asset(filename)
+        # Library indexing is temporarily disabled.
+        # library_service.remove_uploaded_asset(filename)
         os.remove(filepath)
         logger.info(f"鍥剧墖鍒犻櫎鎴愬姛: {filename} by {username}")
         return JSONResponse({"success": True})
     except OSError as e:
         logger.error(f"鍒犻櫎鍥剧墖澶辫触: {e}")
         raise HTTPException(status_code=500, detail="鍒犻櫎鍥剧墖澶辫触") from e
-    except Exception as e:
-        logger.error(f"鍒犻櫎鍥剧墖绱㈠紩澶辫触: {e}")
-        raise HTTPException(status_code=500, detail="鍒犻櫎鍥剧墖绱㈠紩澶辫触") from e
 

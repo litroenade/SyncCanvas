@@ -137,6 +137,7 @@ class DiagramService:
         session_id: str,
         theme: str,
         llm_client: Optional[LLMClient] = None,
+        llm_timeout_seconds: Optional[float] = None,
         persist: bool = True,
     ) -> DiagramPromptRunResult:
         family = self.route_family(prompt)
@@ -147,7 +148,12 @@ class DiagramService:
             persist,
             prompt,
         )
-        spec = await self._prompting.spec_from_llm(prompt, family, llm_client)
+        spec = await self._prompting.spec_from_llm(
+            prompt,
+            family,
+            llm_client,
+            timeout_seconds=llm_timeout_seconds,
+        )
         generation_mode: DiagramGenerationMode = "llm"
         if spec is None:
             generation_mode = "deterministic_seed"
@@ -217,6 +223,7 @@ class DiagramService:
         target_semantic_id: Optional[str] = None,
         edit_scope: str = "diagram",
         llm_client: Optional[LLMClient] = None,
+        llm_timeout_seconds: Optional[float] = None,
         persist: bool = True,
     ) -> DiagramPromptRunResult:
         doc, elements_array, existing = await self._store.load_room_bundle_for_update(
@@ -255,6 +262,7 @@ class DiagramService:
             target_semantic_id=resolved_target,
             edit_scope=edit_scope,
             llm_client=llm_client,
+            timeout_seconds=llm_timeout_seconds,
         )
         generation_mode: DiagramGenerationMode = "llm"
         if patch is None:

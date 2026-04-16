@@ -198,6 +198,7 @@ class AIService:
                         target_diagram_id=target_diagram_id,
                         target_semantic_id=target_semantic_id,
                         edit_scope=edit_scope,
+                        request_timeout_seconds=timeout_seconds,
                     ),
                     timeout_seconds,
                 )
@@ -371,6 +372,11 @@ class AIService:
             return await coro
         return await asyncio.wait_for(coro, timeout=timeout_seconds)
 
+    def _resolve_llm_timeout_seconds(self, request_timeout_seconds: Optional[float]) -> float:
+        if request_timeout_seconds is None:
+            return 90.0
+        return max(30.0, min(90.0, request_timeout_seconds * 0.75))
+
     async def _save_memory_safe(
         self,
         conversation_id: Optional[int],
@@ -489,16 +495,19 @@ class AIService:
         target_diagram_id: Optional[str],
         target_semantic_id: Optional[str],
         edit_scope: str,
+        request_timeout_seconds: Optional[float],
     ) -> Dict[str, Any]:
         start_time = time.time()
+        llm_timeout_seconds = self._resolve_llm_timeout_seconds(request_timeout_seconds)
         logger.debug(
-            "Managed diagram request start: room=%s run=%s target_diagram_id=%s target_semantic_id=%s edit_scope=%s virtual_mode=%s prompt=%s",
+            "Managed diagram request start: room=%s run=%s target_diagram_id=%s target_semantic_id=%s edit_scope=%s virtual_mode=%s llm_timeout_seconds=%.1f prompt=%s",
             session_id,
             run_id,
             target_diagram_id,
             target_semantic_id,
             edit_scope,
             virtual_mode,
+            llm_timeout_seconds,
             _preview_text(user_input, 500),
         )
         if target_diagram_id:
@@ -509,6 +518,7 @@ class AIService:
                 target_semantic_id=target_semantic_id,
                 edit_scope=edit_scope,
                 llm_client=self.llm_client,
+                llm_timeout_seconds=llm_timeout_seconds,
                 persist=not virtual_mode,
             )
         else:
@@ -517,6 +527,7 @@ class AIService:
                 session_id=session_id,
                 theme=theme,
                 llm_client=self.llm_client,
+                llm_timeout_seconds=llm_timeout_seconds,
                 persist=not virtual_mode,
             )
         bundle = diagram_result.bundle

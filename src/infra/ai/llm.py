@@ -95,7 +95,7 @@ class LLMClient:
 
     def __init__(self) -> None:
         self._clients: Dict[str, AsyncOpenAI] = {}
-        self._timeout_seconds = 30.0
+        self._timeout_seconds = 90.0
         logger.info("LLM client initialized")
 
     @property
@@ -143,6 +143,9 @@ class LLMClient:
             )
         return self._clients[cache_key]
 
+    def _is_config_enabled(self, cfg: LLMConfig) -> bool:
+        return bool(cfg.provider and cfg.model and cfg.base_url and cfg.api_key.strip())
+
     async def chat_completion(
         self,
         messages: List[ChatCompletionMessageParam],
@@ -155,8 +158,25 @@ class LLMClient:
         primary_conf, fallback_conf = self._get_config()
         start_time = time.time()
         effective_timeout = timeout if timeout is not None else self._timeout_seconds
+        enabled_configs: list[LLMConfig] = []
 
-        for index, conf in enumerate((primary_conf, fallback_conf)):
+        for conf in (primary_conf, fallback_conf):
+            if self._is_config_enabled(conf):
+                enabled_configs.append(conf)
+                continue
+            logger.warning(
+                "LLM provider skipped: provider=%s model=%s reason=missing_configuration",
+                conf.provider,
+                conf.model,
+            )
+
+        if not enabled_configs:
+            raise LLMRuntimeError(
+                "AI_CIRCUIT_OPEN: no configured LLM provider",
+                provider=primary_conf.provider,
+            )
+
+        for index, conf in enumerate(enabled_configs):
             provider = conf.provider
             breaker = ai_circuit_registry.get(provider)
             attempt = index + 1
@@ -276,11 +296,11 @@ class LLMClient:
 
         inc_counter(
             "llm_requests_total",
-            labels={"provider": fallback_conf.provider, "status": "all_failed"},
+            labels={"provider": enabled_configs[-1].provider, "status": "all_failed"},
         )
         raise LLMRuntimeError(
             "AI_CIRCUIT_OPEN: no available LLM provider",
-            provider=fallback_conf.provider,
+            provider=enabled_configs[-1].provider,
         )
 
     async def _call_completion(

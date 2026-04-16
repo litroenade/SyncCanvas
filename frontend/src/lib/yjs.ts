@@ -70,6 +70,11 @@ interface PendingSceneApply {
   createdAt: number;
 }
 
+export interface ConsumedSceneApply {
+  applied: boolean;
+  selection: ManagedDiagramTarget | null;
+}
+
 interface ReverseSyncEffect {
   changed: boolean;
   affectedSemanticIds: Set<string>;
@@ -558,25 +563,30 @@ export class ExcalidrawYjsManager {
     };
   }
 
-  consumeLocalSceneApply(elements: readonly ExcalidrawElement[]): ManagedDiagramTarget | null {
+  consumeLocalSceneApply(elements: readonly ExcalidrawElement[]): ConsumedSceneApply {
     const pending = this._pendingSceneApply;
-    if (!pending) return null;
+    if (!pending) {
+      return { applied: false, selection: null };
+    }
 
     if (Date.now() - pending.createdAt > LOCAL_SCENE_APPLY_TTL_MS) {
       this._pendingSceneApply = null;
-      return null;
+      return { applied: false, selection: null };
     }
 
     const currentIds = new Set(elements.map((element) => element.id));
     const hasExpectedElement = pending.elementIds.some((elementId) => currentIds.has(elementId));
     if (!hasExpectedElement) {
-      return null;
+      return { applied: false, selection: null };
     }
 
     this._pendingSceneApply = null;
-    return pending.selection
-      ? this.refreshManagedSelection(pending.selection) ?? pending.selection
-      : null;
+    return {
+      applied: true,
+      selection: pending.selection
+        ? this.refreshManagedSelection(pending.selection) ?? pending.selection
+        : null,
+    };
   }
 
   getDiagramBundle(diagramId: string): DiagramBundle | null {

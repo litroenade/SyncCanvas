@@ -586,6 +586,7 @@ class DiagramPromptService:
         prompt: str,
         family: str,
         llm_client: Optional[LLMClient],
+        timeout_seconds: Optional[float] = None,
     ) -> Optional[DiagramSpec]:
         if llm_client is None:
             return None
@@ -609,6 +610,7 @@ class DiagramPromptService:
                 messages=[{"role": "user", "content": rendered}],
                 temperature=0.2,
                 max_tokens=2400,
+                timeout=timeout_seconds,
             )
             raw_content = response.content or ""
             logger.debug(
@@ -654,6 +656,7 @@ class DiagramPromptService:
         target_semantic_id: Optional[str],
         edit_scope: str,
         llm_client: Optional[LLMClient],
+        timeout_seconds: Optional[float] = None,
     ) -> Optional[DiagramPatch]:
         if llm_client is None:
             return None
@@ -683,6 +686,7 @@ class DiagramPromptService:
                 messages=[{"role": "user", "content": rendered}],
                 temperature=0.1,
                 max_tokens=1800,
+                timeout=timeout_seconds,
             )
             raw_content = response.content or ""
             logger.debug(

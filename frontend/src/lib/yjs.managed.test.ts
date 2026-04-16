@@ -513,4 +513,25 @@ describe('ExcalidrawYjsManager managed diagram behavior', () => {
     expect(afterCrossUpdate?.diagramId).toBe('diagram_alpha');
     expect(afterCrossUpdate?.warningCount).toBe(0);
   });
+
+  it('consumes staged local scene apply even when no managed selection is available', () => {
+    const manager = createManager();
+
+    manager.stageLocalSceneApply(['preview-node-1'], null);
+
+    const consumed = manager.consumeLocalSceneApply([
+      {
+        id: 'preview-node-1',
+        type: 'rectangle',
+        x: 10,
+        y: 20,
+        width: 100,
+        height: 40,
+      },
+    ]);
+
+    expect(consumed.applied).toBe(true);
+    expect(consumed.selection).toBeNull();
+    expect(manager.consumeLocalSceneApply([]).applied).toBe(false);
+  });
 });

@@ -1,4 +1,4 @@
-import { viewportCoordsToSceneCoords } from '@excalidraw/excalidraw';
+import { CaptureUpdateAction, viewportCoordsToSceneCoords } from '@excalidraw/excalidraw';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 
 import type { DiagramBundle } from '../types';
@@ -117,10 +117,12 @@ export function applyManagedPreviewToCanvas(args: {
           }
           : { selectedElementIds }
       ) as UpdateSceneArgs['appState'],
+      captureUpdate: CaptureUpdateAction.NEVER,
     });
   } else {
     excalidrawAPI.updateScene({
       elements: [...existingElements, ...positionedElements] as unknown as UpdateSceneArgs['elements'],
+      captureUpdate: CaptureUpdateAction.NEVER,
       ...(viewportRepair
         ? { appState: viewportRepair as UpdateSceneArgs['appState'] }
         : {}),

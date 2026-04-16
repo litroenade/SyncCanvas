@@ -176,11 +176,13 @@ export const Canvas: React.FC<CanvasProps> = ({ roomId, roomName }) => {
   ) => {
     const syncedElements = newElements as unknown as HandleChangeElements;
     const syncedFiles = newFiles as unknown as HandleChangeFiles;
-    const localSceneApplySelection = yjsManager.consumeLocalSceneApply(
+    const localSceneApply = yjsManager.consumeLocalSceneApply(
       syncedElements as unknown as readonly ExcalidrawElement[],
     );
-    if (localSceneApplySelection) {
-      updateManagedSelection(localSceneApplySelection);
+    if (localSceneApply.applied) {
+      if (localSceneApply.selection) {
+        updateManagedSelection(localSceneApply.selection);
+      }
       handleChange(syncedElements, appState as unknown as HandleChangeAppState, syncedFiles, {
         skipYjsSync: true,
         skipManagedReverseSync: true,
