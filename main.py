@@ -1,73 +1,116 @@
-"""SyncCanvas 主应用模块
 
-提供 FastAPI 应用实例、WebSocket 集成和静态文件服务。
-"""
-
-import os
-import subprocess
+import asyncio
 from contextlib import asynccontextmanager
+from time import monotonic
+from typing import Any
+from uuid import uuid4
 
-import uvicorn
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from src.db.database import init_db
-from src.ws.sync import websocket_server, asgi_server
-from src.ws.message_router import message_router
-from src.agent.lib.utils import async_task_manager
-from src.config import config
-from src.logger import get_logger, setup_logging
-from src.auth.router import router as auth_router
-from src.routers.ai import router as ai_router
-from src.routers.upload import router as upload_router
-from src.routers.rooms import router as rooms_router
-from src.routers.version_control import router as version_control_router
-from src.routers.config import router as config_router
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse, PlainTextResponse
+from starlette.middleware.cors import CORSMiddleware
 
-setup_logging()
-logger = get_logger(__name__)
+from src.api.frontend import register_frontend_routes
+from src.api.routers import (
+    ai_router,
+    admin_router,
+    auth_router,
+    config_router,
+    rooms_router,
+    upload_router,
+    version_control_router,
+)
+from src.infra.config import config
+from src.infra.metrics import inc_counter, observe_ms, prom_text
+from src.infra.singleton_canvas import bootstrap_singleton_canvas
+from src.infra.startup import (
+    ensure_bind_available,
+    resolve_server_host,
+    resolve_server_port,
+    resolve_server_reload,
+)
+from src.infra.logging import get_logger, setup_logging
+from src.middleware.rate_limit import RateLimitMiddleware
+from src.api.policy import PolicyErrorCode, normalize_http_exception
+from src.persistence.db.engine import init_db
+from src.realtime.yjs.server import asgi_server, background_compaction_task, websocket_server
+from starlette.applications import Starlette
+
+app_logger = get_logger(__name__)
+
+
+def _normalize_error_code(status_code: int, detail: Any) -> str:
+    if isinstance(detail, str):
+        if detail in {
+            "authentication_required",
+            "invalid_token",
+            PolicyErrorCode.AUTHZ_DENIED,
+        }:
+            return PolicyErrorCode.AUTHZ_DENIED
+        if detail == PolicyErrorCode.RATE_LIMIT_EXCEEDED:
+            return PolicyErrorCode.RATE_LIMIT_EXCEEDED
+        if detail in {"room_not_found", "ROOM_NOT_FOUND", "run_not_found"}:
+            return PolicyErrorCode.ROOM_NOT_FOUND
+        if detail in {"room_membership_required", "room_owner_required", "room_not_accessible"}:
+            return PolicyErrorCode.ROOM_MEMBERSHIP_REQUIRED
+        if detail == PolicyErrorCode.AI_CIRCUIT_OPEN:
+            return PolicyErrorCode.AI_CIRCUIT_OPEN
+        if detail == PolicyErrorCode.TXN_ROLLBACK:
+            return PolicyErrorCode.TXN_ROLLBACK
+
+    if status_code == 401 or status_code == 403:
+        return PolicyErrorCode.AUTHZ_DENIED
+    if status_code == 404:
+        return PolicyErrorCode.ROOM_NOT_FOUND
+    return "INTERNAL_ERROR"
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI):
-    """应用生命周期管理
+async def lifespan(_app):
+    websocket_task: asyncio.Task[None] | None = None
+    bg_task: asyncio.Task[None] | None = None
 
-    Args:
-        _app: FastAPI 应用实例（未使用）
-    """
-    # 启动时初始化数据库
-    logger.info("初始化数据库")
+    setup_logging()
     init_db()
+    bootstrap_singleton_canvas()
+    websocket_task = asyncio.create_task(websocket_server.start())
+    started_wait = asyncio.create_task(websocket_server.started.wait())
+    done, _ = await asyncio.wait(
+        {websocket_task, started_wait},
+        return_when=asyncio.FIRST_COMPLETED,
+    )
+    if websocket_task in done:
+        await websocket_task
+        raise RuntimeError("Websocket server exited before startup completed")
+    await started_wait
+    app_logger.info("Starting SyncCanvas service")
 
-    # 启动 pycrdt-websocket 服务器
-    async with websocket_server:
-        # 启动消息路由器
-        await message_router.start()
-        logger.info("消息路由器已启动")
-
-        # 启动后台任务
-        await async_task_manager.start_all()
-
-        logger.info("服务器启动完成")
-
+    bg_task = asyncio.create_task(background_compaction_task())
+    try:
         yield
+    finally:
+        if bg_task is not None:
+            bg_task.cancel()
+            try:
+                await bg_task
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                pass
+        if websocket_task is not None and not websocket_task.done():
+            try:
+                await websocket_server.stop()
+            except RuntimeError:
+                websocket_task.cancel()
+        if websocket_task is not None:
+            try:
+                await websocket_task
+            except asyncio.CancelledError:
+                pass
+        app_logger.info("Shutdown SyncCanvas service")
 
-        # 关闭时清理
-        logger.info("服务器正在关闭")
-        await async_task_manager.stop_all()
-        await message_router.stop()
 
+app = FastAPI(title="SyncCanvas", version=config.version, lifespan=lifespan)
 
-# 创建 FastAPI 应用
-app = FastAPI(
-    title="SyncCanvas",
-    description="基于 CRDT 的实时协作白板系统",
-    version="0.1.0",
-    lifespan=lifespan,
-)
-
-# 挂载中间件 (CORS 等)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=config.allowed_origins,
@@ -75,109 +118,154 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RateLimitMiddleware)
 
-# 注册路由 (所有 API 都使用 /api 前缀)
-app.include_router(auth_router, prefix="/api")
 app.include_router(ai_router, prefix="/api")
-app.include_router(upload_router)  # upload_router 自带 /api/upload 前缀
+# Single-instance mode keeps auth helpers in codebase, but disables the login entrypoint.
+# app.include_router(auth_router, prefix="/api")
+# The current UI still depends on room-scoped HTTP APIs for history and managed diagram rebuilds.
 app.include_router(rooms_router, prefix="/api")
-app.include_router(version_control_router, prefix="/api/rooms")
+app.include_router(version_control_router, prefix="/api")
 app.include_router(config_router, prefix="/api")
+app.include_router(upload_router)
+app.include_router(admin_router)
 
 
-# 挂载 pycrdt-websocket 的 ASGI 服务器到 /ws 路径
-app.mount("/ws", asgi_server)  # type: ignore[arg-type]
-
-
-# 图片上传目录
-IMAGES_DIR = os.path.join(os.path.dirname(__file__), "data", "images")
-os.makedirs(IMAGES_DIR, exist_ok=True)
-
-# 挂载图片静态服务
-app.mount("/api/images", StaticFiles(directory=IMAGES_DIR), name="images")
-
-# 前端构建产物路径
-FRONTEND_DIST_DIR = os.path.join(os.path.dirname(__file__), "frontend", "dist")
-FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "frontend")
-
-
-def build_frontend():
-    """自动构建前端"""
-
-    logger.info("检测到前端构建目录不存在，开始自动构建...")
+@app.middleware("http")
+async def request_context_middleware(request: Request, call_next):
+    request_id = request.headers.get("x-request-id", str(uuid4()))
+    request.state.request_id = request_id
+    started_at = monotonic()
 
     try:
-        # 检查是否有 pnpm
-        result = subprocess.run(
-            ["pnpm", "--version"],
-            capture_output=True,
-            text=True,
-            cwd=FRONTEND_DIR,
-            shell=True,
-            check=False,
+        response = await call_next(request)
+    except Exception:
+        elapsed_ms = (monotonic() - started_at) * 1000
+        route = request.scope.get("route")
+        path = getattr(route, "path", request.url.path)
+        inc_counter(
+            "http_requests_total",
+            labels={
+                "method": request.method,
+                "path": path,
+                "status": "500",
+                "outcome": "exception",
+            },
         )
-        if result.returncode != 0:
-            logger.warning("未找到 pnpm，尝试使用 npm")
-            pkg_manager = "npm"
-        else:
-            pkg_manager = "pnpm"
-
-        # 安装依赖
-        logger.info("使用 %s 安装依赖...", pkg_manager)
-        subprocess.run(
-            [pkg_manager, "install"],
-            cwd=FRONTEND_DIR,
-            check=True,
-            shell=True,
+        observe_ms(
+            "http_request_duration_ms",
+            elapsed_ms,
+            {"method": request.method, "path": path, "status": "500"},
         )
-
-        # 构建
-        logger.info("使用 %s 构建前端...", pkg_manager)
-        subprocess.run(
-            [pkg_manager, "run", "build"],
-            cwd=FRONTEND_DIR,
-            check=True,
-            shell=True,
+        app_logger.exception(
+            "Unhandled request error",
+            extra={
+                "trace_id": request_id,
+                "path": request.url.path,
+                "method": request.method,
+                "latency_ms": round(elapsed_ms, 2),
+            },
         )
+        raise
 
-        logger.info("前端构建完成！")
-        return True
-    except subprocess.CalledProcessError as e:
-        logger.error("前端构建失败: %s", e)
-        return False
-    except FileNotFoundError as e:
-        logger.error("包管理器未找到: %s", e)
-        return False
+    elapsed_ms = (monotonic() - started_at) * 1000
+    route = request.scope.get("route")
+    path = getattr(route, "path", request.url.path)
+    inc_counter(
+        "http_requests_total",
+        labels={
+            "method": request.method,
+            "path": path,
+            "status": str(response.status_code),
+            "outcome": "success",
+        },
+    )
+    observe_ms(
+        "http_request_duration_ms",
+        elapsed_ms,
+        {"method": request.method, "path": path, "status": str(response.status_code)},
+    )
+    response.headers["X-Request-ID"] = request_id
+    for header_name, header_value in getattr(request.state, "rate_limit_headers", {}).items():
+        response.headers[header_name] = header_value
+    return response
 
 
-# 检查前端构建目录，如果不存在则自动构建
-if not os.path.exists(FRONTEND_DIST_DIR):
-    build_frontend()
+@app.exception_handler(HTTPException)
+async def policy_http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    request_id = request.state.request_id if hasattr(request.state, "request_id") else None
+    normalized = normalize_http_exception(exc, use_legacy_detail=False)
+    detail = normalized.detail
+    if isinstance(detail, dict):
+        payload = dict(detail)
+        payload.setdefault("request_id", str(request_id))
+        payload.setdefault("trace_id", str(request_id))
+        payload.setdefault("path", request.url.path)
+        payload.setdefault("status_code", str(normalized.status_code))
+        if request_id is None:
+            payload.setdefault("request_id", str(request_id))
+        return JSONResponse(status_code=normalized.status_code, content=payload)
 
-if os.path.exists(FRONTEND_DIST_DIR):
-    # 挂载静态资源 (assets 目录)
-    assets_dir = os.path.join(FRONTEND_DIST_DIR, "assets")
-    if os.path.exists(assets_dir):
-        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+    if not isinstance(detail, str):
+        detail = str(detail)
 
-    # SPA fallback: 所有未匹配的路由返回 index.html
-    @app.get("/{full_path:path}")
-    async def serve_spa(_request: Request, full_path: str):
-        """处理 SPA 路由，返回 index.html"""
-        # 如果是请求静态文件（有文件扩展名），尝试返回对应文件
-        if "." in full_path:
-            file_path = os.path.join(FRONTEND_DIST_DIR, full_path)
-            if os.path.isfile(file_path):
-                return FileResponse(file_path)
-        # 否则返回 index.html (SPA fallback)
-        index_path = os.path.join(FRONTEND_DIST_DIR, "index.html")
-        return FileResponse(index_path)
-else:
-    logger.warning(
-        "前端构建目录不存在: %s，无法提供静态文件服务。请先运行 'pnpm build'。",
-        FRONTEND_DIST_DIR,
+    code = _normalize_error_code(normalized.status_code, detail)
+    if code in {
+        PolicyErrorCode.AUTHZ_DENIED,
+        PolicyErrorCode.RATE_LIMIT_EXCEEDED,
+        PolicyErrorCode.ROOM_NOT_FOUND,
+        PolicyErrorCode.ROOM_MEMBERSHIP_REQUIRED,
+        PolicyErrorCode.AI_CIRCUIT_OPEN,
+        PolicyErrorCode.TXN_ROLLBACK,
+    }:
+        payload = {
+            "code": code,
+            "message": detail,
+            "request_id": request_id,
+            "trace_id": request_id,
+            "path": request.url.path,
+            "status_code": normalized.status_code,
+        }
+        return JSONResponse(status_code=normalized.status_code, content=payload)
+
+    return JSONResponse(
+        status_code=normalized.status_code,
+        content={"detail": detail, "request_id": request_id, "trace_id": request_id},
     )
 
 
+@app.get("/internal/healthz")
+def internal_healthz():
+    """Process-level health probe."""
+
+    return {"status": "ok", "version": config.version}
+
+
+@app.get("/metrics", response_class=PlainTextResponse)
+def metrics_endpoint() -> str:
+    """Prometheus compatible metrics payload."""
+
+    return prom_text()
+
+
+if callable(asgi_server):
+    ws_app = asgi_server
+else:
+    ws_app = Starlette(routes=[])
+app.mount("/ws", ws_app)  # type: ignore
+register_frontend_routes(app)
+
+
 if __name__ == "__main__":
-    uvicorn.run(app, host=config.host, port=config.port)
+    import uvicorn
+
+    host = resolve_server_host()
+    port = resolve_server_port()
+    reload_enabled = resolve_server_reload()
+    ensure_bind_available(host, port)
+    uvicorn.run(
+        "main:app",
+        host=host,
+        port=port,
+        reload=reload_enabled,
+    )

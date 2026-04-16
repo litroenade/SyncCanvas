@@ -42,7 +42,6 @@ export interface ModelConfig {
     presence_penalty?: number | null;
     frequency_penalty?: number | null;
     extra_body?: string | null;
-    enable_vision?: boolean;
     enable_cot?: boolean;
 }
 
@@ -50,7 +49,6 @@ export interface ModelConfig {
 export interface ModelGroup {
     name: string;
     chat_model: ModelConfig;
-    vision_model?: ModelConfig | null;
     embedding_model?: ModelConfig | null;
 }
 

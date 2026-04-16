@@ -1,7 +1,9 @@
 import { useState } from 'react'
-import { X, Sparkles, Loader2 } from 'lucide-react'
-import { aiApi } from '../../services/api/ai'
+import { Loader2, Sparkles, X } from 'lucide-react'
+
+import { useI18n } from '../../i18n'
 import { cn } from '../../lib/utils'
+import { aiApi } from '../../services/api/ai'
 import { yjsManager } from '../../lib/yjs'
 
 interface AIGenerateModalProps {
@@ -9,20 +11,16 @@ interface AIGenerateModalProps {
   onClose: () => void
 }
 
-/**
- * AI 生成模态框
- * 
- * 提供用户输入提示词并调用 AI 生成图形的界面。
- */
 export function AIGenerateModal({ isOpen, onClose }: AIGenerateModalProps) {
+  const { t } = useI18n()
   const [prompt, setPrompt] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   if (!isOpen) return null
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
     if (!prompt.trim()) return
 
     setLoading(true)
@@ -31,7 +29,7 @@ export function AIGenerateModal({ isOpen, onClose }: AIGenerateModalProps) {
     try {
       const roomId = yjsManager.roomId
       if (!roomId) {
-        setError('未连接到房间')
+        setError(t('aiGenerateModal.roomUnavailable'))
         return
       }
       await aiApi.generateShapes(prompt, roomId)
@@ -39,7 +37,7 @@ export function AIGenerateModal({ isOpen, onClose }: AIGenerateModalProps) {
       setPrompt('')
     } catch (err) {
       console.error(err)
-      setError('生成失败，请稍后重试')
+      setError(t('aiGenerateModal.generateFailed'))
     } finally {
       setLoading(false)
     }
@@ -47,15 +45,17 @@ export function AIGenerateModal({ isOpen, onClose }: AIGenerateModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-white/90 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-6 m-4 animate-in fade-in zoom-in duration-200">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2 text-indigo-600">
+      <div className="m-4 w-full max-w-md animate-in zoom-in rounded-2xl border border-white/20 bg-white/90 p-6 shadow-2xl backdrop-blur-xl fade-in duration-200 dark:border-zinc-700/60 dark:bg-zinc-900/95">
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-300">
             <Sparkles size={24} />
-            <h2 className="text-xl font-bold">AI 智能绘图</h2>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-zinc-100">
+              {t('aiGenerateModal.title')}
+            </h2>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+            className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
           >
             <X size={20} />
           </button>
@@ -63,20 +63,20 @@ export function AIGenerateModal({ isOpen, onClose }: AIGenerateModalProps) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              描述你想画的内容
+            <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-zinc-200">
+              {t('aiGenerateModal.promptLabel')}
             </label>
             <textarea
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="例如：画一个登录页面的线框图，包含用户名、密码输入框和登录按钮..."
-              className="w-full h-32 px-4 py-3 text-slate-700 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white resize-none transition-all"
+              onChange={(event) => setPrompt(event.target.value)}
+              placeholder={t('aiGenerateModal.promptPlaceholder')}
+              className="h-32 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-700 transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:bg-zinc-900"
               disabled={loading}
             />
           </div>
 
           {error && (
-            <div className="p-3 bg-rose-50 text-rose-600 text-sm rounded-lg flex items-center gap-2">
+            <div className="flex items-center gap-2 rounded-lg bg-rose-50 p-3 text-sm text-rose-600 dark:bg-rose-950/40 dark:text-rose-200">
               <X size={14} />
               {error}
             </div>
@@ -86,29 +86,32 @@ export function AIGenerateModal({ isOpen, onClose }: AIGenerateModalProps) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors font-medium"
+              className="rounded-lg px-4 py-2 font-medium text-slate-600 transition-colors hover:bg-slate-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
               disabled={loading}
             >
-              取消
+              {t('aiGenerateModal.cancel')}
             </button>
             <button
               type="submit"
               disabled={loading || !prompt.trim()}
               className={cn(
-                "flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg font-medium transition-all shadow-lg shadow-indigo-500/30",
-                loading ? "opacity-70 cursor-not-allowed" : "hover:bg-indigo-700 hover:scale-105 active:scale-95",
-                !prompt.trim() && "opacity-50 cursor-not-allowed hover:bg-indigo-600 hover:scale-100"
+                'flex items-center gap-2 rounded-lg bg-indigo-600 px-6 py-2 font-medium text-white shadow-lg shadow-indigo-500/30 transition-all dark:bg-indigo-500 dark:shadow-indigo-950/40',
+                loading
+                  ? 'cursor-not-allowed opacity-70'
+                  : 'hover:scale-105 hover:bg-indigo-700 active:scale-95 dark:hover:bg-indigo-400',
+                !prompt.trim()
+                  && 'cursor-not-allowed opacity-50 hover:scale-100 hover:bg-indigo-600 dark:hover:bg-indigo-500',
               )}
             >
               {loading ? (
                 <>
                   <Loader2 size={18} className="animate-spin" />
-                  正在生成...
+                  {t('aiGenerateModal.generating')}
                 </>
               ) : (
                 <>
                   <Sparkles size={18} />
-                  开始生成
+                  {t('aiGenerateModal.submit')}
                 </>
               )}
             </button>
@@ -118,4 +121,3 @@ export function AIGenerateModal({ isOpen, onClose }: AIGenerateModalProps) {
     </div>
   )
 }
-

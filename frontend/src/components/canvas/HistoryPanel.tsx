@@ -1,711 +1,1051 @@
-/**
- * 模块名称: HistoryPanel
- * 主要功能: Git 风格的版本历史面板
- */
-
-import React, { useEffect, useState, useCallback } from 'react'
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import {
-  GitBranch,
-  Save,
-  RefreshCw,
-  Clock,
-  ChevronRight,
-  RotateCcw,
-  User,
-  MessageSquare,
   Check,
+  ChevronRight,
+  Clock,
+  Copy,
+  GitBranch,
+  MessageSquare,
+  RefreshCw,
+  RotateCcw,
+  Save,
   Shapes,
-} from 'lucide-react'
-import { cn } from '../../lib/utils'
-import { useThemeStore } from '../../stores/useThemeStore'
-import { roomsApi, HistoryResponse, CommitInfo, CreateCommitRequest, CommitDetailResponse } from '../../services/api/rooms'
-import { useModal } from '../common/Modal'
-import { ContextMenu } from '../common/ContextMenu'
-import { yjsManager } from '../../lib/yjs'
+  ScanSearch,
+  GitCompare,
+  User,
+} from 'lucide-react';
+
+import { cn } from '../../lib/utils';
+import { getDiagramFamilyLabel } from '../../lib/diagramRegistry';
+import { getManagedDiagramStateLabel } from '../../lib/managedDiagramStatus';
+import { useI18n } from '../../i18n';
+import { getRequestErrorMessage } from '../../services/api/axios';
+import { useThemeStore } from '../../stores/useThemeStore';
+import {
+  roomsApi,
+  type CommitDetailResponse,
+  type CommitInfo,
+  type CreateCommitRequest,
+  type HistoryResponse,
+  type CommitDiffResponse,
+} from '../../services/api/rooms';
+import { useModal } from '../common/Modal';
+import { yjsManager } from '../../lib/yjs';
+import { CollabEventsPanel } from './CollabEventsPanel';
 
 interface HistoryPanelProps {
-  /** 房间 ID */
-  roomId: string
+  roomId: string;
 }
+
+type HistoryView = 'versions' | 'events';
 
 const formatSize = (bytes: number): string => {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
 
-const formatRelativeTime = (timestamp: number): string => {
-  const diff = Date.now() - timestamp
-  const minutes = Math.floor(diff / (60 * 1000))
-  const hours = Math.floor(diff / (60 * 60 * 1000))
-  const days = Math.floor(diff / (24 * 60 * 60 * 1000))
+const formatSignedSize = (bytes: number): string => {
+  if (bytes === 0) return '0 B';
+  return `${bytes > 0 ? '+' : '-'}${formatSize(Math.abs(bytes))}`;
+};
 
-  if (minutes < 1) return '刚刚'
-  if (minutes < 60) return `${minutes} 分钟前`
-  if (hours < 24) return `${hours} 小时前`
-  if (days < 7) return `${days} 天前`
-  return new Date(timestamp).toLocaleDateString('zh-CN')
-}
+const summarizeDetail = (detail: CommitDetailResponse) => {
+  const familySummary = Object.entries(detail.diagram_families)
+    .map(([family, count]) => `${getDiagramFamilyLabel(family)}: ${count}`)
+    .join(', ');
+  const managedSummary = Object.entries(detail.managed_states)
+    .map(([state, count]) => {
+      const label = getManagedDiagramStateLabel(
+        state as Parameters<typeof getManagedDiagramStateLabel>[0],
+      ) || state;
+      return `${label}: ${count}`;
+    })
+    .join(', ');
 
-const formatFullTime = (timestamp: number): string => {
-  return new Date(timestamp).toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
-}
+  return { familySummary, managedSummary };
+};
 
 export const HistoryPanel: React.FC<HistoryPanelProps> = ({ roomId }) => {
-  const { theme } = useThemeStore()
-  const [history, setHistory] = useState<HistoryResponse | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [committing, setCommitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [expandedId, setExpandedId] = useState<number | null>(null)
-  const [showCommitDialog, setShowCommitDialog] = useState(false)
-  const [commitMessage, setCommitMessage] = useState('')
-  const [revertingId, setRevertingId] = useState<number | null>(null)
-  const [diffCommitId, setDiffCommitId] = useState<number | null>(null)
-  const [hasLocalChanges, setHasLocalChanges] = useState(false)
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; commit: CommitInfo } | null>(null)
+  const { theme } = useThemeStore();
+  const { t } = useI18n();
+  const { showAlert, showConfirm, showToast, ModalRenderer } = useModal();
 
-  const { showAlert, showConfirm, showToast, ModalRenderer } = useModal()
-
-  // 监听本地更改
-  useEffect(() => {
-    if (!roomId) return
-
-    const elementsArray = yjsManager.elementsArray
-    if (!elementsArray) return
-
-    const handleChange = () => setHasLocalChanges(true)
-    elementsArray.observeDeep(handleChange)
-
-    return () => elementsArray.unobserveDeep(handleChange)
-  }, [roomId])
-
+  const [activeView, setActiveView] = useState<HistoryView>('versions');
+  const [history, setHistory] = useState<HistoryResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [committing, setCommitting] = useState(false);
+  const [commitMessage, setCommitMessage] = useState('');
+  const [showCommitDialog, setShowCommitDialog] = useState(false);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [revertingId, setRevertingId] = useState<number | null>(null);
+  const [hasLocalChanges, setHasLocalChanges] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [compareBaseId, setCompareBaseId] = useState<number | null>(null);
+  const [compareTargetId, setCompareTargetId] = useState<number | null>(null);
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [compareError, setCompareError] = useState<string | null>(null);
+  const [compareDiff, setCompareDiff] = useState<CommitDiffResponse | null>(null);
 
   const loadHistory = useCallback(async () => {
-    if (!roomId) return
+    if (!roomId) return;
 
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
     try {
-      const data = await roomsApi.getHistory(roomId)
-      setHistory(data)
-    } catch (err: any) {
-      console.error('加载历史失败:', err)
-      setError(err.response?.data?.detail || '加载失败')
+      const data = await roomsApi.getHistory(roomId);
+      setHistory(data);
+    } catch (loadError) {
+      const message = getRequestErrorMessage(loadError, t('history.loadFailed'));
+      console.error('[HistoryPanel] load failed:', loadError);
+      setError(message);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [roomId])
+  }, [roomId, t]);
 
-  // 监听 Awareness 变更
+  const clearCompareSelection = useCallback(() => {
+    setCompareBaseId(null);
+    setCompareTargetId(null);
+    setCompareDiff(null);
+    setCompareError(null);
+  }, []);
+
+  const setCompareBase = useCallback((commitId: number) => {
+    setCompareBaseId((current) => {
+      if (current === commitId) {
+        return null;
+      }
+      return commitId;
+    });
+    setCompareError(null);
+  }, []);
+
+  const setCompareTarget = useCallback((commitId: number) => {
+    setCompareTargetId((current) => {
+      if (current === commitId) {
+        return null;
+      }
+      return commitId;
+    });
+    setCompareError(null);
+  }, []);
+
+  const handleCompareCommits = useCallback(async () => {
+    if (!roomId || compareTargetId == null) return;
+
+    setCompareLoading(true);
+    setCompareError(null);
+    try {
+      const diff = await roomsApi.getCommitDiff(
+        roomId,
+        compareTargetId,
+        compareBaseId ?? undefined,
+      );
+      setCompareDiff(diff);
+    } catch (compareErr) {
+      const message = getRequestErrorMessage(compareErr, t('history.compareFailed'));
+      console.error('[HistoryPanel] compare failed:', compareErr);
+      setCompareError(message);
+      setCompareDiff(null);
+    } finally {
+      setCompareLoading(false);
+    }
+  }, [compareBaseId, compareTargetId, roomId, t]);
+
   useEffect(() => {
-    if (!roomId) return
+    if (!roomId) return;
 
-    const awareness = yjsManager.getAwareness()
-    if (!awareness) return
+    const observedTargets = [
+      yjsManager.elementsArray,
+      yjsManager.diagramSpecsMap,
+      yjsManager.diagramManifestsMap,
+      yjsManager.diagramStateMap,
+      yjsManager.diagramIndexMap,
+    ].filter(Boolean);
+
+    if (observedTargets.length === 0) return;
+
+    const handleChange = () => setHasLocalChanges(true);
+    observedTargets.forEach((target) => target!.observeDeep(handleChange));
+
+    return () => {
+      observedTargets.forEach((target) => target!.unobserveDeep(handleChange));
+    };
+  }, [roomId]);
+
+  useEffect(() => {
+    if (!roomId) return;
+
+    const awareness = yjsManager.getAwareness();
+    if (!awareness) return;
 
     const handleAwarenessChange = () => {
-      const states = awareness.getStates()
-      states.forEach((state: any) => {
-        if (state?.historyChanged && state.historyChanged > Date.now() - 5000) {
-          loadHistory()
+      const states = awareness.getStates();
+      states.forEach((state: Record<string, unknown>) => {
+        const historyChanged = state?.historyChanged;
+        if (typeof historyChanged === 'number' && historyChanged > Date.now() - 5000) {
+          loadHistory();
         }
-      })
-    }
+      });
+    };
 
-    awareness.on('change', handleAwarenessChange)
-    return () => awareness.off('change', handleAwarenessChange)
-  }, [roomId, loadHistory])
-
-  const handleCommit = async () => {
-    if (!roomId || committing) return
-
-    setCommitting(true)
-    try {
-      let authorName = 'Anonymous';
-      const storedUsername = localStorage.getItem('username');
-      if (storedUsername) {
-        authorName = storedUsername;
-      } else {
-        const tempName = localStorage.getItem('temp_username');
-        if (tempName) {
-          authorName = tempName;
-        }
-      }
-
-      const request: CreateCommitRequest = {
-        message: commitMessage.trim() || '手动保存',
-        author_name: authorName
-      }
-      await roomsApi.createCommit(roomId, request)
-      setCommitMessage('')
-      setShowCommitDialog(false)
-      setHasLocalChanges(false)
-
-      const awareness = yjsManager.getAwareness()
-      if (awareness) {
-        awareness.setLocalStateField('historyChanged', Date.now())
-      }
-
-      await loadHistory()
-    } catch (err: any) {
-      console.error('创建提交失败:', err)
-      setError(err.response?.data?.detail || '提交失败')
-    } finally {
-      setCommitting(false)
-    }
-  }
-
-  const handleRevert = (commitId: number) => {
-    if (!roomId || revertingId !== null) return
-
-    showConfirm(
-      '确定要回滚到此版本吗？当前未保存的更改将丢失。',
-      async () => {
-        setRevertingId(commitId)
-        try {
-          await roomsApi.revertToCommit(roomId, commitId)
-          await loadHistory()
-          showToast('已回滚到指定版本，即将刷新页面...', 'success')
-          setTimeout(() => window.location.reload(), 1500)
-        } catch (err: any) {
-          console.error('回滚失败:', err)
-          setError(err.response?.data?.detail || '回滚失败')
-          showAlert(err.response?.data?.detail || '回滚失败', { type: 'error', title: '回滚失败' })
-        } finally {
-          setRevertingId(null)
-        }
-      },
-      { title: '确认回滚', type: 'danger' }
-    )
-  }
-
-  const handleCheckout = (commitId: number, commitHash: string) => {
-    if (!roomId) return
-
-    showConfirm(
-      '检出此版本将丢弃当前未保存的更改，确定继续吗？',
-      async () => {
-        try {
-          await roomsApi.checkoutCommit(roomId, commitId)
-          await loadHistory()
-          showToast(`已检出到 ${commitHash}，即将刷新页面...`, 'success')
-          setTimeout(() => window.location.reload(), 1500)
-        } catch (err: any) {
-          console.error('检出失败:', err)
-          showAlert(err.response?.data?.detail || '检出失败', { type: 'error', title: '检出失败' })
-        }
-      },
-      { title: '确认检出', type: 'warning' }
-    )
-  }
-
-  // 预览暂不支持 - Excalidraw 全量数据恢复较复杂，需要重新设计预览接口
-  const handlePreviewStart = async () => {
-    console.log('Excalidraw 历史预览暂不支持');
-  }
-
-  const handlePreviewEnd = () => {
-    // no-op
-  }
+    awareness.on('change', handleAwarenessChange);
+    return () => awareness.off('change', handleAwarenessChange);
+  }, [roomId, loadHistory]);
 
   useEffect(() => {
-    loadHistory()
-    const interval = setInterval(loadHistory, 10000)
-    return () => clearInterval(interval)
-  }, [loadHistory])
+    loadHistory();
+    const interval = window.setInterval(loadHistory, 10000);
+    return () => window.clearInterval(interval);
+  }, [loadHistory]);
 
-  if (loading && !history) {
-    return (
-      <div className={cn('p-4 text-center text-sm', theme === 'dark' ? 'text-slate-500' : 'text-slate-400')}>
-        加载中...
-      </div>
-    )
-  }
+  useEffect(() => {
+    if (!history) return;
+    const availableIds = new Set(history.commits.map((commit) => commit.id));
 
-  if (error && !history) {
-    return (
-      <div className={cn('p-4 text-center text-sm', theme === 'dark' ? 'text-red-400' : 'text-red-500')}>
-        {error}
-      </div>
-    )
-  }
-
-  const hasUncommittedChanges = (history && history.pending_changes > 0) || hasLocalChanges
-
-  const handleContextMenu = (e: React.MouseEvent, commit: CommitInfo) => {
-    e.preventDefault()
-    setContextMenu({
-      x: e.clientX,
-      y: e.clientY,
-      commit
-    })
-  }
-
-  const handleCopyHash = async (hash: string) => {
-    try {
-      await navigator.clipboard.writeText(hash)
-      showToast('提交哈希已复制', 'success')
-    } catch (err) {
-      showToast('复制失败', 'error')
+    if (compareTargetId !== null && !availableIds.has(compareTargetId)) {
+      setCompareTargetId(null);
     }
-  }
+    if (compareBaseId !== null && !availableIds.has(compareBaseId)) {
+      setCompareBaseId(null);
+    }
+    if ((compareBaseId !== null && compareTargetId === compareBaseId)) {
+      setCompareBaseId(null);
+    }
+    if (compareTargetId == null) {
+      setCompareDiff(null);
+    }
+  }, [compareBaseId, compareTargetId, history]);
 
-  return (
-    <div className="flex flex-col h-full" onClick={() => setContextMenu(null)}>
-      {/* 头部操作栏 */}
-      <div className={cn(
-        'flex items-center justify-between px-3 py-2 border-b',
-        theme === 'dark' ? 'border-slate-700 bg-slate-900/50' : 'border-slate-200 bg-slate-50'
-      )}>
-        <div className="flex items-center gap-2">
-          <GitBranch size={14} className={theme === 'dark' ? 'text-slate-400' : 'text-slate-500'} />
-          <span className={cn('text-xs font-medium', theme === 'dark' ? 'text-slate-300' : 'text-slate-600')}>
-            main
-          </span>
-          {history?.head_commit_id && (
-            <code className={cn('text-[10px] font-mono', theme === 'dark' ? 'text-blue-400' : 'text-blue-600')}>
-              HEAD
-            </code>
+  const notifyHistoryChanged = useCallback(() => {
+    const awareness = yjsManager.getAwareness();
+    if (awareness) {
+      awareness.setLocalStateField('historyChanged', Date.now());
+    }
+  }, []);
+
+  const handleCommit = useCallback(async () => {
+    if (!roomId || committing) return;
+
+    setCommitting(true);
+    try {
+      const authorName = localStorage.getItem('username')
+        || localStorage.getItem('temp_username')
+        || t('history.authorAnonymous');
+      const request: CreateCommitRequest = {
+        message: commitMessage.trim() || t('history.manualSave'),
+        author_name: authorName,
+      };
+
+      await roomsApi.createCommit(roomId, request);
+      setCommitMessage('');
+      setShowCommitDialog(false);
+      setHasLocalChanges(false);
+      notifyHistoryChanged();
+      await loadHistory();
+      showToast(t('history.savedNewCommit'), 'success');
+    } catch (commitError) {
+      const message = getRequestErrorMessage(commitError, t('history.createCommitFailed'));
+      console.error('[HistoryPanel] commit failed:', commitError);
+      setError(message);
+      showAlert(message, { type: 'error', title: t('history.commitFailedTitle') });
+    } finally {
+      setCommitting(false);
+    }
+  }, [
+    commitMessage,
+    committing,
+    loadHistory,
+    notifyHistoryChanged,
+    roomId,
+    showAlert,
+    showToast,
+    t,
+  ]);
+
+  const handleCheckout = useCallback((commitId: number, commitHash: string) => {
+    if (!roomId) return;
+
+    showConfirm(
+      t('history.checkoutConfirm'),
+      async () => {
+        await roomsApi.checkoutCommit(roomId, commitId);
+        await loadHistory();
+        showToast(t('history.checkoutSuccess', { hash: commitHash }), 'success');
+        window.setTimeout(() => window.location.reload(), 1200);
+      },
+      { title: t('history.checkoutTitle'), type: 'warning' },
+    );
+  }, [loadHistory, roomId, showConfirm, showToast, t]);
+
+  const handleRevert = useCallback((commitId: number) => {
+    if (!roomId || revertingId !== null) return;
+
+    showConfirm(
+      t('history.revertConfirm'),
+      async () => {
+        setRevertingId(commitId);
+        try {
+          await roomsApi.revertToCommit(roomId, commitId);
+          await loadHistory();
+          showToast(t('history.revertSuccess'), 'success');
+          window.setTimeout(() => window.location.reload(), 1200);
+        } finally {
+          setRevertingId(null);
+        }
+      },
+      { title: t('history.revertTitle'), type: 'danger' },
+    );
+  }, [loadHistory, revertingId, roomId, showConfirm, showToast, t]);
+
+  const handleCopyHash = useCallback(async (hash: string) => {
+    try {
+      await navigator.clipboard.writeText(hash);
+      showToast(t('history.copiedHash'), 'success');
+    } catch {
+      showToast(t('history.copyHashFailed'), 'error');
+    }
+  }, [showToast, t]);
+
+  const hasUncommittedChanges = Boolean((history?.pending_changes ?? 0) > 0 || hasLocalChanges);
+
+  const renderComparePanel = () => {
+    if (!history) {
+      return null;
+    }
+
+    return (
+      <div className={cn('border-b px-3 py-3', theme === 'dark' ? 'border-slate-800 bg-slate-800/50' : 'border-slate-100 bg-white')}>
+        <div className="mb-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <GitCompare size={14} className={theme === 'dark' ? 'text-slate-400' : 'text-slate-500'} />
+            <span className={cn('text-xs font-medium', theme === 'dark' ? 'text-slate-200' : 'text-slate-700')}>
+              {t('history.compareVersions')}
+            </span>
+          </div>
+          <button
+            onClick={clearCompareSelection}
+            className={cn(
+              'rounded px-2 py-1 text-[11px]',
+              theme === 'dark'
+                ? 'bg-slate-700 text-slate-200 hover:bg-slate-600'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+            )}
+          >
+            {t('history.clear')}
+          </button>
+        </div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <label className="flex flex-col gap-1 text-xs">
+            <span className={theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}>{t('history.baseOptional')}</span>
+            <select
+              value={compareBaseId ?? ''}
+              onChange={(event) => {
+                const value = event.target.value ? Number(event.target.value) : null;
+                setCompareBaseId(value);
+              }}
+              className={cn(
+                'rounded border px-2 py-1.5 text-xs outline-none',
+                theme === 'dark'
+                  ? 'border-slate-600 bg-slate-900 text-slate-200'
+                  : 'border-slate-300 bg-white text-slate-700',
+              )}
+            >
+              <option value="">{t('history.headDefault')}</option>
+              {history.commits.map((commit) => (
+                <option key={`base-${commit.id}`} value={commit.id}>
+                  {commit.hash.slice(0, 8)} - {commit.message}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs">
+            <span className={theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}>{t('history.target')}</span>
+            <select
+              value={compareTargetId ?? ''}
+              onChange={(event) => {
+                const value = event.target.value ? Number(event.target.value) : null;
+                setCompareTargetId(value);
+              }}
+              className={cn(
+                'rounded border px-2 py-1.5 text-xs outline-none',
+                theme === 'dark'
+                  ? 'border-slate-600 bg-slate-900 text-slate-200'
+                  : 'border-slate-300 bg-white text-slate-700',
+              )}
+            >
+              <option value="">{t('history.selectTargetCommit')}</option>
+              {history.commits.map((commit) => (
+                <option key={`target-${commit.id}`} value={commit.id}>
+                  {commit.hash.slice(0, 8)} - {commit.message}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <button
+            onClick={handleCompareCommits}
+            disabled={compareTargetId == null || compareLoading || compareTargetId === compareBaseId}
+            className={cn(
+              'inline-flex items-center gap-1 rounded px-2.5 py-1.5 text-xs',
+              compareTargetId == null || compareLoading || compareTargetId === compareBaseId
+                ? 'cursor-not-allowed opacity-50'
+                : theme === 'dark'
+                  ? 'bg-slate-700 text-slate-200 hover:bg-slate-600'
+                  : 'bg-slate-800 text-white hover:bg-slate-900',
+            )}
+            >
+              <ScanSearch size={12} />
+              {compareLoading ? t('history.comparing') : t('history.compare')}
+            </button>
+            <button
+              onClick={() => {
+                if (compareTargetId == null) {
+                  return;
+                }
+                if (compareTargetId === compareBaseId) {
+                  showAlert(t('history.invalidCompareSelectionMessage'), {
+                    type: 'warning',
+                    title: t('history.invalidCompareSelectionTitle'),
+                  });
+                  return;
+                }
+                handleCheckout(compareTargetId, history.commits.find((commit) => commit.id === compareTargetId)?.hash || '');
+              }}
+              disabled={compareTargetId == null || compareTargetId === compareBaseId}
+              className={cn(
+                'inline-flex items-center gap-1 rounded px-2.5 py-1.5 text-xs',
+                compareTargetId == null || compareTargetId === compareBaseId
+                  ? 'cursor-not-allowed opacity-50'
+                  : theme === 'dark'
+                    ? 'border border-blue-800 bg-blue-900/20 text-blue-200 hover:bg-blue-900/40'
+                    : 'border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100',
+            )}
+          >
+            <GitBranch size={12} />
+            {t('history.checkoutTarget')}
+          </button>
+          {compareBaseId !== null && compareTargetId !== null && (
+            <button
+              type="button"
+              onClick={() => {
+                const nextBase = compareTargetId;
+                const nextTarget = compareBaseId;
+                setCompareBaseId(nextBase);
+                setCompareTargetId(nextTarget);
+                setCompareDiff(null);
+              }}
+              className={cn(
+                'rounded px-2.5 py-1.5 text-xs',
+                theme === 'dark'
+                  ? 'bg-slate-700 text-slate-200 hover:bg-slate-600'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+              )}
+            >
+              {t('history.swap')}
+            </button>
           )}
         </div>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => setShowCommitDialog(true)}
-            disabled={committing || !hasUncommittedChanges}
-            className={cn(
-              'p-1.5 rounded transition-colors',
-              committing || !hasUncommittedChanges
-                ? 'opacity-40 cursor-not-allowed'
-                : theme === 'dark'
-                  ? 'hover:bg-slate-700 text-green-400'
-                  : 'hover:bg-slate-200 text-green-600'
-            )}
-            title={hasUncommittedChanges ? '提交更改' : '没有待提交的更改'}
-          >
-            <Save size={14} />
-          </button>
-          <button
-            onClick={loadHistory}
-            disabled={loading}
-            className={cn(
-              'p-1.5 rounded transition-colors',
-              theme === 'dark' ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-200 text-slate-500'
-            )}
-            title="刷新"
-          >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          </button>
+        {compareError && (
+          <div className={cn('mt-2 text-xs text-red-500', theme === 'dark' ? 'text-red-300' : '')}>
+            {compareError}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderCommitDiff = () => {
+    if (!compareDiff) return null;
+
+    return (
+      <div className={cn('border-b p-3', theme === 'dark' ? 'border-slate-800 bg-slate-900/50' : 'border-slate-100 bg-slate-50')}>
+        <div className="mb-2 text-xs">
+          <div className={cn('font-semibold', theme === 'dark' ? 'text-slate-200' : 'text-slate-700')}>
+            {t('history.diffSummary')}
+          </div>
+          <div className="text-[11px] opacity-80">
+            {t('history.from')}
+            {' '}
+            {compareDiff.from_commit?.hash
+              ? compareDiff.from_commit.hash.slice(0, 8)
+              : t('history.fromHead')}
+            {' '}
+            {t('history.to')}
+            {' '}
+            {compareDiff.to_commit.hash.slice(0, 8)}
+          </div>
         </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className={cn('rounded p-2 text-[11px]', theme === 'dark' ? 'bg-slate-800' : 'bg-slate-100')}>
+            <div>{t('history.elements')}</div>
+            <div className="font-semibold">+{compareDiff.elements_added} / -{compareDiff.elements_removed}</div>
+          </div>
+          <div className={cn('rounded p-2 text-[11px]', theme === 'dark' ? 'bg-slate-800' : 'bg-slate-100')}>
+            <div>{t('history.modified')}</div>
+            <div className="font-semibold">{compareDiff.elements_modified}</div>
+          </div>
+          <div className={cn('rounded p-2 text-[11px]', theme === 'dark' ? 'bg-slate-800' : 'bg-slate-100')}>
+            <div>{t('history.diagrams')}</div>
+            <div className="font-semibold">
+              +{compareDiff.diagrams_added} / -{compareDiff.diagrams_removed} / ~{compareDiff.diagrams_modified}
+            </div>
+          </div>
+          <div className={cn('rounded p-2 text-[11px]', theme === 'dark' ? 'bg-slate-800' : 'bg-slate-100')}>
+            <div>{t('history.sizeDelta')}</div>
+            <div className="font-semibold">{formatSignedSize(compareDiff.size_diff)}</div>
+          </div>
+        </div>
+        {compareDiff.changes.length > 0 && (
+          <div className="mt-3">
+            <div className={cn('text-[11px] font-semibold', theme === 'dark' ? 'text-slate-300' : 'text-slate-600')}>
+              {t('history.elementChanges')}
+            </div>
+            <div className={cn('mt-1 max-h-44 overflow-y-auto rounded border p-2 text-[11px]', theme === 'dark' ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200')}>
+              {compareDiff.changes.map((change, index) => (
+                <div key={`${change.element_id}-${change.action}-${index}`}>
+                  <span className="font-medium">{change.action}</span>
+                  {' '}
+                  {change.element_id}
+                  {' '}
+                  ({t('history.typeLabel')}: {change.element_type || t('history.unknownType')})
+                  {change.text ? ` - ${change.text}` : ''}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {compareDiff.diagram_changes.length > 0 && (
+          <div className="mt-3">
+            <div className={cn('text-[11px] font-semibold', theme === 'dark' ? 'text-slate-300' : 'text-slate-600')}>
+              {t('history.diagramChanges')}
+            </div>
+            <div className={cn('mt-1 space-y-1 text-[11px]', theme === 'dark' ? 'text-slate-300' : 'text-slate-600')}>
+            {compareDiff.diagram_changes.map((change, index) => (
+              <div
+                key={`${change.diagram_id}-${change.action}-${index}`}
+                className="rounded border p-2"
+                >
+                  <div>{change.action}</div>
+                  <div className="opacity-80">
+                    {change.diagram_id} - {change.title} ({getDiagramFamilyLabel(change.family)})
+                    {change.component_count !== null ? ` - ${t('history.componentsCount', { count: change.component_count })}` : ''}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div
+        className={cn(
+          'border-b px-3 py-2',
+          theme === 'dark' ? 'border-slate-700 bg-slate-900/50' : 'border-slate-200 bg-slate-50',
+        )}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div
+            className={cn(
+              'inline-flex rounded-lg p-1',
+              theme === 'dark' ? 'bg-slate-800' : 'bg-slate-200/70',
+            )}
+          >
+            {(['versions', 'events'] as HistoryView[]).map((view) => {
+              const active = activeView === view;
+              return (
+                <button
+                  key={view}
+                  type="button"
+                  onClick={() => setActiveView(view)}
+                  className={cn(
+                    'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                    active
+                      ? theme === 'dark'
+                        ? 'bg-slate-700 text-slate-100'
+                        : 'bg-white text-slate-700 shadow-sm'
+                      : theme === 'dark'
+                        ? 'text-slate-400 hover:text-slate-200'
+                        : 'text-slate-500 hover:text-slate-700',
+                  )}
+                >
+                  {view === 'versions' ? t('history.view.versions') : t('history.view.activity')}
+                </button>
+              );
+            })}
+          </div>
+
+          {activeView === 'versions' && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setShowCommitDialog(true)}
+                disabled={committing || !hasUncommittedChanges}
+                className={cn(
+                  'rounded p-1.5 transition-colors',
+                  committing || !hasUncommittedChanges
+                    ? 'cursor-not-allowed opacity-40'
+                    : theme === 'dark'
+                      ? 'text-green-400 hover:bg-slate-700'
+                      : 'text-green-600 hover:bg-slate-200',
+                )}
+                title={hasUncommittedChanges ? t('history.createCommit') : t('history.noLocalChanges')}
+              >
+                <Save size={14} />
+              </button>
+              <button
+                onClick={loadHistory}
+                disabled={loading}
+                className={cn(
+                  'rounded p-1.5 transition-colors',
+                  theme === 'dark' ? 'text-slate-400 hover:bg-slate-700' : 'text-slate-500 hover:bg-slate-200',
+                )}
+                title={t('history.refreshHistory')}
+              >
+                <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+              </button>
+            </div>
+          )}
+        </div>
+
+        {activeView === 'versions' && (
+          <div className="mt-2 flex items-center gap-2">
+            <GitBranch size={14} className={theme === 'dark' ? 'text-slate-400' : 'text-slate-500'} />
+            <span className={cn('text-xs font-medium', theme === 'dark' ? 'text-slate-300' : 'text-slate-600')}>
+              main
+            </span>
+            {history?.head_commit_id && (
+              <code className={cn('text-[10px] font-mono', theme === 'dark' ? 'text-blue-400' : 'text-blue-600')}>
+                HEAD
+              </code>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* 提交对话框 */}
-      {showCommitDialog && (
-        <div className={cn(
-          'p-3 border-b',
-          theme === 'dark' ? 'border-slate-700 bg-slate-800/50' : 'border-slate-200 bg-slate-100'
-        )}>
-          <div className="flex items-center gap-2 mb-2">
+      {activeView === 'versions' && showCommitDialog && (
+        <div
+          className={cn(
+            'border-b p-3',
+            theme === 'dark' ? 'border-slate-700 bg-slate-800/50' : 'border-slate-200 bg-slate-100',
+          )}
+        >
+          <div className="mb-2 flex items-center gap-2">
             <MessageSquare size={12} className={theme === 'dark' ? 'text-slate-400' : 'text-slate-500'} />
             <span className={cn('text-xs', theme === 'dark' ? 'text-slate-300' : 'text-slate-600')}>
-              提交消息
+              {t('history.commitMessage')}
             </span>
           </div>
           <input
             type="text"
             value={commitMessage}
-            onChange={(e) => setCommitMessage(e.target.value)}
-            placeholder="描述你的更改..."
+            onChange={(event) => setCommitMessage(event.target.value)}
+            placeholder={t('history.describeChange')}
             className={cn(
-              'w-full px-2 py-1.5 text-xs rounded border outline-none',
+              'w-full rounded border px-2 py-1.5 text-xs outline-none',
               theme === 'dark'
-                ? 'bg-slate-900 border-slate-600 text-slate-200 placeholder-slate-500 focus:border-blue-500'
-                : 'bg-white border-slate-300 text-slate-700 placeholder-slate-400 focus:border-blue-400'
+                ? 'border-slate-600 bg-slate-900 text-slate-200 placeholder-slate-500 focus:border-blue-500'
+                : 'border-slate-300 bg-white text-slate-700 placeholder-slate-400 focus:border-blue-400',
             )}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleCommit()
-              if (e.key === 'Escape') setShowCommitDialog(false)
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') handleCommit();
+              if (event.key === 'Escape') setShowCommitDialog(false);
             }}
             autoFocus
           />
-          <div className="flex gap-2 mt-2">
+          <div className="mt-2 flex gap-2">
             <button
               onClick={handleCommit}
               disabled={committing}
               className={cn(
-                'flex-1 flex items-center justify-center gap-1 px-2 py-1 text-xs rounded transition-colors',
+                'flex flex-1 items-center justify-center gap-1 rounded px-2 py-1 text-xs transition-colors',
                 committing
-                  ? 'opacity-50 cursor-not-allowed'
+                  ? 'cursor-not-allowed opacity-50'
                   : theme === 'dark'
-                    ? 'bg-green-600 hover:bg-green-700 text-white'
-                    : 'bg-green-500 hover:bg-green-600 text-white'
+                    ? 'bg-green-600 text-white hover:bg-green-700'
+                    : 'bg-green-500 text-white hover:bg-green-600',
               )}
             >
               <Check size={12} />
-              {committing ? '提交中...' : '提交'}
+              {committing ? t('history.saving') : t('history.saveCommit')}
             </button>
             <button
               onClick={() => setShowCommitDialog(false)}
               className={cn(
-                'px-2 py-1 text-xs rounded transition-colors',
+                'rounded px-2 py-1 text-xs transition-colors',
                 theme === 'dark'
-                  ? 'bg-slate-700 hover:bg-slate-600 text-slate-300'
-                  : 'bg-slate-200 hover:bg-slate-300 text-slate-600'
+                  ? 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  : 'bg-slate-200 text-slate-600 hover:bg-slate-300',
               )}
             >
-              取消
+              {t('history.cancel')}
             </button>
           </div>
         </div>
       )}
 
-      {/* 历史列表 */}
-      <div className="flex-1 overflow-y-auto">
-        {hasUncommittedChanges && (
-          <div className={cn(
-            'flex items-center px-2 py-2 border-b',
-            theme === 'dark' ? 'border-slate-800 bg-amber-900/10' : 'border-slate-100 bg-amber-50'
-          )}>
-            <div className="w-8 flex justify-center shrink-0">
-              <div className="relative flex flex-col items-center">
-                <div className={cn('w-0.5 h-3', theme === 'dark' ? 'bg-slate-700' : 'bg-slate-300')} />
-                <div className="w-3 h-3 rounded-full bg-amber-500 ring-2 ring-amber-300/50 animate-pulse" />
-                <div className={cn('w-0.5 h-3', theme === 'dark' ? 'bg-slate-700' : 'bg-slate-300')} />
-              </div>
+      {activeView === 'events' ? (
+        <div className="flex-1 min-h-0">
+          <CollabEventsPanel />
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto">
+          {loading && !history ? (
+            <div className={cn('p-4 text-center text-sm', theme === 'dark' ? 'text-slate-500' : 'text-slate-400')}>
+              {t('history.loading')}
             </div>
-            <div className="flex-1 min-w-0 pl-2">
-              <div className="flex items-center gap-2">
-                <span className={cn(
-                  'text-xs font-medium',
-                  theme === 'dark' ? 'text-amber-400' : 'text-amber-600'
-                )}>
-                  未提交的更改
-                </span>
-                <span className={cn(
-                  'text-[10px] px-1.5 py-0.5 rounded font-medium',
-                  theme === 'dark' ? 'bg-amber-900/30 text-amber-300' : 'bg-amber-100 text-amber-700'
-                )}>
-                  +{history?.pending_changes}
-                </span>
-              </div>
-              <div className={cn('text-[10px] mt-0.5', theme === 'dark' ? 'text-slate-500' : 'text-slate-400')}>
-                点击上方保存按钮提交更改
-              </div>
+          ) : error && !history ? (
+            <div className={cn('p-4 text-center text-sm', theme === 'dark' ? 'text-red-400' : 'text-red-500')}>
+              {error}
             </div>
-          </div>
-        )}
+          ) : (
+            <>
+              {hasUncommittedChanges && (
+                <div
+                  className={cn(
+                    'border-b px-3 py-2',
+                    theme === 'dark' ? 'border-slate-800 bg-amber-900/10' : 'border-slate-100 bg-amber-50',
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className={cn('text-xs font-medium', theme === 'dark' ? 'text-amber-300' : 'text-amber-700')}>
+                        {t('history.localChangesPending')}
+                      </div>
+                      <div className={cn('mt-0.5 text-[10px]', theme === 'dark' ? 'text-slate-500' : 'text-slate-500')}>
+                        {t('history.localChangesDescription')}
+                      </div>
+                    </div>
+                    <span
+                      className={cn(
+                        'rounded px-1.5 py-0.5 text-[10px] font-medium',
+                        theme === 'dark' ? 'bg-amber-900/30 text-amber-300' : 'bg-amber-100 text-amber-700',
+                      )}
+                    >
+                      +{history?.pending_changes ?? 0}
+                    </span>
+                  </div>
+                </div>
+              )}
 
-        {history?.commits.map((commit, index) => {
-          const isHead = commit.id === history.head_commit_id
-          const isFirst = index === 0 && !hasUncommittedChanges
-          const isLast = index === history.commits.length - 1
-          const isExpanded = expandedId === commit.id
-          const isReverting = revertingId === commit.id
-          const showingDiff = diffCommitId === commit.id
+              {renderComparePanel()}
+              {renderCommitDiff()}
 
-          return (
-            <CommitNode
-              key={commit.id}
-              commit={commit}
-              roomId={roomId}
-              isHead={isHead}
-              isFirst={isFirst}
-              isLast={isLast}
-              isExpanded={isExpanded}
-              isReverting={isReverting}
-              showingDiff={showingDiff}
-              theme={theme}
-              onToggle={() => setExpandedId(isExpanded ? null : commit.id)}
-              onRevert={() => handleRevert(commit.id)}
-              onCheckout={() => handleCheckout(commit.id, commit.hash)}
-              onShowDiff={() => setDiffCommitId(showingDiff ? null : commit.id)}
-              onContextMenu={(e) => handleContextMenu(e, commit)}
-              onPreviewStart={() => handlePreviewStart()}
-              onPreviewEnd={handlePreviewEnd}
-            />
-          )
-        })}
+              {history?.commits.map((commit, index) => (
+                <CommitCard
+                  key={commit.id}
+                  roomId={roomId}
+                  commit={commit}
+                  isHead={commit.id === history.head_commit_id}
+                  isExpanded={expandedId === commit.id}
+                  isFirst={index === 0 && !hasUncommittedChanges}
+                  isLast={index === history.commits.length - 1}
+                  isReverting={revertingId === commit.id}
+                  onToggle={() => setExpandedId((current) => (current === commit.id ? null : commit.id))}
+                  onCheckout={handleCheckout}
+                  onCopyHash={handleCopyHash}
+                  onRevert={handleRevert}
+                  onSetCompareBase={setCompareBase}
+                  onSetCompareTarget={setCompareTarget}
+                />
+              ))}
 
-        {(!history || (history.commits.length === 0 && !hasUncommittedChanges)) && (
-          <div className={cn('flex flex-col items-center justify-center py-8', theme === 'dark' ? 'text-slate-500' : 'text-slate-400')}>
-            <Clock size={32} className="mb-3 opacity-40" />
-            <span className="text-sm">暂无提交历史</span>
-            <span className="text-xs mt-1 opacity-70">开始绘制后将自动记录</span>
-          </div>
-        )}
-      </div>
-
-      {contextMenu && (
-        <ContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          onClose={() => setContextMenu(null)}
-          items={[
-            {
-              label: '复制哈希',
-              onClick: () => handleCopyHash(contextMenu.commit.hash)
-            },
-            // 暂不启用差异查看，因为 diff 逻辑也是基于 Shape 的
-            {
-              separator: true,
-              label: '',
-              onClick: () => { }
-            },
-            {
-              label: '检出此版本',
-              disabled: contextMenu.commit.id === history?.head_commit_id,
-              onClick: () => handleCheckout(contextMenu.commit.id, contextMenu.commit.hash)
-            },
-            {
-              label: '回滚到此版本',
-              danger: true,
-              disabled: contextMenu.commit.id === history?.head_commit_id,
-              onClick: () => handleRevert(contextMenu.commit.id)
-            }
-          ]}
-        />
+              {(!history || (history.commits.length === 0 && !hasUncommittedChanges)) && (
+                <div className={cn('flex flex-col items-center justify-center py-8', theme === 'dark' ? 'text-slate-500' : 'text-slate-400')}>
+                  <Clock size={32} className="mb-3 opacity-40" />
+                  <span className="text-sm">{t('history.noCommitsYet')}</span>
+                  <span className="mt-1 text-xs opacity-70">{t('history.noCommitsDescription')}</span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       )}
 
-      {history && (
-        <div className={cn(
-          'flex items-center justify-between px-3 py-1.5 border-t text-[10px]',
-          theme === 'dark' ? 'border-slate-700 bg-slate-900/50 text-slate-500' : 'border-slate-200 bg-slate-50 text-slate-400'
-        )}>
-          <span>{history.commits.length} 个提交</span>
+      {activeView === 'versions' && history && (
+        <div
+          className={cn(
+            'flex items-center justify-between border-t px-3 py-1.5 text-[10px]',
+            theme === 'dark' ? 'border-slate-700 bg-slate-900/50 text-slate-500' : 'border-slate-200 bg-slate-50 text-slate-400',
+          )}
+        >
+          <span>{t('history.commitsCount', { count: history.commits.length })}</span>
           <span>{formatSize(history.total_size)}</span>
         </div>
       )}
 
       <ModalRenderer />
     </div>
-  )
+  );
+};
+
+interface CommitCardProps {
+  roomId: string;
+  commit: CommitInfo;
+  isHead: boolean;
+  isExpanded: boolean;
+  isFirst: boolean;
+  isLast: boolean;
+  isReverting: boolean;
+  onToggle: () => void;
+  onCheckout: (commitId: number, commitHash: string) => void;
+  onCopyHash: (hash: string) => Promise<void>;
+  onRevert: (commitId: number) => void;
+  onSetCompareBase: (commitId: number) => void;
+  onSetCompareTarget: (commitId: number) => void;
 }
 
-interface CommitNodeProps {
-  commit: CommitInfo
-  roomId: string
-  isHead: boolean
-  isFirst: boolean
-  isLast: boolean
-  isExpanded: boolean
-  isReverting: boolean
-  showingDiff: boolean
-  theme: 'light' | 'dark'
-  onToggle: () => void
-  onRevert: () => void
-  onCheckout: () => void
-  onShowDiff: () => void
-  onContextMenu: (e: React.MouseEvent) => void
-  onPreviewStart: () => void
-  onPreviewEnd: () => void
-}
-
-const CommitNode: React.FC<CommitNodeProps> = ({
-  commit,
+const CommitCard: React.FC<CommitCardProps> = ({
   roomId,
+  commit,
   isHead,
+  isExpanded,
   isFirst,
   isLast,
-  isExpanded,
   isReverting,
-  theme,
   onToggle,
+  onCheckout,
+  onCopyHash,
   onRevert,
-  onContextMenu,
+  onSetCompareBase,
+  onSetCompareTarget,
 }) => {
-  const [detail, setDetail] = useState<CommitDetailResponse | null>(null)
-  const [loadingDetail, setLoadingDetail] = useState(false)
+  const { theme } = useThemeStore();
+  const { t, formatRelativeTime, formatDateTime } = useI18n();
+  const [detail, setDetail] = useState<CommitDetailResponse | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
-  // 展开时加载详情
   useEffect(() => {
-    if (isExpanded && !detail && !loadingDetail) {
-      setLoadingDetail(true)
-      roomsApi.getCommitDetail(roomId, commit.id)
-        .then(setDetail)
-        .catch(console.error)
-        .finally(() => setLoadingDetail(false))
-    }
-  }, [isExpanded, detail, loadingDetail, roomId, commit.id])
+    if (!isExpanded || detail || loadingDetail) return;
+
+    setLoadingDetail(true);
+    roomsApi.getCommitDetail(roomId, commit.id)
+      .then(setDetail)
+      .catch((error) => {
+        console.error('[HistoryPanel] detail load failed:', error);
+      })
+      .finally(() => setLoadingDetail(false));
+  }, [commit.id, detail, isExpanded, loadingDetail, roomId]);
+
+  const detailSummary = detail ? summarizeDetail(detail) : null;
 
   return (
     <div
       className={cn(
-        'group transition-colors',
-        theme === 'dark' ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'
+        'group border-b transition-colors',
+        theme === 'dark'
+          ? 'border-slate-800 hover:bg-slate-800/50'
+          : 'border-slate-100 hover:bg-slate-50',
       )}
-      onContextMenu={onContextMenu}
     >
-      <div className="flex items-center px-2 py-2 cursor-pointer" onClick={onToggle}>
-        <div className="w-8 flex justify-center shrink-0">
+      <div className="flex cursor-pointer items-center px-3 py-2" onClick={onToggle}>
+        <div className="mr-3 flex w-6 justify-center">
           <div className="relative flex flex-col items-center">
-            <div className={cn(
-              'w-0.5 h-3',
-              isFirst ? 'bg-transparent' : theme === 'dark' ? 'bg-slate-700' : 'bg-slate-300'
-            )} />
-            <div className={cn(
-              'w-2.5 h-2.5 rounded-full border-2',
-              isHead
-                ? 'bg-green-500 border-green-400'
-                : theme === 'dark'
-                  ? 'bg-slate-700 border-slate-500'
-                  : 'bg-white border-slate-400'
-            )} />
-            <div className={cn(
-              'w-0.5 h-3',
-              isLast ? 'bg-transparent' : theme === 'dark' ? 'bg-slate-700' : 'bg-slate-300'
-            )} />
+            <div className={cn('h-3 w-0.5', isFirst ? 'bg-transparent' : theme === 'dark' ? 'bg-slate-700' : 'bg-slate-300')} />
+            <div
+              className={cn(
+                'h-2.5 w-2.5 rounded-full border-2',
+                isHead
+                  ? 'border-green-400 bg-green-500'
+                  : theme === 'dark'
+                    ? 'border-slate-500 bg-slate-700'
+                    : 'border-slate-400 bg-white',
+              )}
+            />
+            <div className={cn('h-3 w-0.5', isLast ? 'bg-transparent' : theme === 'dark' ? 'bg-slate-700' : 'bg-slate-300')} />
           </div>
         </div>
 
-        <div className="flex-1 min-w-0 pl-2">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <code className={cn(
-              'text-[10px] font-mono',
-              theme === 'dark' ? 'text-blue-400' : 'text-blue-600'
-            )}>
+            <code className={cn('text-[10px] font-mono', theme === 'dark' ? 'text-blue-400' : 'text-blue-600')}>
               {commit.hash}
             </code>
             {isHead && (
               <span className={cn(
-                'text-[9px] px-1 py-0.5 rounded font-medium',
-                theme === 'dark' ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-700'
-              )}>
+                'rounded px-1.5 py-0.5 text-[10px] font-medium',
+                theme === 'dark' ? 'bg-green-900/40 text-green-300' : 'bg-green-100 text-green-700',
+              )}
+              >
                 HEAD
               </span>
             )}
-            <span className={cn(
-              'text-xs truncate flex-1',
-              theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
-            )}>
-              {commit.message}
-            </span>
           </div>
-          <div className="flex items-center gap-2 mt-0.5">
-            <User size={10} className={theme === 'dark' ? 'text-slate-500' : 'text-slate-400'} />
-            <span className={cn('text-[10px]', theme === 'dark' ? 'text-slate-500' : 'text-slate-400')}>
-              {commit.author_name}
-            </span>
-            <span className={theme === 'dark' ? 'text-slate-600' : 'text-slate-300'}>•</span>
-            <span className={cn('text-[10px]', theme === 'dark' ? 'text-slate-500' : 'text-slate-400')}>
-              {formatRelativeTime(commit.timestamp)}
-            </span>
+          <div className={cn('mt-1 truncate text-xs font-medium', theme === 'dark' ? 'text-slate-200' : 'text-slate-700')}>
+            {commit.message}
+          </div>
+          <div className={cn('mt-1 flex items-center gap-3 text-[10px]', theme === 'dark' ? 'text-slate-500' : 'text-slate-500')}>
+            <span className="inline-flex items-center gap-1"><User size={10} />{commit.author_name}</span>
+            <span>{formatRelativeTime(commit.timestamp)}</span>
+            <span>{formatSize(commit.size)}</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {!isHead && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onRevert()
-              }}
-              disabled={isReverting}
-              className={cn(
-                'p-1 rounded transition-colors',
-                isReverting
-                  ? 'opacity-50 cursor-not-allowed'
-                  : theme === 'dark'
-                    ? 'hover:bg-slate-700 text-orange-400'
-                    : 'hover:bg-slate-200 text-orange-600'
-              )}
-              title="回滚到此版本"
-            >
-              <RotateCcw size={12} className={isReverting ? 'animate-spin' : ''} />
-            </button>
+        <ChevronRight
+          size={14}
+          className={cn(
+            'transition-transform',
+            isExpanded && 'rotate-90',
+            theme === 'dark' ? 'text-slate-500' : 'text-slate-400',
           )}
-          <ChevronRight
-            size={12}
-            className={cn(
-              'transition-transform',
-              isExpanded ? 'rotate-90' : '',
-              theme === 'dark' ? 'text-slate-500' : 'text-slate-400'
-            )}
-          />
-        </div>
+        />
       </div>
 
       {isExpanded && (
-        <div className={cn(
-          'ml-10 mr-2 mb-2 p-2 rounded text-xs',
-          theme === 'dark' ? 'bg-slate-800/80' : 'bg-slate-100'
-        )}>
-          <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-            <span className={theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}>时间:</span>
-            <span className={theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}>
-              {formatFullTime(commit.timestamp)}
-            </span>
-            <span className={theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}>大小:</span>
-            <span className={theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}>
-              {formatSize(commit.size)}
-            </span>
+        <div className={cn('space-y-3 px-4 pb-4 pt-1 text-xs', theme === 'dark' ? 'text-slate-300' : 'text-slate-600')}>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div>
+              <div className="text-[10px] uppercase tracking-wide opacity-70">{t('history.timestamp')}</div>
+              <div>{formatDateTime(commit.timestamp)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wide opacity-70">{t('history.commitSize')}</div>
+              <div>{formatSize(commit.size)}</div>
+            </div>
           </div>
 
-          {/* 元素统计信息 */}
-          {loadingDetail ? (
-            <div className={cn(
-              'mt-2 pt-2 border-t flex items-center gap-2',
-              theme === 'dark' ? 'border-slate-700 text-slate-500' : 'border-slate-200 text-slate-400'
-            )}>
-              <RefreshCw size={10} className="animate-spin" />
-              <span>加载元素信息...</span>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => onCopyHash(commit.hash)}
+              className={cn(
+                'inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] transition-colors',
+                theme === 'dark' ? 'bg-slate-700 text-slate-200 hover:bg-slate-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+              )}
+            >
+              <Copy size={12} />
+              {t('history.copyHash')}
+            </button>
+            <button
+              onClick={() => onCheckout(commit.id, commit.hash)}
+              disabled={isHead}
+              className={cn(
+                'inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] transition-colors',
+                isHead
+                  ? 'cursor-not-allowed opacity-50'
+                  : theme === 'dark'
+                    ? 'bg-blue-900/30 text-blue-300 hover:bg-blue-900/50'
+                    : 'bg-blue-50 text-blue-700 hover:bg-blue-100',
+              )}
+            >
+              <GitBranch size={12} />
+              {t('history.checkout')}
+            </button>
+            <button
+              onClick={() => onRevert(commit.id)}
+              disabled={isHead || isReverting}
+              className={cn(
+                'inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] transition-colors',
+                isHead || isReverting
+                  ? 'cursor-not-allowed opacity-50'
+                  : theme === 'dark'
+                    ? 'bg-red-900/30 text-red-300 hover:bg-red-900/50'
+                    : 'bg-red-50 text-red-700 hover:bg-red-100',
+              )}
+            >
+              <RotateCcw size={12} />
+              {isReverting ? t('history.reverting') : t('history.revert')}
+            </button>
+            <button
+              onClick={() => onSetCompareBase(commit.id)}
+              className={cn(
+                'inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] transition-colors',
+                theme === 'dark'
+                  ? 'bg-slate-700 text-slate-200 hover:bg-slate-600'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+              )}
+            >
+              {t('history.setAsBase')}
+            </button>
+            <button
+              onClick={() => onSetCompareTarget(commit.id)}
+              className={cn(
+                'inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] transition-colors',
+                theme === 'dark'
+                  ? 'bg-blue-900 text-blue-200 hover:bg-blue-800'
+                  : 'bg-blue-50 text-blue-700 hover:bg-blue-100',
+              )}
+            >
+              {t('history.setAsTarget')}
+            </button>
+          </div>
+
+          {loadingDetail && (
+            <div className={cn('rounded border px-3 py-2 text-[11px]', theme === 'dark' ? 'border-slate-700 bg-slate-800/60' : 'border-slate-200 bg-slate-50')}>
+              {t('history.loadingCommitDetail')}
             </div>
-          ) : detail && (
-            <div className={cn(
-              'mt-2 pt-2 border-t',
-              theme === 'dark' ? 'border-slate-700' : 'border-slate-200'
-            )}>
-              <div className="flex items-center gap-2 mb-2">
-                <Shapes size={10} className={theme === 'dark' ? 'text-violet-400' : 'text-violet-500'} />
-                <span className={theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}>
-                  元素数量: 
-                </span>
-                <span className={cn(
-                  'font-medium',
-                  theme === 'dark' ? 'text-slate-200' : 'text-slate-700'
-                )}>
-                  {detail.elements_count}
-                </span>
+          )}
+
+          {detail && detailSummary && (
+            <div className={cn('rounded border p-3', theme === 'dark' ? 'border-slate-700 bg-slate-800/60' : 'border-slate-200 bg-slate-50')}>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div>
+                  <div className="text-[10px] uppercase tracking-wide opacity-70">{t('history.elements')}</div>
+                  <div className="mt-1 font-medium">{detail.elements_count}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wide opacity-70">{t('history.diagrams')}</div>
+                  <div className="mt-1 font-medium">{detail.diagrams_count}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wide opacity-70">{t('history.families')}</div>
+                  <div className="mt-1 font-medium">{detailSummary.familySummary || t('history.none')}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wide opacity-70">{t('history.managedStates')}</div>
+                  <div className="mt-1 font-medium">{detailSummary.managedSummary || t('history.none')}</div>
+                </div>
               </div>
 
-              {/* 元素类型统计 */}
-              {detail.element_types && Object.keys(detail.element_types).length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {Object.entries(detail.element_types).map(([type, count]) => (
-                    <span
-                      key={type}
-                      className={cn(
-                        'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px]',
-                        theme === 'dark'
-                          ? 'bg-slate-700/50 text-slate-400'
-                          : 'bg-slate-200/50 text-slate-500'
-                      )}
-                    >
-                      {type}: {count}
-                    </span>
-                  ))}
+              {detail.diagrams.length > 0 && (
+                <div className="mt-3">
+                  <div className="mb-2 text-[10px] uppercase tracking-wide opacity-70">
+                    {t('history.diagramSummary')}
+                  </div>
+                  <div className="space-y-2">
+                    {detail.diagrams.map((diagram) => (
+                      <div
+                        key={diagram.diagram_id}
+                        className={cn(
+                          'rounded px-2 py-2',
+                          theme === 'dark' ? 'bg-slate-900/60' : 'bg-white',
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Shapes size={12} className={theme === 'dark' ? 'text-violet-300' : 'text-violet-600'} />
+                          <span className="font-medium">{diagram.title}</span>
+                          <span className={cn(
+                            'rounded px-1.5 py-0.5 text-[10px]',
+                            theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-600',
+                          )}
+                          >
+                            {getDiagramFamilyLabel(diagram.family)}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-[11px] opacity-80">
+                          {t('history.componentsAndConnectors', {
+                            components: diagram.component_count,
+                            connectors: diagram.connector_count,
+                            state: getManagedDiagramStateLabel(
+                              diagram.managed_state as Parameters<typeof getManagedDiagramStateLabel>[0],
+                            ) || diagram.managed_state,
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
           )}
-
-          <div className={cn(
-            'mt-2 pt-2 border-t',
-            theme === 'dark' ? 'border-slate-700' : 'border-slate-200'
-          )}>
-            <span className={theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}>消息:</span>
-            <p className={cn('mt-1', theme === 'dark' ? 'text-slate-300' : 'text-slate-600')}>
-              {commit.message}
-            </p>
-          </div>
         </div>
       )}
     </div>
-  )
-}
+  );
+};
+
+

@@ -1,0 +1,28 @@
+Return one JSON object only.
+
+Task:
+- Update an existing managed diagram spec using the user's edit request.
+- Prefer semantic updates. Do not emit raw Excalidraw element diffs.
+
+Hard constraints:
+- Output valid JSON only. No markdown fences.
+- Keep labels aligned with the user's domain language. Do not introduce unrelated canned families such as ReAct/Transformer/CLIP unless the request explicitly asks for them.
+- If the user asks for a materially different structure, remove stale components instead of preserving unrelated old blocks.
+- Use only:
+  `diagramId`, `summary`,
+  `componentUpdates`, `componentAdditions`, `componentRemovals`,
+  `connectorUpdates`, `connectorAdditions`, `connectorRemovals`,
+  `annotationUpdates`, `annotationAdditions`, `annotationRemovals`,
+  `stateUpdates`
+- Update maps must be keyed by semantic id.
+
+Current diagram spec:
+{{ spec | tojson }}
+
+Edit scope:
+- scope: {{ edit_scope or "diagram" }}
+- target diagram id: {{ target_diagram_id or spec.diagramId }}
+- target semantic id: {{ target_semantic_id or "none" }}
+
+User edit request:
+{{ prompt }}

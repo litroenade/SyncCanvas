@@ -1,216 +1,407 @@
-/**
- * useAIStream Hook
- * 
- * 提供 AI WebSocket 流式交互功能，支持实时步骤反馈
- */
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
 import {
-    AIStreamClient,
-    AIStreamStep,
-    AIStreamComplete,
-    AIStreamError,
-    AIStreamStarted,
+  AIStreamClient,
+  getDefaultAIStreamConnectionError,
+  mapAIStreamCloseReason,
+  type AIStreamComplete,
+  type AIStreamError,
+  type AIStreamCloseInfo,
+  type DiagramGenerationMode,
+  type AIStreamRequestOptions,
+  type AIStreamStarted,
+  type AIStreamStep,
 } from '../services/api/ai';
+import type { DiagramBundle } from '../types';
 
 export interface UseAIStreamOptions {
-    roomId: string;
-    /** 是否自动连接 */
-    autoConnect?: boolean;
+  roomId: string;
+  autoConnect?: boolean;
+  roomVersion?: number;
 }
 
 export interface AIStreamState {
-    /** 是否已连接 */
-    isConnected: boolean;
-    /** 是否正在加载 */
-    isLoading: boolean;
-    /** 当前步骤列表 */
-    steps: AIStreamStep[];
-    /** 最终响应 */
-    response: string | null;
-    /** 错误信息 */
-    error: string | null;
-    /** 创建的元素 ID 列表 */
-    elementsCreated: string[];
-    /** 虚拟模式下返回的元素数据 */
-    virtualElements: Record<string, unknown>[];
+  isConnected: boolean;
+  isLoading: boolean;
+  steps: AIStreamStep[];
+  response: string | null;
+  error: string | null;
+  transportError: string | null;
+  requestId: string | null;
+  lastCloseInfo: AIStreamCloseInfo | null;
+  closeInterruptedRequest: boolean;
+  roomVersion: number | null;
+  snapshotRequired: boolean;
+  elementsCreated: string[];
+  virtualElements: Record<string, unknown>[];
+  diagramBundle: DiagramBundle | null;
+  diagramFamily: string | null;
+  generationMode: DiagramGenerationMode | null;
+  managedScope: string[];
+  patchSummary: string | null;
+  unmanagedWarnings: string[];
+  sources: Array<{
+    type: string;
+    provider?: string;
+    model?: string;
+    role?: string;
+  }>;
+  changeReasoning: Array<{ step: string; explanation: string }>;
+  affectedNodeIds: string[];
+  riskNotes: string[];
 }
 
 export interface UseAIStreamReturn extends AIStreamState {
-    /** 连接 WebSocket */
-    connect: () => Promise<void>;
-    /** 断开连接 */
-    disconnect: () => void;
-    /** 发送请求 */
-    sendRequest: (prompt: string, options?: {
-        theme?: string;
-        virtual_mode?: boolean;
-        mode?: 'agent' | 'planning' | 'mermaid';
-        conversation_id?: number;
-    }) => Promise<void>;
-    /** 重置状态 */
-    reset: () => void;
+  connect: () => Promise<void>;
+  disconnect: () => void;
+  sendRequest: (prompt: string, options?: AIStreamRequestOptions) => Promise<void>;
+  reset: () => void;
 }
 
-/**
- * AI 流式交互 Hook
- */
-export function useAIStream({ roomId, autoConnect = false }: UseAIStreamOptions): UseAIStreamReturn {
-    const clientRef = useRef<AIStreamClient | null>(null);
+function createClientSessionId(): string {
+  return `client-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
 
-    const [state, setState] = useState<AIStreamState>({
-        isConnected: false,
-        isLoading: false,
-        steps: [],
-        response: null,
-        error: null,
-        elementsCreated: [],
-        virtualElements: [],
-    });
+export function useAIStream({
+  roomId,
+  autoConnect = false,
+  roomVersion,
+}: UseAIStreamOptions): UseAIStreamReturn {
+  const clientRef = useRef<AIStreamClient | null>(null);
+  const connectPromiseRef = useRef<Promise<void> | null>(null);
+  const roomVersionRef = useRef<number | null>(roomVersion ?? null);
+  const clientSessionIdRef = useRef<string>(createClientSessionId());
+  const latestRequestIdRef = useRef<string | null>(null);
 
-    // 处理步骤消息
-    const handleStep = useCallback((step: AIStreamStep) => {
-        setState(prev => ({
-            ...prev,
-            steps: [...prev.steps, step],
+  const [state, setState] = useState<AIStreamState>({
+    isConnected: false,
+    isLoading: false,
+    steps: [],
+    response: null,
+    error: null,
+    transportError: null,
+    requestId: null,
+    lastCloseInfo: null,
+    closeInterruptedRequest: false,
+    roomVersion: null,
+    snapshotRequired: false,
+    elementsCreated: [],
+    virtualElements: [],
+    diagramBundle: null,
+    diagramFamily: null,
+    generationMode: null,
+    managedScope: [],
+    patchSummary: null,
+    unmanagedWarnings: [],
+    sources: [],
+    changeReasoning: [],
+    affectedNodeIds: [],
+    riskNotes: [],
+  });
+
+  useEffect(() => {
+    roomVersionRef.current = roomVersion ?? null;
+    clientSessionIdRef.current = createClientSessionId();
+    latestRequestIdRef.current = null;
+  }, [roomId, roomVersion]);
+
+  const matchesActiveRequest = useCallback((requestId?: string | null) => {
+    const activeRequestId = latestRequestIdRef.current;
+    if (!activeRequestId) {
+      return true;
+    }
+    return requestId === activeRequestId;
+  }, []);
+
+  const handleStep = useCallback((step: AIStreamStep) => {
+    if (!matchesActiveRequest(step.request_id)) {
+      return;
+    }
+    if (step.request_id) {
+      latestRequestIdRef.current = step.request_id;
+    }
+    setState((prev) => ({
+      ...prev,
+      requestId: step.request_id ?? prev.requestId,
+      steps: [...prev.steps, step],
+    }));
+  }, [matchesActiveRequest]);
+
+  const handleComplete = useCallback((result: AIStreamComplete) => {
+    if (!matchesActiveRequest(result.request_id)) {
+      return;
+    }
+    if (result.request_id) {
+      latestRequestIdRef.current = result.request_id;
+    }
+    if (typeof result.room_version === 'number') {
+      roomVersionRef.current = result.room_version;
+    }
+    setState((prev) => ({
+      ...prev,
+      isLoading: false,
+      response: result.response,
+      error: null,
+      transportError: null,
+      requestId: result.request_id ?? prev.requestId,
+      elementsCreated: result.elements_created,
+      virtualElements: result.virtual_elements || [],
+      diagramBundle: result.diagram_bundle || null,
+      diagramFamily: result.diagram_family || null,
+      generationMode: result.generation_mode || null,
+      managedScope: result.managed_scope || [],
+      patchSummary: result.patch_summary || null,
+      unmanagedWarnings: result.unmanaged_warnings || [],
+      sources: result.sources || [],
+      changeReasoning: result.change_reasoning || [],
+      affectedNodeIds: result.affected_node_ids || [],
+      riskNotes: result.risk_notes || [],
+      closeInterruptedRequest: false,
+      roomVersion: typeof result.room_version === 'number' ? result.room_version : prev.roomVersion,
+    }));
+  }, [matchesActiveRequest]);
+
+  const handleError = useCallback((streamError: AIStreamError) => {
+    if (!matchesActiveRequest(streamError.request_id)) {
+      return;
+    }
+    if (streamError.request_id) {
+      latestRequestIdRef.current = streamError.request_id;
+    }
+    setState((prev) => ({
+      ...prev,
+      isLoading: false,
+      error: streamError.message,
+      requestId: streamError.request_id ?? prev.requestId,
+      closeInterruptedRequest: false,
+    }));
+  }, [matchesActiveRequest]);
+
+  const handleStarted = useCallback((_started: AIStreamStarted) => {
+    if (!matchesActiveRequest(_started.request_id)) {
+      return;
+    }
+    if (_started.request_id) {
+      latestRequestIdRef.current = _started.request_id;
+    }
+    if (typeof _started.room_version === 'number') {
+      roomVersionRef.current = _started.room_version;
+    }
+    setState((prev) => ({
+      ...prev,
+      roomVersion: typeof _started.room_version === 'number' ? _started.room_version : prev.roomVersion,
+      isLoading: true,
+      steps: [],
+      response: null,
+      error: null,
+      transportError: null,
+      requestId: _started.request_id ?? prev.requestId,
+      lastCloseInfo: null,
+      closeInterruptedRequest: false,
+      elementsCreated: [],
+      virtualElements: [],
+      diagramBundle: null,
+      diagramFamily: null,
+      generationMode: null,
+      managedScope: [],
+      patchSummary: null,
+      unmanagedWarnings: [],
+      sources: [],
+      changeReasoning: [],
+      affectedNodeIds: [],
+      riskNotes: [],
+    }));
+  }, [matchesActiveRequest]);
+
+  const handleClose = useCallback((_close: AIStreamCloseInfo) => {
+    const defaultTransportError = getDefaultAIStreamConnectionError();
+    if (_close.room_version != null) {
+      roomVersionRef.current = _close.room_version;
+    }
+    const closeMessage = _close.reason
+      ? mapAIStreamCloseReason(_close.reason)
+      : _close.code === 1000 || (_close.code === 1005 && _close.wasClean)
+        ? null
+        : defaultTransportError;
+
+    setState((prev) => ({
+      ...prev,
+      isConnected: false,
+      isLoading: false,
+      error:
+        prev.isLoading
+          ? closeMessage ?? defaultTransportError
+          : prev.error,
+      transportError: closeMessage,
+      requestId: latestRequestIdRef.current,
+      lastCloseInfo: _close,
+      closeInterruptedRequest: prev.isLoading,
+      snapshotRequired: _close.snapshot_required || false,
+      roomVersion: _close.room_version != null ? _close.room_version : prev.roomVersion,
+    }));
+  }, []);
+
+  const connect = useCallback(async () => {
+    if (clientRef.current?.isConnected) {
+      return;
+    }
+    if (connectPromiseRef.current) {
+      await connectPromiseRef.current;
+      return;
+    }
+
+    const client = new AIStreamClient(
+      roomId,
+      {
+        onStep: handleStep,
+        onComplete: handleComplete,
+        onError: handleError,
+        onStarted: handleStarted,
+        onClose: handleClose,
+      },
+      {
+        roomVersion: roomVersionRef.current ?? undefined,
+        clientSessionId: clientSessionIdRef.current,
+        autoReconnect: autoConnect,
+      },
+    );
+    clientRef.current = client;
+
+    const connectPromise = (async () => {
+      try {
+        await client.connect();
+        setState((prev) => ({
+          ...prev,
+          isConnected: true,
+          transportError: null,
+          lastCloseInfo: null,
+          closeInterruptedRequest: false,
         }));
-    }, []);
-
-    // 处理完成消息
-    const handleComplete = useCallback((result: AIStreamComplete) => {
-        setState(prev => ({
-            ...prev,
-            isLoading: false,
-            response: result.response,
-            elementsCreated: result.elements_created,
-            virtualElements: result.virtual_elements || [],
+      } catch (error) {
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : getDefaultAIStreamConnectionError();
+        console.error('[useAIStream] Failed to connect:', error);
+        setState((prev) => ({
+          ...prev,
+          transportError: message,
+          isConnected: false,
         }));
-    }, []);
-
-    // 处理错误消息
-    const handleError = useCallback((error: AIStreamError) => {
-        setState(prev => ({
-            ...prev,
-            isLoading: false,
-            error: error.message,
-        }));
-    }, []);
-
-    // 处理开始消息
-    const handleStarted = useCallback((_data: AIStreamStarted) => {
-        setState(prev => ({
-            ...prev,
-            isLoading: true,
-            steps: [],
-            response: null,
-            error: null,
-            elementsCreated: [],
-        }));
-    }, []);
-
-    // 处理连接关闭
-    const handleClose = useCallback(() => {
-        setState(prev => ({
-            ...prev,
-            isConnected: false,
-        }));
-    }, []);
-
-    // 连接
-    const connect = useCallback(async () => {
-        if (clientRef.current?.isConnected) {
-            return;
+      } finally {
+        if (clientRef.current === client && !client.isConnected) {
+          clientRef.current = null;
         }
+        connectPromiseRef.current = null;
+      }
+    })();
+    connectPromiseRef.current = connectPromise;
+    await connectPromise;
+  }, [roomId, autoConnect, handleStep, handleComplete, handleError, handleStarted, handleClose]);
 
-        const client = new AIStreamClient(roomId, {
-            onStep: handleStep,
-            onComplete: handleComplete,
-            onError: handleError,
-            onStarted: handleStarted,
-            onClose: handleClose,
-        });
+  const disconnect = useCallback(() => {
+    clientRef.current?.disconnect();
+    clientRef.current = null;
+    connectPromiseRef.current = null;
+    roomVersionRef.current = null;
+    latestRequestIdRef.current = null;
+    setState((prev) => ({
+      ...prev,
+      isConnected: false,
+      transportError: null,
+      requestId: null,
+      roomVersion: null,
+      snapshotRequired: false,
+      lastCloseInfo: null,
+      closeInterruptedRequest: false,
+    }));
+  }, []);
 
-        try {
-            await client.connect();
-            clientRef.current = client;
-            setState(prev => ({ ...prev, isConnected: true }));
-        } catch (error) {
-            console.error('[useAIStream] 连接失败:', error);
-            setState(prev => ({
-                ...prev,
-                error: '连接失败，请重试',
-                isConnected: false,
-            }));
-        }
-    }, [roomId, handleStep, handleComplete, handleError, handleStarted, handleClose]);
+  const sendRequest = useCallback(async (
+    prompt: string,
+    options?: AIStreamRequestOptions,
+  ) => {
+    if (!clientRef.current?.isConnected) {
+      await connect();
+    }
 
-    // 断开连接
-    const disconnect = useCallback(() => {
-        clientRef.current?.disconnect();
-        clientRef.current = null;
-        setState(prev => ({ ...prev, isConnected: false }));
-    }, []);
+    if (!clientRef.current?.isConnected) {
+      const defaultTransportError = getDefaultAIStreamConnectionError();
+      setState((prev) => ({
+        ...prev,
+        error: prev.error || defaultTransportError,
+        transportError: prev.transportError || defaultTransportError,
+        closeInterruptedRequest: true,
+      }));
+      return;
+    }
 
-    // 发送请求
-    const sendRequest = useCallback(async (prompt: string, options?: {
-        theme?: string;
-        virtual_mode?: boolean;
-        mode?: 'agent' | 'planning' | 'mermaid';
-    }) => {
-        // 如果未连接，先连接
-        if (!clientRef.current?.isConnected) {
-            await connect();
-        }
-
-        if (!clientRef.current?.isConnected) {
-            setState(prev => ({ ...prev, error: '无法连接到服务器' }));
-            return;
-        }
-
-        // 根据模式调整选项
-        const mode = options?.mode || 'agent';
-        const adjustedOptions: { theme?: string; virtual_mode?: boolean; mode?: string } = {
-            ...options,
-            mode,
-        };
-
-        // Planning 模式自动启用虚拟模式
-        if (mode === 'planning') {
-            adjustedOptions.virtual_mode = true;
-        }
-
-        // 发送请求（Mermaid 模式的提示词处理由后端统一完成）
-        clientRef.current.sendRequest(prompt, adjustedOptions);
-    }, [connect]);
-
-    // 重置状态
-    const reset = useCallback(() => {
-        setState({
-            isConnected: clientRef.current?.isConnected ?? false,
-            isLoading: false,
-            steps: [],
-            response: null,
-            error: null,
-            elementsCreated: [],
-            virtualElements: [],
-        });
-    }, []);
-
-    // 自动连接
-    useEffect(() => {
-        if (autoConnect) {
-            connect();
-        }
-
-        return () => {
-            disconnect();
-        };
-    }, [autoConnect, connect, disconnect]);
-
-    return {
-        ...state,
-        connect,
-        disconnect,
-        sendRequest,
-        reset,
+    const mode = options?.mode || 'agent';
+    const adjustedOptions: AIStreamRequestOptions = {
+      ...options,
+      mode,
     };
+
+    if (mode === 'planning') {
+      adjustedOptions.virtual_mode = true;
+    }
+
+    latestRequestIdRef.current = adjustedOptions.request_id ?? null;
+    setState((prev) => ({
+      ...prev,
+      error: null,
+      transportError: null,
+      requestId: adjustedOptions.request_id ?? prev.requestId,
+      closeInterruptedRequest: false,
+    }));
+
+    clientRef.current.sendRequest(prompt, adjustedOptions);
+  }, [connect]);
+
+  const reset = useCallback(() => {
+    latestRequestIdRef.current = null;
+    setState({
+      isConnected: clientRef.current?.isConnected ?? false,
+      isLoading: false,
+      steps: [],
+      response: null,
+      error: null,
+      transportError: null,
+      requestId: null,
+      lastCloseInfo: null,
+      closeInterruptedRequest: false,
+      roomVersion: roomVersionRef.current,
+      snapshotRequired: false,
+      elementsCreated: [],
+      virtualElements: [],
+      diagramBundle: null,
+      diagramFamily: null,
+      generationMode: null,
+      managedScope: [],
+      patchSummary: null,
+      unmanagedWarnings: [],
+      sources: [],
+      changeReasoning: [],
+      affectedNodeIds: [],
+      riskNotes: [],
+    });
+  }, []);
+
+  useEffect(() => {
+    if (autoConnect) {
+      connect();
+    }
+
+    return () => {
+      disconnect();
+    };
+  }, [autoConnect, roomId, connect, disconnect]);
+
+  return {
+    ...state,
+    connect,
+    disconnect,
+    sendRequest,
+    reset,
+  };
 }

@@ -1,16 +1,16 @@
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
-import React, { Component, ErrorInfo, ReactNode, useEffect } from 'react';
-const Canvas = React.lazy(() => import('./components/canvas/Canvas').then(module => ({ default: module.Canvas })));
-import { Login } from './pages/Login';
-import { Rooms } from './pages/Rooms';
-import { Welcome } from './pages/Welcome';
-import Settings from './pages/Settings';
-
+import React, { Component, type ErrorInfo, type ReactNode, useEffect } from 'react';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
+
 import { ThemeProvider } from './components/common/ThemeProvider';
 import { NotificationProvider } from './components/common/NotificationProvider';
+import { SINGLETON_CANVAS_ID, SINGLETON_CANVAS_NAME } from './config/singletonCanvas';
+import { I18nProvider, translate, useI18n } from './i18n';
 
-// ==================== 错误边界组件 ====================
+const Canvas = React.lazy(() =>
+  import('./components/canvas/Canvas').then((module) => ({ default: module.Canvas })),
+);
+
 interface ErrorBoundaryProps {
   children: ReactNode;
 }
@@ -32,37 +32,39 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('React Error Boundary 捕获错误:', error);
-    console.error('组件堆栈:', errorInfo.componentStack);
+    console.error('React Error Boundary caught an error:', error);
+    console.error('Component stack:', errorInfo.componentStack);
     this.setState({ errorInfo });
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-red-50 flex items-center justify-center p-8">
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full">
-            <h1 className="text-2xl font-bold text-red-600 mb-4">⚠️ 应用发生错误</h1>
-            <div className="bg-red-100 rounded p-4 mb-4">
-              <p className="font-mono text-sm text-red-800">
+        <div className="flex min-h-screen items-center justify-center bg-red-50 p-8 dark:bg-zinc-950">
+          <div className="w-full max-w-2xl rounded-lg border border-red-100 bg-white p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
+            <h1 className="mb-4 text-2xl font-bold text-red-600 dark:text-red-300">
+              {translate('app.errorTitle')}
+            </h1>
+            <div className="mb-4 rounded bg-red-100 p-4 dark:bg-red-950/40">
+              <p className="font-mono text-sm text-red-800 dark:text-red-100">
                 {this.state.error?.message}
               </p>
             </div>
             {this.state.errorInfo && (
               <details className="mb-4">
-                <summary className="cursor-pointer text-gray-600 hover:text-gray-800">
-                  查看详细堆栈
+                <summary className="cursor-pointer text-gray-600 hover:text-gray-800 dark:text-zinc-400 dark:hover:text-zinc-200">
+                  {translate('app.showStackTrace')}
                 </summary>
-                <pre className="mt-2 p-4 bg-gray-100 rounded text-xs overflow-auto max-h-64">
+                <pre className="mt-2 max-h-64 overflow-auto rounded bg-gray-100 p-4 text-xs dark:bg-zinc-950 dark:text-zinc-300">
                   {this.state.errorInfo.componentStack}
                 </pre>
               </details>
             )}
             <button
               onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-500"
             >
-              刷新页面
+              {translate('app.reloadPage')}
             </button>
           </div>
         </div>
@@ -73,18 +75,21 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 }
 
-// ==================== 全局错误监听 ====================
 const GlobalErrorHandler = () => {
   useEffect(() => {
-    // 捕获未处理的 Promise 错误
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-      console.error('未处理的 Promise 错误:', event.reason);
-      // 可以在这里显示 toast 通知
+      console.error('Unhandled promise rejection:', event.reason);
     };
 
-    // 捕获全局 JS 错误
     const handleError = (event: ErrorEvent) => {
-      console.error('全局 JS 错误:', event.message, '\n位置:', event.filename, ':', event.lineno);
+      console.error(
+        'Global JS error:',
+        event.message,
+        '\nLocation:',
+        event.filename,
+        ':',
+        event.lineno,
+      );
     };
 
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
@@ -99,87 +104,46 @@ const GlobalErrorHandler = () => {
   return null;
 };
 
-// ==================== 路由保护 ====================
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const token = localStorage.getItem('token');
-  const isGuest = localStorage.getItem('isGuest') === 'true';
-
-  // 允许有 token 或游客模式访问
-  if (!token && !isGuest) {
-    return <Navigate to="/login" replace />;
-  }
-  return <>{children}</>;
-};
-
-// ==================== 主应用 ====================
-function App() {
-  return (
-    <ThemeProvider>
-      <NotificationProvider>
-        <ErrorBoundary>
-          <GlobalErrorHandler />
-          <BrowserRouter>
-            <Routes>
-              {/* 欢迎页 - 应用入口 */}
-              <Route path="/" element={<Welcome />} />
-
-              {/* 登录页 */}
-              <Route path="/login" element={<Login />} />
-
-              {/* 房间列表 */}
-              <Route
-                path="/rooms"
-                element={
-                  <ProtectedRoute>
-                    <Rooms />
-                  </ProtectedRoute>
-                }
-              />
-
-              {/* AI 设置页面 */}
-              <Route
-                path="/settings"
-                element={
-                  <ProtectedRoute>
-                    <Settings />
-                  </ProtectedRoute>
-                }
-              />
-
-
-              {/* 画布房间 */}
-              <Route
-                path="/room/:roomId"
-                element={
-                  <ProtectedRoute>
-                    <Board />
-                  </ProtectedRoute>
-                }
-              />
-            </Routes>
-          </BrowserRouter>
-        </ErrorBoundary>
-      </NotificationProvider>
-    </ThemeProvider>
-  );
-}
-
 const Board = () => {
-  const { roomId } = useParams<{ roomId: string }>();
+  const { t } = useI18n();
+
   return (
     <div className="App">
-      <React.Suspense fallback={
-        <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
-          <div className="text-center">
-            <Loader2 className="h-10 w-10 animate-spin text-blue-500 mx-auto mb-4" />
-            <p className="text-gray-500 dark:text-gray-400">正在加载画布...</p>
+      <React.Suspense
+        fallback={(
+          <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
+            <div className="text-center">
+              <Loader2 className="mx-auto mb-4 h-10 w-10 animate-spin text-blue-500" />
+              <p className="text-gray-500 dark:text-gray-400">{t('app.loadingCanvas')}</p>
+            </div>
           </div>
-        </div>
-      }>
-        <Canvas roomId={roomId} />
+        )}
+      >
+        <Canvas roomId={SINGLETON_CANVAS_ID} roomName={SINGLETON_CANVAS_NAME} />
       </React.Suspense>
     </div>
   );
 };
+
+function App() {
+  return (
+    <I18nProvider>
+      <ThemeProvider>
+        <NotificationProvider>
+          <ErrorBoundary>
+            <GlobalErrorHandler />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Board />} />
+                {/* Single-instance mode disables login/rooms/join flows without deleting the codepaths. */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </BrowserRouter>
+          </ErrorBoundary>
+        </NotificationProvider>
+      </ThemeProvider>
+    </I18nProvider>
+  );
+}
 
 export default App;

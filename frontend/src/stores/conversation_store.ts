@@ -1,8 +1,7 @@
 import { create } from 'zustand';
 
-/**
- * 对话信息
- */
+import { apiClient } from '../services/api/axios';
+
 export interface ConversationInfo {
     id: number;
     room_id: string;
@@ -14,35 +13,18 @@ export interface ConversationInfo {
     updated_at: number;
 }
 
-/**
- * 对话消息
- */
-export interface ConversationMessage {
-    role: 'user' | 'assistant';
-    content: string;
-    extra_data?: Record<string, unknown>;
-}
+export type { ConversationMessage } from '../services/api/ai';
 
-/**
- * 对话历史 Store
- */
 interface ConversationStore {
-    /** 当前房间 ID */
     roomId: string | null;
-    /** 对话列表 */
     conversations: ConversationInfo[];
-    /** 当前活跃对话 ID */
     activeConversationId: number | null;
-    /** 加载状态 */
     isLoading: boolean;
-    /** 历史面板是否打开 */
     isHistoryOpen: boolean;
-
-    // Actions
     setRoomId: (roomId: string) => void;
     fetchConversations: () => Promise<void>;
     createConversation: (title?: string, mode?: string) => Promise<number | null>;
-    selectConversation: (id: number) => void;
+    selectConversation: (id: number) => Promise<void>;
     deleteConversation: (id: number) => Promise<void>;
     updateTitle: (id: number, title: string) => Promise<void>;
     toggleHistory: () => void;
@@ -57,7 +39,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
 
     setRoomId: (roomId: string) => {
         set({ roomId, conversations: [], activeConversationId: null });
-        get().fetchConversations();
+        void get().fetchConversations();
     },
 
     fetchConversations: async () => {
@@ -66,12 +48,9 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
 
         set({ isLoading: true });
         try {
-            const response = await fetch(`/api/ai/conversations/${roomId}`);
-            const data = await response.json();
-            const conversations = data.conversations || [];
-
-            // 找到活跃对话
-            const active = conversations.find((c: ConversationInfo) => c.is_active);
+            const response = await apiClient.get(`/ai/conversations/${roomId}`);
+            const conversations = response.data.conversations || [];
+            const active = conversations.find((conversation: ConversationInfo) => conversation.is_active);
 
             set({
                 conversations,
@@ -84,28 +63,44 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         }
     },
 
-    createConversation: async (title = '新对话', mode = 'planning') => {
+    createConversation: async (title = 'New conversation', mode = 'planning') => {
         const { roomId } = get();
         if (!roomId) return null;
 
         try {
-            const response = await fetch(`/api/ai/conversations/${roomId}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title, mode }),
-            });
-            const data = await response.json();
-
+            const response = await apiClient.post(`/ai/conversations/${roomId}`, { title, mode });
+            const conversationId = response.data.conversation_id ?? null;
+            if (conversationId !== null) {
+                set({ activeConversationId: conversationId });
+            }
             await get().fetchConversations();
-            return data.conversation_id;
+            return conversationId;
         } catch (error) {
             console.error('Failed to create conversation:', error);
             return null;
         }
     },
 
-    selectConversation: (id: number) => {
-        set({ activeConversationId: id });
+    selectConversation: async (id: number) => {
+        const { roomId } = get();
+        if (!roomId) return;
+
+        set((state) => ({
+            activeConversationId: id,
+            conversations: state.conversations.map((conversation) => ({
+                ...conversation,
+                is_active: conversation.id === id,
+            })),
+        }));
+
+        try {
+            await apiClient.patch(`/ai/conversations/${roomId}/${id}`, {
+                is_active: true,
+            });
+        } catch (error) {
+            console.error('Failed to select conversation:', error);
+            await get().fetchConversations();
+        }
     },
 
     deleteConversation: async (id: number) => {
@@ -113,9 +108,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         if (!roomId) return;
 
         try {
-            await fetch(`/api/ai/conversations/${roomId}/${id}`, {
-                method: 'DELETE',
-            });
+            await apiClient.delete(`/ai/conversations/${roomId}/${id}`);
             await get().fetchConversations();
         } catch (error) {
             console.error('Failed to delete conversation:', error);
@@ -127,15 +120,10 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         if (!roomId) return;
 
         try {
-            await fetch(`/api/ai/conversations/${roomId}/${id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title }),
-            });
-
+            await apiClient.patch(`/ai/conversations/${roomId}/${id}`, { title });
             set((state) => ({
-                conversations: state.conversations.map((c) =>
-                    c.id === id ? { ...c, title } : c
+                conversations: state.conversations.map((conversation) =>
+                    conversation.id === id ? { ...conversation, title } : conversation,
                 ),
             }));
         } catch (error) {

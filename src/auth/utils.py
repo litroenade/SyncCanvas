@@ -5,9 +5,10 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from passlib.context import CryptContext
 from sqlmodel import Session, select
-from src.config import config
-from src.db.database import get_session
-from src.db.user import User
+from src.infra.config import config
+from src.infra.singleton_canvas import ensure_singleton_user
+from src.persistence.db.engine import get_session
+from src.persistence.db.models.users import User
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -18,6 +19,57 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 小时
 # OAuth2 scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="auth/token", auto_error=False)
+
+
+def _credentials_exception() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+def extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
+    """Extract the raw bearer token from an Authorization header."""
+
+    if not authorization:
+        return None
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        return None
+    return token
+
+
+def get_user_from_token(
+    token: Optional[str],
+    session: Session,
+    *,
+    raise_on_error: bool = False,
+) -> Optional[User]:
+    """Resolve one user from a JWT token string."""
+
+    if token is None:
+        if raise_on_error:
+            raise _credentials_exception()
+        return None
+
+    try:
+        payload = jwt.decode(token, config.secret_key, algorithms=[ALGORITHM])
+        username: str | None = payload.get("sub")
+        if username is None:
+            if raise_on_error:
+                raise _credentials_exception()
+            return None
+    except JWTError as exc:
+        if raise_on_error:
+            raise _credentials_exception() from exc
+        return None
+
+    statement = select(User).where(User.username == username)
+    user = session.exec(statement).first()
+    if user is None and raise_on_error:
+        raise _credentials_exception()
+    return user
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -68,7 +120,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 
 async def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)],
+    token: Annotated[Optional[str], Depends(oauth2_scheme_optional)],
     session: Session = Depends(get_session),
 ) -> User:
     """获取当前登录用户
@@ -83,24 +135,10 @@ async def get_current_user(
     Raises:
         HTTPException: 认证失败时抛出 401 错误
     """
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, config.secret_key, algorithms=[ALGORITHM])
-        username: str | None = payload.get("sub")
-        if username is None:
-            raise credentials_exception
-    except JWTError as exc:
-        raise credentials_exception from exc
-
-    statement = select(User).where(User.username == username)
-    user = session.exec(statement).first()
-    if user is None:
-        raise credentials_exception
-    return user
+    current_user = get_user_from_token(token, session, raise_on_error=False)
+    if current_user is not None:
+        return current_user
+    return ensure_singleton_user(session)
 
 
 async def get_current_user_optional(
@@ -116,17 +154,7 @@ async def get_current_user_optional(
     Returns:
         Optional[User]: 当前用户对象，未登录返回 None
     """
-    if token is None:
-        return None
-
-    try:
-        payload = jwt.decode(token, config.secret_key, algorithms=[ALGORITHM])
-        username: str | None = payload.get("sub")
-        if username is None:
-            return None
-    except JWTError:
-        return None
-
-    statement = select(User).where(User.username == username)
-    user = session.exec(statement).first()
-    return user
+    current_user = get_user_from_token(token, session, raise_on_error=False)
+    if current_user is not None:
+        return current_user
+    return ensure_singleton_user(session)

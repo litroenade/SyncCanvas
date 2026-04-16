@@ -1,0 +1,3 @@
+export const SINGLETON_CANVAS_ID = '00000000-0000-0000-0000-000000000001';
+export const SINGLETON_CANVAS_NAME = 'Main Canvas';
+export const SINGLETON_USER_LABEL = 'Local Canvas';

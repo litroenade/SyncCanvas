@@ -1,367 +1,374 @@
-/**
- * AISidebar 组件
- *
- * AI 侧边栏主容器，统一聊天界面
- * 模式选择（Agent/Planning/Mermaid）只影响 AI 行为，不改变 UI
- * 支持拖拽调整宽度，收起/展开动画
- */
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 import { cn } from '../../lib/utils';
 import { Bot, X, GripVertical, Plus, History, Trash2, MessageSquare } from 'lucide-react';
 import { AgentMode } from './AgentMode';
-import { ConversationMode } from './ChatInput';
+import type { ConversationMode } from './ChatInput';
 import { aiApi } from '../../services/api/ai';
-import { useConversationStore, ConversationInfo } from '../../stores/conversation_store';
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ExcalidrawAPI = any;
+import { useConversationStore, type ConversationInfo } from '../../stores/conversation_store';
+import type { ManagedDiagramTarget } from '../../types';
+import { useI18n } from '../../i18n';
+import { translateWithLocale } from '../../i18n/core';
 
 interface AISidebarProps {
-    /** 房间 ID */
-    roomId: string;
-    /** 是否深色模式 */
-    isDark: boolean;
-    /** 是否展开 */
-    isOpen: boolean;
-    /** 切换展开状态 */
-    onToggle: () => void;
-    /** Excalidraw API 引用（保留用于未来虚拟画布功能） */
-    excalidrawAPI: ExcalidrawAPI | null;
+  roomId: string;
+  isDark: boolean;
+  isOpen: boolean;
+  onToggle: () => void;
+  excalidrawAPI: ExcalidrawImperativeAPI | null;
+  diagramTarget?: ManagedDiagramTarget | null;
 }
 
-type AIMode = ConversationMode;  // 'agent' | 'planning' | 'mermaid'
+type AIMode = ConversationMode;
 
 const MIN_WIDTH = 360;
 const MAX_WIDTH = 800;
 const DEFAULT_WIDTH = 450;
 const STORAGE_KEY = 'ai-sidebar-mode';
-const TITLE_STORAGE_KEY = 'ai-conversation-title';
 
 export const AISidebar: React.FC<AISidebarProps> = ({
-    roomId,
-    isDark,
-    isOpen,
-    onToggle,
-    excalidrawAPI,
+  roomId,
+  isDark,
+  isOpen,
+  onToggle,
+  excalidrawAPI,
+  diagramTarget,
 }) => {
-    // 从 localStorage 加载上次使用的模式，默认 Ask (planning) 模式
-    const [mode, setMode] = useState<AIMode>(() => {
-        const saved = localStorage.getItem(STORAGE_KEY) as AIMode | null;
-        return saved && ['agent', 'planning', 'mermaid'].includes(saved) ? saved : 'planning';
-    });
-    const [width, setWidth] = useState(DEFAULT_WIDTH);
-    const [isResizing, setIsResizing] = useState(false);
-    const sidebarRef = useRef<HTMLDivElement>(null);
+  const { t } = useI18n();
+  const [mode, setMode] = useState<AIMode>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY) as AIMode | null;
+    return saved && ['agent', 'planning', 'mermaid'].includes(saved) ? saved : 'planning';
+  });
+  const [width, setWidth] = useState(DEFAULT_WIDTH);
+  const [isResizing, setIsResizing] = useState(false);
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  const previousActiveConversationIdRef = useRef<number | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
 
-    // 对话标题状态
-    const [conversationTitle, setConversationTitle] = useState<string>(() => {
-        return localStorage.getItem(`${TITLE_STORAGE_KEY}-${roomId}`) || 'AI 助手';
-    });
+  const {
+    conversations,
+    activeConversationId,
+    isLoading: isHistoryLoading,
+    setRoomId,
+    fetchConversations,
+    createConversation,
+    selectConversation,
+    deleteConversation,
+    updateTitle,
+  } = useConversationStore();
 
-    // 历史面板状态
-    const [showHistory, setShowHistory] = useState(false);
-    const {
-        conversations,
-        activeConversationId,
-        isLoading: isHistoryLoading,
-        setRoomId,
-        fetchConversations,
-        createConversation,
-        selectConversation,
-        deleteConversation,
-    } = useConversationStore();
+  const activeConversation = conversations.find(
+    (conversation) => conversation.id === activeConversationId,
+  );
+  const defaultAssistantTitles = useMemo(
+    () => new Set([
+      translateWithLocale('en-US', 'aiSidebar.defaultTitle'),
+      translateWithLocale('zh-CN', 'aiSidebar.defaultTitle'),
+    ]),
+    [],
+  );
+  const defaultNewConversationTitles = useMemo(
+    () => new Set([
+      translateWithLocale('en-US', 'aiSidebar.newConversationTitle'),
+      translateWithLocale('zh-CN', 'aiSidebar.newConversationTitle'),
+    ]),
+    [],
+  );
+  const conversationTitle =
+    activeConversation?.title
+    && !defaultNewConversationTitles.has(activeConversation.title)
+    && !defaultAssistantTitles.has(activeConversation.title)
+      ? activeConversation.title
+      : t('aiSidebar.defaultTitle');
 
-    // 初始化房间 ID
-    useEffect(() => {
-        if (roomId) {
-            setRoomId(roomId);
-        }
-    }, [roomId, setRoomId]);
+  useEffect(() => {
+    if (roomId) {
+      setRoomId(roomId);
+    }
+  }, [roomId, setRoomId]);
 
-    // 标题更新回调 - 当用户发送第一条消息时调用
-    const handleFirstMessage = useCallback(async (message: string) => {
-        if (conversationTitle === 'AI 助手' && message) {
-            const { title } = await aiApi.summarize(message);
-            setConversationTitle(title);
-            localStorage.setItem(`${TITLE_STORAGE_KEY}-${roomId}`, title);
-        }
-    }, [conversationTitle, roomId]);
+  useEffect(() => {
+    if (activeConversationId == null || !activeConversation) {
+      previousActiveConversationIdRef.current = activeConversationId;
+      return;
+    }
 
-    // 新建对话
-    const handleNewConversation = useCallback(async () => {
-        setConversationTitle('AI 助手');
-        localStorage.removeItem(`${TITLE_STORAGE_KEY}-${roomId}`);
-        await createConversation('新对话', mode);
-        setShowHistory(false);
-    }, [roomId, createConversation, mode]);
+    if (previousActiveConversationIdRef.current !== activeConversationId) {
+      previousActiveConversationIdRef.current = activeConversationId;
+      setMode(activeConversation.mode as AIMode);
+    }
+  }, [activeConversation, activeConversationId, setMode]);
 
-    // 选择历史对话
-    const handleSelectConversation = useCallback((conv: ConversationInfo) => {
-        setConversationTitle(conv.title);
-        localStorage.setItem(`${TITLE_STORAGE_KEY}-${roomId}`, conv.title);
-        selectConversation(conv.id);  // 更新活跃对话 ID
-        setShowHistory(false);
-    }, [roomId, selectConversation]);
+  const handleFirstMessage = useCallback(async (message: string) => {
+    if (
+      message
+      && (activeConversation?.title == null || defaultAssistantTitles.has(activeConversation.title))
+    ) {
+      const { title } = await aiApi.summarize(message);
+      if (activeConversationId != null) {
+        await updateTitle(activeConversationId, title);
+      }
+    }
+  }, [activeConversation?.title, activeConversationId, defaultAssistantTitles, updateTitle]);
 
-    // 删除对话
-    const handleDeleteConversation = useCallback(async (id: number, e: React.MouseEvent) => {
-        e.stopPropagation();
-        await deleteConversation(id);
-    }, [deleteConversation]);
+  const handleNewConversation = useCallback(async () => {
+    const createdConversationId = await createConversation(t('aiSidebar.newConversationTitle'), mode);
+    if (createdConversationId === null) {
+      return;
+    }
 
-    // 保存模式到 localStorage
-    useEffect(() => {
-        localStorage.setItem(STORAGE_KEY, mode);
-    }, [mode]);
+    setShowHistory(false);
+  }, [createConversation, mode, t]);
 
-    // 处理拖拽调整宽度
-    const handleMouseDown = useCallback((e: React.MouseEvent) => {
-        e.preventDefault();
-        setIsResizing(true);
-    }, []);
+  const handleSelectConversation = useCallback(async (conversation: ConversationInfo) => {
+    setMode(conversation.mode as AIMode);
+    await selectConversation(conversation.id);
+    setShowHistory(false);
+  }, [selectConversation, setMode]);
 
-    useEffect(() => {
-        if (!isResizing) return;
+  const handleDeleteConversation = useCallback(async (id: number, event: React.MouseEvent) => {
+    event.stopPropagation();
+    await deleteConversation(id);
+  }, [deleteConversation]);
 
-        const handleMouseMove = (e: MouseEvent) => {
-            const newWidth = window.innerWidth - e.clientX;
-            setWidth(Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, newWidth)));
-        };
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, mode);
+  }, [mode]);
 
-        const handleMouseUp = () => {
-            setIsResizing(false);
-        };
+  const handleMouseDown = useCallback((event: React.MouseEvent) => {
+    event.preventDefault();
+    setIsResizing(true);
+  }, []);
 
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
+  useEffect(() => {
+    if (!isResizing) return;
 
-        return () => {
-            document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
-        };
-    }, [isResizing]);
+    const handleMouseMove = (event: MouseEvent) => {
+      const nextWidth = window.innerWidth - event.clientX;
+      setWidth(Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, nextWidth)));
+    };
 
-    return (
-        <>
-            {/* 始终可见的边缘标签 - 用于展开侧边栏 */}
-            {!isOpen && (
-                <button
-                    onClick={onToggle}
-                    className={cn(
-                        'fixed z-[50] flex items-center gap-2',
-                        'py-3 px-2 rounded-l-xl',
-                        'transition-all duration-300',
-                        'shadow-lg hover:shadow-xl',
-                        isDark
-                            ? 'bg-zinc-800/90 hover:bg-zinc-700 text-zinc-300 border border-r-0 border-zinc-700/50'
-                            : 'bg-white/90 hover:bg-zinc-50 text-zinc-700 border border-r-0 border-zinc-200',
-                        'backdrop-blur-xl'
-                    )}
-                    style={{ right: 0, top: '50%', transform: 'translateY(-50%)' }}
-                >
-                    <Bot size={20} className="text-violet-500" />
-                </button>
+    const handleMouseUp = () => setIsResizing(false);
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
+
+  return (
+    <>
+      {!isOpen && (
+        <button
+          onClick={onToggle}
+          className={cn(
+            'fixed z-[50] flex items-center gap-2 rounded-l-xl px-2 py-3 shadow-lg transition-all duration-300 hover:shadow-xl',
+            isDark
+              ? 'border border-r-0 border-zinc-700/50 bg-zinc-800/90 text-zinc-300 hover:bg-zinc-700'
+              : 'border border-r-0 border-zinc-200 bg-white/90 text-zinc-700 hover:bg-zinc-50',
+            'backdrop-blur-xl',
+          )}
+          style={{ right: 0, top: '50%', transform: 'translateY(-50%)' }}
+          title={t('aiSidebar.open')}
+        >
+          <Bot size={20} className="text-violet-500" />
+        </button>
+      )}
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.aside
+            ref={sidebarRef}
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            className={cn(
+              'ai-sidebar fixed right-0 top-0 bottom-0 z-[45] flex h-full flex-col border-l backdrop-blur-xl',
+              isDark
+                ? 'border-zinc-700/50 bg-zinc-900/95'
+                : 'border-zinc-200/50 bg-white/95',
             )}
+            style={{ '--sidebar-width': `${width}px` } as React.CSSProperties}
+          >
+            <div
+              className={cn(
+                'absolute left-0 top-0 bottom-0 flex w-1 cursor-ew-resize items-center justify-center transition-colors hover:bg-violet-500/50',
+                isResizing && 'bg-violet-500/50',
+              )}
+              onMouseDown={handleMouseDown}
+            >
+              <GripVertical
+                size={12}
+                className={cn(
+                  'opacity-0 transition-opacity hover:opacity-100',
+                  isDark ? 'text-zinc-500' : 'text-zinc-400',
+                )}
+              />
+            </div>
+
+            <div
+              className={cn(
+                'flex items-center justify-between border-b px-3 py-2.5',
+                isDark ? 'border-zinc-700/50' : 'border-zinc-200/50',
+              )}
+            >
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <div className="rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 p-1.5">
+                  <Bot size={14} className="text-white" />
+                </div>
+                <span
+                  className={cn(
+                    'truncate text-sm font-medium',
+                    isDark ? 'text-zinc-200' : 'text-zinc-700',
+                  )}
+                  title={conversationTitle}
+                >
+                  {conversationTitle}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-0.5">
+                <button
+                  onClick={handleNewConversation}
+                  className={cn(
+                    'rounded-md p-1.5 transition-colors',
+                    isDark
+                      ? 'text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'
+                      : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700',
+                  )}
+                  title={t('aiSidebar.newConversation')}
+                >
+                  <Plus size={16} />
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowHistory((prev) => !prev);
+                    if (!showHistory) {
+                      fetchConversations();
+                    }
+                  }}
+                  className={cn(
+                    'rounded-md p-1.5 transition-colors',
+                    showHistory
+                      ? isDark
+                        ? 'bg-violet-600 text-white'
+                        : 'bg-violet-500 text-white'
+                      : isDark
+                        ? 'text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'
+                        : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700',
+                  )}
+                  title={t('aiSidebar.conversationHistory')}
+                >
+                  <History size={16} />
+                </button>
+
+                <button
+                  onClick={onToggle}
+                  className={cn(
+                    'rounded-md p-1.5 transition-colors',
+                    isDark
+                      ? 'text-zinc-400 hover:bg-zinc-700 hover:text-red-400'
+                      : 'text-zinc-500 hover:bg-zinc-100 hover:text-red-500',
+                  )}
+                  title={t('aiSidebar.close')}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
 
             <AnimatePresence>
-                {isOpen && (
-                    <motion.aside
-                        ref={sidebarRef}
-                        initial={{ width: 0, opacity: 0 }}
-                        animate={{ width, opacity: 1 }}
-                        exit={{ width: 0, opacity: 0 }}
-                        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                        className={cn(
-                            'ai-sidebar',
-                            'fixed right-0 top-0 bottom-0 z-[45]',
-                            'h-full flex flex-col',
-                            'border-l',
-                            isDark
-                                ? 'bg-zinc-900/95 border-zinc-700/50'
-                                : 'bg-white/95 border-zinc-200/50',
-                            'backdrop-blur-xl'
-                        )}
-                        style={{
-                            '--sidebar-width': `${width}px`,
-                        } as React.CSSProperties}
-                    >
-                        {/* 拖拽调整宽度手柄 */}
+              {showHistory && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className={cn(
+                    'overflow-hidden border-b',
+                    isDark
+                      ? 'border-zinc-700/50 bg-zinc-800/50'
+                      : 'border-zinc-200/50 bg-zinc-50/50',
+                  )}
+                >
+                  <div className="max-h-64 space-y-1 overflow-y-auto p-2">
+                    {isHistoryLoading ? (
+                      <div className="py-4 text-center text-zinc-500">{t('aiSidebar.loading')}</div>
+                    ) : conversations.length === 0 ? (
+                      <div className="py-4 text-center text-zinc-500">{t('aiSidebar.emptyHistory')}</div>
+                    ) : (
+                      conversations.map((conversation) => (
                         <div
-                            className={cn(
-                                'absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize',
-                                'hover:bg-violet-500/50 transition-colors',
-                                'flex items-center justify-center',
-                                isResizing && 'bg-violet-500/50'
-                            )}
-                            onMouseDown={handleMouseDown}
+                          key={conversation.id}
+                          onClick={() => {
+                            void handleSelectConversation(conversation);
+                          }}
+                          className={cn(
+                            'group flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 transition-colors',
+                            conversation.is_active
+                              ? isDark
+                                ? 'bg-violet-600/20 text-violet-300'
+                                : 'bg-violet-100 text-violet-700'
+                              : isDark
+                                ? 'hover:bg-zinc-700'
+                                : 'hover:bg-zinc-100',
+                          )}
                         >
-                            <GripVertical
-                                size={12}
-                                className={cn(
-                                    'opacity-0 hover:opacity-100 transition-opacity',
-                                    isDark ? 'text-zinc-500' : 'text-zinc-400'
-                                )}
-                            />
-                        </div>
-
-                        {/* 头部 - Cursor 风格 */}
-                        <div
+                          <MessageSquare size={14} className="flex-shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <div
+                              className={cn(
+                                'truncate text-sm font-medium',
+                                isDark ? 'text-zinc-200' : 'text-zinc-700',
+                              )}
+                            >
+                              {conversation.title}
+                            </div>
+                            <div className="text-xs text-zinc-500">
+                              {t('aiSidebar.messageCount', { count: conversation.message_count })}
+                            </div>
+                          </div>
+                          <button
+                            onClick={(event) => handleDeleteConversation(conversation.id, event)}
                             className={cn(
-                                'flex items-center justify-between',
-                                'px-3 py-2.5 border-b',
-                                isDark ? 'border-zinc-700/50' : 'border-zinc-200/50'
+                              'rounded p-1 opacity-0 transition-opacity group-hover:opacity-100',
+                              isDark
+                                ? 'text-red-400 hover:bg-red-600/20'
+                                : 'text-red-500 hover:bg-red-100',
                             )}
-                        >
-                            {/* 左侧：对话标题 */}
-                            <div className="flex items-center gap-2 min-w-0 flex-1">
-                                <div
-                                    className={cn(
-                                        'p-1.5 rounded-lg flex-shrink-0',
-                                        'bg-gradient-to-br from-violet-500 to-purple-600'
-                                    )}
-                                >
-                                    <Bot size={14} className="text-white" />
-                                </div>
-                                <span
-                                    className={cn(
-                                        'font-medium text-sm truncate',
-                                        isDark ? 'text-zinc-200' : 'text-zinc-700'
-                                    )}
-                                    title={conversationTitle}
-                                >
-                                    {conversationTitle}
-                                </span>
-                            </div>
-
-                            {/* 右侧：工具按钮 */}
-                            <div className="flex items-center gap-0.5">
-                                {/* 新建对话 */}
-                                <button
-                                    onClick={handleNewConversation}
-                                    className={cn(
-                                        'p-1.5 rounded-md transition-colors',
-                                        isDark
-                                            ? 'hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200'
-                                            : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700'
-                                    )}
-                                    title="新建对话"
-                                >
-                                    <Plus size={16} />
-                                </button>
-
-                                {/* 历史记录 */}
-                                <button
-                                    onClick={() => {
-                                        setShowHistory(!showHistory);
-                                        if (!showHistory) fetchConversations();
-                                    }}
-                                    className={cn(
-                                        'p-1.5 rounded-md transition-colors',
-                                        showHistory
-                                            ? (isDark ? 'bg-violet-600 text-white' : 'bg-violet-500 text-white')
-                                            : (isDark
-                                                ? 'hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200'
-                                                : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700')
-                                    )}
-                                    title="历史记录"
-                                >
-                                    <History size={16} />
-                                </button>
-
-                                {/* 关闭/收起侧边栏 */}
-                                <button
-                                    onClick={onToggle}
-                                    className={cn(
-                                        'p-1.5 rounded-md transition-colors',
-                                        isDark
-                                            ? 'hover:bg-zinc-700 text-zinc-400 hover:text-red-400'
-                                            : 'hover:bg-zinc-100 text-zinc-500 hover:text-red-500'
-                                    )}
-                                    title="收起侧边栏"
-                                >
-                                    <X size={16} />
-                                </button>
-                            </div>
+                            title={t('aiSidebar.deleteConversation')}
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
-
-                        {/* 历史面板 */}
-                        <AnimatePresence>
-                            {showHistory && (
-                                <motion.div
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: 'auto', opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
-                                    transition={{ duration: 0.2 }}
-                                    className={cn(
-                                        'border-b overflow-hidden',
-                                        isDark ? 'border-zinc-700/50 bg-zinc-800/50' : 'border-zinc-200/50 bg-zinc-50/50'
-                                    )}
-                                >
-                                    <div className="max-h-64 overflow-y-auto p-2 space-y-1">
-                                        {isHistoryLoading ? (
-                                            <div className="text-center py-4 text-zinc-500">加载中...</div>
-                                        ) : conversations.length === 0 ? (
-                                            <div className="text-center py-4 text-zinc-500">暂无历史对话</div>
-                                        ) : (
-                                            conversations.map((conv) => (
-                                                <div
-                                                    key={conv.id}
-                                                    onClick={() => handleSelectConversation(conv)}
-                                                    className={cn(
-                                                        'flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer group',
-                                                        'transition-colors',
-                                                        conv.is_active
-                                                            ? (isDark ? 'bg-violet-600/20 text-violet-300' : 'bg-violet-100 text-violet-700')
-                                                            : (isDark ? 'hover:bg-zinc-700' : 'hover:bg-zinc-100')
-                                                    )}
-                                                >
-                                                    <MessageSquare size={14} className="flex-shrink-0" />
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className={cn(
-                                                            'text-sm font-medium truncate',
-                                                            isDark ? 'text-zinc-200' : 'text-zinc-700'
-                                                        )}>
-                                                            {conv.title}
-                                                        </div>
-                                                        <div className="text-xs text-zinc-500">
-                                                            {conv.message_count} 条消息
-                                                        </div>
-                                                    </div>
-                                                    <button
-                                                        onClick={(e) => handleDeleteConversation(conv.id, e)}
-                                                        className={cn(
-                                                            'opacity-0 group-hover:opacity-100 p-1 rounded',
-                                                            'transition-opacity',
-                                                            isDark ? 'hover:bg-red-600/20 text-red-400' : 'hover:bg-red-100 text-red-500'
-                                                        )}
-                                                        title="删除对话"
-                                                    >
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                </div>
-                                            ))
-                                        )}
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-
-                        {/* 聊天界面 - 统一的聊天体验，模式只影响 AI 行为 */}
-                        <div className="flex-1 overflow-hidden">
-                            <AgentMode
-                                roomId={roomId}
-                                isDark={isDark}
-                                mode={mode}
-                                onModeChange={setMode}
-                                excalidrawAPI={excalidrawAPI}
-                                onFirstMessage={handleFirstMessage}
-                                conversationId={activeConversationId}
-                            />
-                        </div>
-                    </motion.aside>
-                )}
+                      ))
+                    )}
+                  </div>
+                </motion.div>
+              )}
             </AnimatePresence>
-        </>
-    );
+
+            <div className="flex-1 overflow-hidden">
+              <AgentMode
+                roomId={roomId}
+                isDark={isDark}
+                mode={mode}
+                onModeChange={setMode}
+                excalidrawAPI={excalidrawAPI}
+                onFirstMessage={handleFirstMessage}
+                conversationId={activeConversationId}
+                diagramTarget={diagramTarget}
+              />
+            </div>
+          </motion.aside>
+        )}
+      </AnimatePresence>
+    </>
+  );
 };

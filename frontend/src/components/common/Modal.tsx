@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * 模块名称: Modal
  * 主要功能: 自定义模态弹窗组件
@@ -6,6 +7,7 @@
 import React, { useEffect, useCallback } from 'react'
 import { X, AlertTriangle, Info, CheckCircle, AlertCircle } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { useI18n } from '../../i18n'
 import { useThemeStore } from '../../stores/useThemeStore'
 
 // ==================== 基础 Modal ====================
@@ -123,9 +125,11 @@ export const AlertDialog: React.FC<AlertDialogProps> = ({
   title,
   message,
   type = 'info',
-  confirmText = '确定',
+  confirmText,
 }) => {
   const { theme } = useThemeStore()
+  const { t } = useI18n()
+  const resolvedConfirmText = confirmText ?? t('modal.confirm')
 
   const icons = {
     info: <Info className="text-blue-500" size={24} />,
@@ -163,7 +167,7 @@ export const AlertDialog: React.FC<AlertDialogProps> = ({
             onClick={onClose}
             className={cn('px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors', buttonColors[type])}
           >
-            {confirmText}
+            {resolvedConfirmText}
           </button>
         </div>
       </div>
@@ -192,11 +196,14 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   title,
   message,
   type = 'warning',
-  confirmText = '确定',
-  cancelText = '取消',
+  confirmText,
+  cancelText,
   isLoading = false,
 }) => {
   const { theme } = useThemeStore()
+  const { t } = useI18n()
+  const resolvedConfirmText = confirmText ?? t('modal.confirm')
+  const resolvedCancelText = cancelText ?? t('modal.cancel')
 
   const handleConfirm = useCallback(() => {
     if (!isLoading) {
@@ -243,7 +250,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
               isLoading && 'opacity-50 cursor-not-allowed'
             )}
           >
-            {cancelText}
+            {resolvedCancelText}
           </button>
           <button
             onClick={handleConfirm}
@@ -254,7 +261,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
               isLoading && 'opacity-50 cursor-not-allowed'
             )}
           >
-            {isLoading ? '处理中...' : confirmText}
+            {isLoading ? t('modal.processing') : resolvedConfirmText}
           </button>
         </div>
       </div>

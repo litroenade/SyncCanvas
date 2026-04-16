@@ -1,13 +1,9 @@
 import { useEffect, useMemo, useRef } from 'react'
+
+import { useI18n } from '../../i18n'
+import { cn } from '../../lib/utils'
 import { useCollabEventStore } from '../../stores/collab_event_store'
 import type { CollabEvent, CollabEventType } from '../../types'
-import { cn } from '../../lib/utils'
-
-const typeLabels: Record<CollabEventType, string> = {
-  add: '新增',
-  delete: '删除',
-  update: '更新',
-}
 
 const typeColors: Record<CollabEventType, string> = {
   add: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-100 dark:border-emerald-800/60',
@@ -24,14 +20,20 @@ const getColorFromName = (name: string) => {
   return palette[Math.abs(hash) % palette.length]
 }
 
-const formatTime = (ts: number) => new Date(ts).toLocaleTimeString()
+interface EventItemProps {
+  event: CollabEvent
+  typeLabels: Record<CollabEventType, string>
+  meLabel: string
+  formatTime: (timestamp: number) => string
+}
 
-const EventItem = ({ event }: { event: CollabEvent }) => {
+const EventItem = ({ event, typeLabels, meLabel, formatTime }: EventItemProps) => {
   const color = getColorFromName(event.actorName)
+
   return (
-    <div className="flex gap-3 py-2 px-3 border-b border-zinc-100 dark:border-zinc-800 last:border-0">
+    <div className="flex gap-3 border-b border-zinc-100 px-3 py-2 last:border-0 dark:border-zinc-800">
       <div
-        className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold text-white shrink-0"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
         style={{ backgroundColor: color }}
         title={event.actorName}
       >
@@ -39,78 +41,101 @@ const EventItem = ({ event }: { event: CollabEvent }) => {
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-          <span>{event.isMe ? '我' : event.actorName}</span>
-          <span className={cn('text-[11px] px-2 py-[2px] rounded-full border', typeColors[event.type])}>
+          <span>{event.isMe ? meLabel : event.actorName}</span>
+          <span className={cn('rounded-full border px-2 py-[2px] text-[11px]', typeColors[event.type])}>
             {typeLabels[event.type]}
           </span>
           <span className="text-[11px] text-zinc-400 dark:text-zinc-500">{event.elementType}</span>
-          <span className="text-[11px] text-zinc-400 dark:text-zinc-500 ml-auto">{formatTime(event.ts)}</span>
+          <span className="ml-auto text-[11px] text-zinc-400 dark:text-zinc-500">
+            {formatTime(event.ts)}
+          </span>
         </div>
-        <div className="text-[13px] text-zinc-600 dark:text-zinc-300 mt-1 line-clamp-2">{event.summary}</div>
+        <div className="mt-1 line-clamp-2 text-[13px] text-zinc-600 dark:text-zinc-300">
+          {event.summary}
+        </div>
       </div>
     </div>
   )
 }
 
 export const CollabEventsPanel = () => {
+  const { t, locale } = useI18n()
   const { events, memberFilter, typeFilter, setMemberFilter, toggleType } = useCollabEventStore()
   const listRef = useRef<HTMLDivElement | null>(null)
 
+  const typeLabels = useMemo<Record<CollabEventType, string>>(
+    () => ({
+      add: t('collabEvents.type.add'),
+      delete: t('collabEvents.type.delete'),
+      update: t('collabEvents.type.update'),
+    }),
+    [t],
+  )
+
   const members = useMemo(() => {
     const map = new Map<string, string>()
-    events.forEach((e) => {
-      if (!map.has(e.actorId)) {
-        map.set(e.actorId, e.actorName)
+    events.forEach((event) => {
+      if (!map.has(event.actorId)) {
+        map.set(event.actorId, event.actorName)
       }
     })
     return Array.from(map.entries())
   }, [events])
 
   const filtered = useMemo(() => {
-    return events.filter((e) => {
-      if (memberFilter !== 'all' && e.actorId !== memberFilter) return false
-      if (typeFilter && !typeFilter.has(e.type)) return false
+    return events.filter((event) => {
+      if (memberFilter !== 'all' && event.actorId !== memberFilter) return false
+      if (typeFilter && !typeFilter.has(event.type)) return false
       return true
     })
   }, [events, memberFilter, typeFilter])
 
+  const formatTime = useMemo(() => {
+    const formatter = new Intl.DateTimeFormat(locale, {
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+    return (timestamp: number) => formatter.format(new Date(timestamp))
+  }, [locale])
+
   useEffect(() => {
-    const el = listRef.current
-    if (!el) return
-    if (el.scrollTop < 24) {
-      el.scrollTo({ top: 0, behavior: 'smooth' })
+    const element = listRef.current
+    if (!element) return
+    if (element.scrollTop < 24) {
+      element.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }, [events.length])
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
-      <div className="p-3 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950/80">
-        <div className="flex items-center gap-2 mb-3">
+    <div className="flex h-full flex-col bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+      <div className="border-b border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950/80">
+        <div className="mb-3 flex items-center gap-2">
           <select
             value={memberFilter}
-            onChange={(e) => setMemberFilter(e.target.value)}
-            className="text-sm border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1 bg-white dark:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(event) => setMemberFilter(event.target.value)}
+            className="rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-900"
           >
-            <option value="all">所有成员</option>
+            <option value="all">{t('collabEvents.memberFilter.all')}</option>
             {members.map(([id, name]) => (
               <option key={id} value={id}>{name}</option>
             ))}
           </select>
-          <div className="flex items-center gap-2 ml-auto">
-            {(['add', 'delete', 'update'] as CollabEventType[]).map((t) => {
-              const active = !typeFilter || typeFilter.has(t)
+          <div className="ml-auto flex items-center gap-2">
+            {(['add', 'delete', 'update'] as CollabEventType[]).map((type) => {
+              const active = !typeFilter || typeFilter.has(type)
+
               return (
                 <button
-                  key={t}
-                  onClick={() => toggleType(t)}
+                  key={type}
+                  onClick={() => toggleType(type)}
                   className={cn(
-                    'text-xs px-2 py-1 rounded-md border transition-colors',
+                    'rounded-md border px-2 py-1 text-xs transition-colors',
                     active
-                      ? 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-900/40 dark:text-blue-100 dark:border-blue-800/60'
-                      : 'bg-white text-zinc-500 border-zinc-200 dark:bg-zinc-900 dark:text-zinc-400 dark:border-zinc-700'
+                      ? 'border-blue-200 bg-blue-50 text-blue-600 dark:border-blue-800/60 dark:bg-blue-900/40 dark:text-blue-100'
+                      : 'border-zinc-200 bg-white text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400',
                   )}
                 >
-                  {typeLabels[t]}
+                  {typeLabels[type]}
                 </button>
               )
             })}
@@ -120,10 +145,18 @@ export const CollabEventsPanel = () => {
 
       <div ref={listRef} className="flex-1 overflow-auto">
         {filtered.length === 0 && (
-          <div className="p-6 text-sm text-zinc-400 dark:text-zinc-500 text-center">暂无事件</div>
+          <div className="p-6 text-center text-sm text-zinc-400 dark:text-zinc-500">
+            {t('collabEvents.empty')}
+          </div>
         )}
         {filtered.map((event) => (
-          <EventItem key={event.id} event={event} />
+          <EventItem
+            key={event.id}
+            event={event}
+            typeLabels={typeLabels}
+            meLabel={t('collabEvents.actor.me')}
+            formatTime={formatTime}
+          />
         ))}
       </div>
     </div>

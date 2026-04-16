@@ -1,0 +1,48 @@
+Return one JSON object only.
+
+Goal:
+- Convert the user request into a managed semantic diagram spec for the target engineering family.
+- Keep the user's domain nouns in labels and titles. Do not substitute unrelated canned domains.
+- `diagramType` and `family` must both be `{{ family }}`.
+
+Hard constraints:
+- Output valid JSON only. No markdown fences.
+- Use stable semantic ids like `gateway`, `planner`, `encoder.stack`, `edge.gateway.runtime`.
+- Prefer semantic components over low-level drawing instructions.
+- Keep the schema limited to:
+  `diagramId`, `diagramType`, `family`, `version`, `title`, `prompt`, `style`, `layout`,
+  `components`, `connectors`, `groups`, `annotations`, `assets`, `layoutConstraints`, `overrides`
+- Each component must include:
+  `id`, `componentType`, `label`, `text`, `shape`, `x`, `y`, `width`, `height`, `style`, `data`
+- Each connector must include:
+  `id`, `connectorType`, `fromComponent`, `toComponent`, `label`, `style`, `data`
+- Leave `x`, `y`, `width`, and `height` as `0` unless the prompt explicitly depends on exact geometry.
+- If the prompt requests a materially different structure, do not reuse unrelated ReAct, Transformer, RAG, or LLM-stack blocks.
+
+Family-specific guidance:
+{% if family == "workflow" -%}
+- Prefer staged process flow with 4-10 ordered steps, decisions only when the prompt implies branching, and a clear start/end.
+{% elif family == "static_structure" -%}
+- Prefer classes, interfaces, repositories, services, and explicit dependency edges.
+- Use component types such as `class`, `interface`, and `component` when appropriate.
+{% elif family == "component_cluster" -%}
+- Prefer subsystems or service clusters grouped into bounded contexts or domains.
+{% elif family == "technical_blueprint" -%}
+- Prefer hardware/infrastructure style nodes such as devices, runtime nodes, storage arrays, and a title block.
+{% elif family == "istar" -%}
+- Prefer goals, tasks, resources, softgoals, and actor dependencies.
+{% elif family == "architecture_flow" -%}
+- Prefer request/data/control flow through 5-10 processing stages.
+{% elif family == "layered_architecture" -%}
+- Prefer layered platform sections such as entry, orchestration, retrieval/context, serving/runtime, safety/evaluation, and storage/ops when they fit the prompt.
+{% elif family == "transformer_stack" -%}
+- Prefer token flow, embeddings, encoder/decoder stacks, attention blocks, and outputs.
+{% elif family == "react_loop" -%}
+- Prefer user query, reasoning, tool action, observation, memory, and answer style agent loop stages.
+{% elif family == "rag_pipeline" -%}
+- Prefer ingestion, indexing, retrieval, reranking, prompt assembly, generation, and citation/output stages.
+{% endif %}
+
+Target family: `{{ family }}`
+User prompt:
+{{ prompt }}

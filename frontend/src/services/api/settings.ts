@@ -72,7 +72,7 @@ export const settingsApi = {
      * 获取 AI 配置
      */
     async getAIConfig(): Promise<AIConfig> {
-        const response = await apiClient.get<AIConfig>('/settings/ai');
+        const response = await apiClient.get<AIConfig>('/config/ai');
         return response.data;
     },
 
@@ -80,7 +80,7 @@ export const settingsApi = {
      * 更新 AI 配置
      */
     async updateAIConfig(update: AIConfigUpdate): Promise<AIConfig> {
-        const response = await apiClient.put<AIConfig>('/settings/ai', update);
+        const response = await apiClient.put<AIConfig>('/config/ai', update);
         return response.data;
     },
 
@@ -88,7 +88,7 @@ export const settingsApi = {
      * 获取常用供应商
      */
     async getProviders(): Promise<ProviderInfo[]> {
-        const response = await apiClient.get<ProviderInfo[]>('/settings/ai/providers');
+        const response = await apiClient.get<ProviderInfo[]>('/config/ai/providers');
         return response.data;
     },
 
@@ -101,8 +101,8 @@ export const settingsApi = {
         if (apiKey) params.append('api_key', apiKey);
 
         const url = params.toString()
-            ? `/settings/ai/models?${params}`
-            : '/settings/ai/models';
+            ? `/config/ai/models?${params}`
+            : '/config/ai/models';
 
         const response = await apiClient.get<ModelsResponse>(url);
         return response.data;

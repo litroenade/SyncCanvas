@@ -5,7 +5,6 @@
  * 模型组结构:
  * - name: 组名称
  * - chat_model: 对话模型 (必填)
- * - vision_model: 视觉模型 (可选)
  * - embedding_model: 嵌入模型 (可选)
  */
 
@@ -23,12 +22,12 @@ import {
     Loader2,
     Copy,
     MessageSquare,
-    Image,
     Database,
     ChevronDown,
     RefreshCw,
     AlertCircle
 } from 'lucide-react';
+import { useI18n } from '../../i18n';
 import { cn } from '../../lib/utils';
 
 interface ModelSettingsDialogProps {
@@ -39,12 +38,12 @@ interface ModelSettingsDialogProps {
 
 // 预设供应商列表
 const PROVIDERS = [
-    { name: 'OpenAI', url: 'https://api.openai.com/v1' },
-    { name: 'SiliconFlow', url: 'https://api.siliconflow.cn/v1' },
-    { name: '火山引擎', url: 'https://ark.cn-beijing.volces.com/api/v3' },
-    { name: '阿里通义', url: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
-    { name: 'Gemini', url: 'https://generativelanguage.googleapis.com/v1beta/openai' },
-    { name: 'DeepSeek', url: 'https://api.deepseek.com/v1' },
+    { nameKey: 'modelSettings.provider.openai', url: 'https://api.openai.com/v1' },
+    { nameKey: 'modelSettings.provider.siliconFlow', url: 'https://api.siliconflow.cn/v1' },
+    { nameKey: 'modelSettings.provider.volcengine', url: 'https://ark.cn-beijing.volces.com/api/v3' },
+    { nameKey: 'modelSettings.provider.qwen', url: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
+    { nameKey: 'modelSettings.provider.gemini', url: 'https://generativelanguage.googleapis.com/v1beta/openai' },
+    { nameKey: 'modelSettings.provider.deepseek', url: 'https://api.deepseek.com/v1' },
 ];
 
 // 空模型配置
@@ -53,28 +52,26 @@ const emptyModelConfig: ModelConfig = {
     model: '',
     base_url: 'https://api.openai.com/v1',
     api_key: '',
-    enable_vision: true,
     enable_cot: false,
 };
 
 // 模型类型配置
 const MODEL_SLOTS = [
-    { key: 'chat_model' as const, label: '对话模型', icon: MessageSquare, color: 'text-blue-400', required: true },
-    { key: 'vision_model' as const, label: '视觉模型', icon: Image, color: 'text-purple-400', required: false },
-    { key: 'embedding_model' as const, label: '嵌入模型', icon: Database, color: 'text-green-400', required: false },
+    { key: 'chat_model' as const, labelKey: 'modelSettings.slot.chat', icon: MessageSquare, color: 'text-blue-400', required: true },
+    { key: 'embedding_model' as const, labelKey: 'modelSettings.slot.embedding', icon: Database, color: 'text-green-400', required: false },
 ];
 
-type ModelSlotKey = 'chat_model' | 'vision_model' | 'embedding_model';
+type ModelSlotKey = 'chat_model' | 'embedding_model';
 
 interface EditingGroup {
     name: string;
     isNew: boolean;
     chat_model: ModelConfig;
-    vision_model: ModelConfig | null;
     embedding_model: ModelConfig | null;
 }
 
 export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSettingsDialogProps) {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const [editingGroup, setEditingGroup] = useState<EditingGroup | null>(null);
     const [activeSlot, setActiveSlot] = useState<ModelSlotKey>('chat_model');
@@ -117,7 +114,7 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
         },
         onError: (error: Error) => {
             console.error('保存模型组失败:', error);
-            alert(`保存失败: ${error.message}`);
+            alert(t('modelSettings.saveError', { message: error.message }));
         },
     });
 
@@ -131,7 +128,7 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
 
     const handleNewGroup = () => {
         // 生成默认名称: 我的模型组, 我的模型组 1, 我的模型组 2...
-        const baseName = '我的模型组';
+        const baseName = t('modelSettings.defaultGroupNameBase');
         const existingNames = Object.keys(modelGroups);
         let newName = baseName;
         let counter = 1;
@@ -143,7 +140,6 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
             name: newName,
             isNew: true,
             chat_model: { ...emptyModelConfig },
-            vision_model: null,
             embedding_model: null,
         });
         setActiveSlot('chat_model');
@@ -154,7 +150,6 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
             name,
             isNew: false,
             chat_model: { ...group.chat_model },
-            vision_model: group.vision_model ? { ...group.vision_model } : null,
             embedding_model: group.embedding_model ? { ...group.embedding_model } : null,
         });
         setActiveSlot('chat_model');
@@ -165,7 +160,6 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
             name: `${name}_copy`,
             isNew: true,
             chat_model: { ...group.chat_model },
-            vision_model: group.vision_model ? { ...group.vision_model } : null,
             embedding_model: group.embedding_model ? { ...group.embedding_model } : null,
         });
         setActiveSlot('chat_model');
@@ -187,8 +181,8 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
         setModelList([]);
 
         try {
-            let baseUrl = config.base_url.replace(/\/+$/, '');
-            let endpoints = [];
+            const baseUrl = config.base_url.replace(/\/+$/, '');
+            const endpoints = [];
             if (baseUrl.endsWith('/v1')) {
                 endpoints.push(`${baseUrl}/models`);
             } else {
@@ -216,9 +210,9 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
                             break;
                         }
                     } else if (res.status === 401) {
-                        throw new Error("API Key 无效 (401)");
+                        throw new Error(t('modelSettings.fetchError.invalidApiKey'));
                     } else if (res.status === 403) {
-                        throw new Error("余额不足或无权限 (403)");
+                        throw new Error(t('modelSettings.fetchError.permissionDenied'));
                     }
                 } catch (e) {
                     // ignore and try next
@@ -234,11 +228,11 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
             if (success) {
                 setModelList(models);
             } else {
-                setFetchError('无法连接到 API 或未找到模型列表');
+                setFetchError(t('modelSettings.fetchError.connectionFailed'));
             }
 
         } catch (e) {
-            setFetchError(e instanceof Error ? e.message : '获取失败');
+            setFetchError(e instanceof Error ? e.message : t('modelSettings.fetchError.generic'));
         } finally {
             setFetchingModels(false);
         }
@@ -258,7 +252,6 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
         const group: ModelGroup = {
             name: editingGroup.name,
             chat_model: editingGroup.chat_model,
-            vision_model: editingGroup.vision_model,
             embedding_model: editingGroup.embedding_model,
         };
 
@@ -331,7 +324,11 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
                 {/* 头部 */}
                 <div className={cn('flex items-center justify-between p-4 border-b', borderColor)}>
                     <h2 className="text-lg font-semibold">
-                        {editingGroup ? (editingGroup.isNew ? '新建模型组' : `编辑: ${editingGroup.name}`) : '模型配置'}
+                        {editingGroup
+                            ? (editingGroup.isNew
+                                ? t('modelSettings.newGroupTitle')
+                                : t('modelSettings.editGroupTitle', { name: editingGroup.name }))
+                            : t('modelSettings.title')}
                     </h2>
                     <button onClick={() => editingGroup ? setEditingGroup(null) : onClose()} className="p-2 hover:bg-zinc-500/20 rounded-lg">
                         <X size={20} />
@@ -343,13 +340,14 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
                     {isLoading ? (
                         <div className="flex items-center justify-center py-12">
                             <Loader2 className="animate-spin" size={32} />
+                            <span className="ml-3 text-sm opacity-70">{t('modelSettings.loading')}</span>
                         </div>
                     ) : editingGroup ? (
                         /* 编辑表单 */
                         <div className="space-y-4">
                             {/* 组名称 */}
                             <div>
-                                <label className="block text-sm mb-1.5 opacity-70">模型组名称</label>
+                                <label className="block text-sm mb-1.5 opacity-70">{t('modelSettings.groupNameLabel')}</label>
                                 <input
                                     type="text"
                                     value={editingGroup.name}
@@ -360,13 +358,13 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
                                         inputBg, borderColor,
                                         !editingGroup.isNew && 'opacity-60 cursor-not-allowed'
                                     )}
-                                    placeholder="我的模型组"
+                                    placeholder={t('modelSettings.groupNamePlaceholder')}
                                 />
                             </div>
 
                             {/* 三列模型选择 */}
-                            <div className="grid grid-cols-3 gap-3">
-                                {MODEL_SLOTS.map(({ key, label, icon: Icon, color, required }) => {
+                            <div className="grid grid-cols-2 gap-3">
+                                {MODEL_SLOTS.map(({ key, labelKey, icon: Icon, color, required }) => {
                                     const isActive = activeSlot === key;
                                     const isEnabled = editingGroup[key] !== null;
 
@@ -385,7 +383,7 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
                                             <div className="flex items-center justify-between mb-2">
                                                 <div className="flex items-center gap-2">
                                                     <Icon size={16} className={color} />
-                                                    <span className="text-sm font-medium">{label}</span>
+                                                    <span className="text-sm font-medium">{t(labelKey)}</span>
                                                 </div>
                                                 {!required && (
                                                     <input
@@ -401,7 +399,7 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
                                             </div>
                                             {isEnabled && editingGroup[key] && (
                                                 <div className="text-xs opacity-60 truncate font-mono">
-                                                    {editingGroup[key]!.model || '未配置'}
+                                                    {editingGroup[key]!.model || t('modelSettings.slot.unconfigured')}
                                                 </div>
                                             )}
                                         </button>
@@ -413,7 +411,7 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
                             {activeConfig && (
                                 <div className={cn('p-4 rounded-xl border space-y-4', borderColor, cardBg)}>
                                     <div>
-                                        <label className="block text-sm mb-1.5 opacity-70">API 地址</label>
+                                        <label className="block text-sm mb-1.5 opacity-70">{t('modelSettings.baseUrlLabel')}</label>
                                         <select
                                             value=""
                                             onChange={(e) => {
@@ -423,9 +421,9 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
                                             }}
                                             className={cn('w-full px-3 py-2.5 rounded-lg border text-sm mb-2', inputBg, borderColor)}
                                         >
-                                            <option value="">选择预设供应商...</option>
+                                            <option value="">{t('modelSettings.providerPresetPlaceholder')}</option>
                                             {PROVIDERS.map((p) => (
-                                                <option key={p.url} value={p.url}>{p.name}</option>
+                                                <option key={p.url} value={p.url}>{t(p.nameKey)}</option>
                                             ))}
                                         </select>
                                         <input
@@ -433,19 +431,19 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
                                             value={activeConfig.base_url}
                                             onChange={(e) => updateActiveSlotConfig({ base_url: e.target.value })}
                                             className={cn('w-full px-3 py-2.5 rounded-lg border text-sm font-mono', inputBg, borderColor)}
-                                            placeholder="https://api.openai.com/v1"
+                                            placeholder={t('modelSettings.baseUrlPlaceholder')}
                                         />
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm mb-1.5 opacity-70">API Key</label>
+                                        <label className="block text-sm mb-1.5 opacity-70">{t('modelSettings.apiKeyLabel')}</label>
                                         <div className="relative">
                                             <input
                                                 type={showApiKey ? 'text' : 'password'}
                                                 value={activeConfig.api_key}
                                                 onChange={(e) => updateActiveSlotConfig({ api_key: e.target.value })}
                                                 className={cn('w-full px-3 py-2.5 rounded-lg border text-sm font-mono pr-10', inputBg, borderColor)}
-                                                placeholder="sk-..."
+                                                placeholder={t('modelSettings.apiKeyPlaceholder')}
                                             />
                                             <button
                                                 type="button"
@@ -460,10 +458,10 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
                                     {/* 模型名称 (带自动完成) */}
                                     <div className="relative">
                                         <label className="block text-sm mb-1.5 opacity-70">
-                                            模型名称
+                                            {t('modelSettings.modelNameLabel')}
                                             {modelList.length > 0 && (
                                                 <span className="ml-2 text-xs opacity-50">
-                                                    (已加载 {modelList.length} 个模型)
+                                                    ({t('modelSettings.loadedModels', { count: modelList.length })})
                                                 </span>
                                             )}
                                         </label>
@@ -473,7 +471,7 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
                                                 value={activeConfig.model}
                                                 onChange={(e) => updateActiveSlotConfig({ model: e.target.value })}
                                                 className={cn('w-full px-3 py-2.5 rounded-lg border text-sm font-mono pr-24', inputBg, borderColor)}
-                                                placeholder="gpt-4o"
+                                                placeholder={t('modelSettings.modelPlaceholder')}
                                                 list="model-list-suggestions"
                                             />
 
@@ -487,14 +485,14 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
                                                     isDark ? "hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200" : "hover:bg-zinc-100 text-zinc-500 hover:text-zinc-800",
                                                     (fetchingModels || !activeConfig.base_url || !activeConfig.api_key) && "opacity-50 cursor-not-allowed"
                                                 )}
-                                                title="测试连接并获取模型列表"
+                                                title={t('modelSettings.fetchModelsTitle')}
                                             >
                                                 {fetchingModels ? (
                                                     <Loader2 size={14} className="animate-spin" />
                                                 ) : (
                                                     <RefreshCw size={14} />
                                                 )}
-                                                {fetchingModels ? '获取中...' : '刷新列表'}
+                                                {fetchingModels ? t('modelSettings.fetchModelsLoading') : t('modelSettings.fetchModels')}
                                             </button>
                                         </div>
 
@@ -521,19 +519,19 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
                                     onClick={() => setEditingGroup(null)}
                                     className="px-4 py-2 rounded-lg text-sm opacity-70 hover:opacity-100"
                                 >
-                                    取消
+                                    {t('modelSettings.cancel')}
                                 </button>
                                 <button
                                     onClick={handleSave}
                                     disabled={saveMutation.isPending || !editingGroup.name.trim() || !editingGroup.chat_model.model}
                                     className={cn(
-                                        'px-5 py-2 rounded-lg text-sm font-medium flex items-center gap-2',
-                                        isDark ? 'bg-white text-black' : 'bg-black text-white',
+                                        'px-5 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors',
+                                        'bg-blue-600 text-white hover:bg-blue-500',
                                         (saveMutation.isPending || !editingGroup.name.trim() || !editingGroup.chat_model.model) && 'opacity-50 cursor-not-allowed'
                                     )}
                                 >
                                     {saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                                    保存
+                                    {t('modelSettings.save')}
                                 </button>
                             </div>
                         </div>
@@ -541,7 +539,7 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
                         <>
                             {/* 当前模型组选择器 */}
                             <div className={cn('p-4 rounded-xl border', borderColor, cardBg)}>
-                                <h3 className="text-sm font-medium mb-3 opacity-70">当前使用的模型组</h3>
+                                <h3 className="text-sm font-medium mb-3 opacity-70">{t('modelSettings.currentGroupLabel')}</h3>
                                 <div className="relative">
                                     <select
                                         value={currentModels?.current || ''}
@@ -553,7 +551,7 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
                                         )}
                                         disabled={switchMutation.isPending}
                                     >
-                                        <option value="">默认配置</option>
+                                        <option value="">{t('modelSettings.defaultConfig')}</option>
                                         {groupNames.map((name) => (
                                             <option key={name} value={name}>{name}</option>
                                         ))}
@@ -564,7 +562,7 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
 
                             {/* 模型组列表 */}
                             <div>
-                                <h3 className="text-sm font-medium mb-3 opacity-70">模型组列表</h3>
+                                <h3 className="text-sm font-medium mb-3 opacity-70">{t('modelSettings.groupListLabel')}</h3>
                                 <div className="space-y-3">
                                     {Object.entries(modelGroups).map(([name, group]) => (
                                         <div
@@ -582,12 +580,6 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
                                                         <MessageSquare size={12} className="text-blue-400" />
                                                         {group.chat_model.model}
                                                     </span>
-                                                    {group.vision_model && (
-                                                        <span className="flex items-center gap-1">
-                                                            <Image size={12} className="text-purple-400" />
-                                                            {group.vision_model.model}
-                                                        </span>
-                                                    )}
                                                     {group.embedding_model && (
                                                         <span className="flex items-center gap-1">
                                                             <Database size={12} className="text-green-400" />
@@ -600,21 +592,21 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
                                                 <button
                                                     onClick={() => handleCopyGroup(name, group)}
                                                     className="p-2 hover:bg-zinc-500/20 rounded-lg"
-                                                    title="复制"
+                                                    title={t('modelSettings.copy')}
                                                 >
                                                     <Copy size={16} />
                                                 </button>
                                                 <button
                                                     onClick={() => handleEditGroup(name, group)}
                                                     className="p-2 hover:bg-zinc-500/20 rounded-lg"
-                                                    title="编辑"
+                                                    title={t('modelSettings.edit')}
                                                 >
                                                     <Edit2 size={16} />
                                                 </button>
                                                 <button
                                                     onClick={() => deleteMutation.mutate(name)}
                                                     className="p-2 hover:bg-red-500/20 text-red-400 rounded-lg"
-                                                    title="删除"
+                                                    title={t('modelSettings.delete')}
                                                 >
                                                     <Trash2 size={16} />
                                                 </button>
@@ -624,7 +616,7 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
 
                                     {Object.keys(modelGroups).length === 0 && (
                                         <div className="text-center py-8 opacity-50">
-                                            暂无模型配置
+                                            {t('modelSettings.emptyState')}
                                         </div>
                                     )}
 
@@ -637,7 +629,7 @@ export function ModelSettingsDialog({ open, onClose, isDark = false }: ModelSett
                                         )}
                                     >
                                         <Plus size={20} />
-                                        添加模型组
+                                        {t('modelSettings.addGroup')}
                                     </button>
                                 </div>
                             </div>

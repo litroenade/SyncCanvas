@@ -1,0 +1,43 @@
+"""Shared Excalidraw constants."""
+
+from typing import Final, Tuple
+
+DEFAULT_NODE_WIDTH: Final[float] = 160.0
+DEFAULT_NODE_HEIGHT: Final[float] = 70.0
+DEFAULT_DIAMOND_MIN_SIZE: Final[float] = 100.0
+DEFAULT_ELLIPSE_MIN_WIDTH: Final[float] = 120.0
+DEFAULT_ELEMENT_SIZE: Final[float] = 100.0
+
+DEFAULT_FONT_SIZE: Final[int] = 18
+DEFAULT_FONT_SIZE_SMALL: Final[int] = 14
+DEFAULT_FONT_SIZE_LARGE: Final[int] = 20
+
+DEFAULT_FONT_FAMILY: Final[int] = 1
+FONT_FAMILY_VIRGIL: Final[int] = 1
+FONT_FAMILY_HELVETICA: Final[int] = 2
+FONT_FAMILY_CASCADIA: Final[int] = 3
+
+DEFAULT_LINE_HEIGHT: Final[float] = 1.25
+DEFAULT_STROKE_WIDTH: Final[int] = 2
+DEFAULT_OPACITY: Final[int] = 100
+DEFAULT_ROUGHNESS: Final[int] = 1
+
+ROUNDNESS_TYPE_ADAPTIVE: Final[int] = 2
+ROUNDNESS_TYPE_PROPORTIONAL: Final[int] = 3
+
+SEED_RANGE: Final[Tuple[int, int]] = (1, 100000)
+VERSION_NONCE_RANGE: Final[Tuple[int, int]] = (1, 1000000000)
+
+DEFAULT_ARROW_GAP: Final[float] = 8.0
+DEFAULT_ARROW_FOCUS: Final[float] = 0.0
+
+DEFAULT_HORIZONTAL_GAP: Final[float] = 60.0
+DEFAULT_VERTICAL_GAP: Final[float] = 80.0
+DEFAULT_START_X: Final[float] = 400.0
+DEFAULT_START_Y: Final[float] = 100.0
+
+PATHFINDING_GRID_SIZE: Final[float] = 10.0
+PATHFINDING_OBSTACLE_PADDING: Final[float] = 25.0
+PATHFINDING_MAX_ITERATIONS: Final[int] = 2000
+PATHFINDING_TURN_PENALTY: Final[float] = 0.5
+

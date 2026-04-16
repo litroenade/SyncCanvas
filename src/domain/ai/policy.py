@@ -1,0 +1,8 @@
+"""AI mode policy helpers."""
+
+AI_CONVERSATION_MODES = {"agent", "planning", "mermaid"}
+
+
+def normalize_mode(mode: str | None) -> str:
+    normalized = (mode or "").strip().lower()
+    return normalized if normalized in AI_CONVERSATION_MODES else "planning"

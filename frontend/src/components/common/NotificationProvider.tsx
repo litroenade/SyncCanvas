@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * 模块名称: NotificationProvider
  * 主要功能: 全局通知系统提供者

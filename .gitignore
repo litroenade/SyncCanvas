@@ -33,13 +33,10 @@ frontend/public
 # Logs
 logs/
 *.log
+.pytest_cache/
 
 
 # Data directory - keep structure, ignore contents
-data/*.db
-data/*.json
-data/images/*
-!data/.gitkeep
-!data/images/.gitkeep
-data/lib/*
-!data/lib/.gitkeep
+data/*
+
+
